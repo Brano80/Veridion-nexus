@@ -152,6 +152,7 @@ pub async fn list_events(
     event_type: Option<&str>,
     search: Option<&str>,
     destination_country: Option<&str>,
+    source_system: Option<&str>,
     limit: i64,
     offset: i64,
 ) -> Result<(Vec<EvidenceEventResponse>, i64), String> {
@@ -180,14 +181,20 @@ pub async fn list_events(
             idx = bind_idx
         ));
     }
+    if source_system.is_some() {
+        bind_idx += 1;
+        conditions.push(format!("source_system = ${}", bind_idx));
+    }
 
     let where_clause = conditions.join(" AND ");
+    bind_idx += 1;
+    let offset_idx = bind_idx;
     bind_idx += 1;
     let limit_idx = bind_idx;
 
     let query_str = format!(
-        "SELECT * FROM evidence_events WHERE {} ORDER BY created_at DESC LIMIT ${}",
-        where_clause, limit_idx
+        "SELECT * FROM evidence_events WHERE {} ORDER BY created_at DESC OFFSET ${} LIMIT ${}",
+        where_clause, offset_idx, limit_idx
     );
     let count_str = format!(
         "SELECT COUNT(*) FROM evidence_events WHERE {}",
@@ -212,6 +219,10 @@ pub async fn list_events(
     if let Some(dc) = destination_country {
         query = query.bind(dc.to_string());
         count_query = count_query.bind(dc.to_string());
+    }
+    if let Some(ss) = source_system {
+        query = query.bind(ss.to_string());
+        count_query = count_query.bind(ss.to_string());
     }
 
     query = query.bind(offset).bind(limit);

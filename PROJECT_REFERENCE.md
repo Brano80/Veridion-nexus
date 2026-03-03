@@ -1,7 +1,7 @@
 # Project Reference — Veridion API / Sovereign Shield
 
-**Version:** 1.1  
-**Last updated:** 2026-02-26
+**Version:** 1.2  
+**Last updated:** 2026-03-03
 
 This is the **single project reference** for Veridion API: vision, scope, tech stack, configuration, and current behaviour (dashboard and API). Use it to onboard, scope work, and keep the codebase and docs aligned.
 
@@ -29,8 +29,8 @@ The vision is a **single, deployable API** that owns its schema and can grow fro
 |--------|-------------|
 | **Product** | Standalone REST API plus Sovereign Shield dashboard (Next.js). Own PostgreSQL database. Own migrations. |
 | **Boundary** | No shared migrations, shared DB, or shared Rust crates with veridion-nexus or other repos. |
-| **Current scope** | Health, dev auth (JWT), CORS; Evidence Vault (events, verify-integrity, PDF export); Sovereign Shield (ingest/evaluate, evidence + review queue); SCC registries (CRUD, PATCH tia_completed, dpa_id, scc_module; auto-approve on register); Human Oversight (review queue, pending/decided, approve/reject, decided-evidence-ids). Migrations 001–024. |
-| **Planned scope** | Crypto Shredder API, further dashboard features, production auth. |
+| **Current scope** | Health, dev auth (JWT), CORS; Evidence Vault (events, verify-integrity, PDF export); Sovereign Shield (ingest/evaluate, evidence + review queue); SCC registries (CRUD, PATCH tia_completed, dpa_id, scc_module; auto-approve on register); Human Oversight (review queue, pending/decided, approve/reject, decided-evidence-ids); Crypto Shredder (erasure execute). Migrations 001–024. |
+| **Planned scope** | Further dashboard features, production auth. |
 
 **What it is not:** Not a fork or subset of veridion-nexus. Not a monorepo member that shares `migrations/` or `src/` with another project.
 
@@ -120,24 +120,65 @@ veridion-api/
 
 ## 8. Endpoints (summary)
 
+### 8.1 Core endpoints
+
 | Method + path | Purpose |
 |---------------|--------|
+| `GET /` | API info (name, version, docs) |
 | `GET /health` | Liveness |
 | `GET /api/v1/auth/dev-bypass` | Developer login (JWT) |
-| `GET /api/v1/evidence/events` | List evidence events |
+| `GET /api/v1/auth/me` | Get current user from JWT token |
+| `GET /api/v1/system/config` | System configuration (runtime mode, enforcement mode) |
+| `GET /api/v1/my/enabled-modules` | Enabled modules (returns empty array) |
+| `GET /api/v1/modules` | Available modules (returns empty array) |
+| `GET /api/v1/audit/alerts` | Audit alerts (returns empty array) |
+
+### 8.2 Evidence Vault
+
+| Method + path | Purpose |
+|---------------|--------|
+| `GET /api/v1/evidence/events` | List evidence events (with pagination, filters: severity, event_type, search, destination_country, source_system, limit, offset); returns `events`, `totalCount`, `merkleRoots` |
+| `POST /api/v1/evidence/events` | Create evidence event |
 | `POST /api/v1/evidence/verify-integrity` | Verify chain integrity |
+
+### 8.3 Sovereign Shield
+
+| Method + path | Purpose |
+|---------------|--------|
+| `POST /api/v1/shield/evaluate` | Evaluate transfer (synchronous runtime enforcement) |
+| `POST /api/v1/shield/ingest-logs` | Batch ingest transfer logs |
+| `GET /api/v1/lenses/sovereign-shield/stats` | Shield statistics |
+| `GET /api/v1/lenses/sovereign-shield/countries` | Country classifications |
+| `GET /api/v1/lenses/sovereign-shield/requires-attention` | Items requiring attention |
+| `GET /api/v1/lenses/sovereign-shield/transfers/by-destination` | Transfers grouped by destination |
+
+### 8.4 SCC Registries
+
+| Method + path | Purpose |
+|---------------|--------|
 | `GET /api/v1/scc-registries` | List SCC registries |
 | `POST /api/v1/scc-registries` | Register SCC (partnerName, destinationCountryCode, expiresAt, tiaCompleted, dpaId, sccModule); **auto-approves** matching pending reviews |
 | `PATCH /api/v1/scc-registries/{id}` | Update SCC (e.g. `tiaCompleted`) |
 | `DELETE /api/v1/scc-registries/{id}` | Revoke SCC |
-| `GET /api/v1/review-queue` | List all review items |
+
+### 8.5 Human Oversight / Review Queue
+
+| Method + path | Purpose |
+|---------------|--------|
+| `GET /api/v1/review-queue` | List all review items (with status filter) |
 | `GET /api/v1/human_oversight/pending` | List pending review items |
 | `GET /api/v1/human_oversight/decided-evidence-ids` | Evidence IDs already decided (exclude from Requires Attention) |
 | `POST /api/v1/review-queue` | Create review item (with `evidence_event_id`) |
 | `POST /api/v1/action/{seal_id}/approve` | Approve review |
 | `POST /api/v1/action/{seal_id}/reject` | Reject review → `HUMAN_OVERSIGHT_REJECTED` (counted in BLOCKED 24H) |
 
-Dashboard does not call: `/api/v1/shield/*`, `/api/v1/lenses/*`, or auth routes. Full route list in `src/main.rs` startup log. Evidence API returns `merkleRoots` for chain integrity display.
+### 8.6 Crypto Shredder
+
+| Method + path | Purpose |
+|---------------|--------|
+| `POST /api/v1/lenses/gdpr-rights/erasure/execute` | Execute GDPR Art. 17 erasure (requires confirmation: "ERASE {userId}") |
+
+**Note:** Dashboard calls `/api/v1/shield/evaluate` via `evaluateTransfer()` and `/api/v1/lenses/gdpr-rights/erasure/execute` via `executeErasure()`. Full route list in `src/main.rs` startup log. Evidence API returns `merkleRoots` for chain integrity display.
 
 ---
 
@@ -165,7 +206,7 @@ Dashboard does not call: `/api/v1/shield/*`, `/api/v1/lenses/*`, or auth routes.
 
 ### 10.2 Transfer Log — `dashboard/app/transfer-log/page.tsx`
 
-- **Route**: `/transfer-log`. Data: `fetchEvidenceEvents()`; filters ALL | ALLOWED | BLOCKED | PENDING. Table: Timestamp, Destination, Status.
+- **Route**: `/transfer-log`. Data: `fetchEvidenceEventsPaginated()` (50 per page); filters ALL | ALLOWED | BLOCKED | PENDING; filters by `source_system='sovereign-shield'` and transfer event types. Table: Timestamp, Destination, Partner, Data Category, Agent/Endpoint, Purpose (if present), Legal Basis, Status. CSV export. Pagination controls.
 
 ### 10.3 Review Queue — `dashboard/app/review-queue/page.tsx`
 
@@ -200,16 +241,23 @@ Dashboard does not call: `/api/v1/shield/*`, `/api/v1/lenses/*`, or auth routes.
 
 ## 12. API client — `dashboard/app/utils/api.ts`
 
-- **Base**: `http://localhost:8080`. Types: `EvidenceEvent`, `SCCRegistry`, `ReviewQueueItem`.
-- **Calls**: `fetchEvidenceEvents`, `fetchEvidenceEventsWithMeta` (events, totalCount, merkleRoots), `fetchSCCRegistries`, `createSCCRegistry`, `patchSCCRegistry`, `fetchReviewQueuePending`, `fetchDecidedEvidenceIds`, `fetchReviewQueueItem`, `createReviewQueueItem`, `approveReviewQueueItem`, `rejectReviewQueueItem`, `verifyIntegrity`. See §8 for endpoint mapping; createReviewQueueItem sends `evidenceEventId`; reject creates `HUMAN_OVERSIGHT_REJECTED`.
+- **Base**: Uses relative URL (`API_BASE = ''`) so Next.js rewrites proxy to backend (avoids CORS). Types: `EvidenceEvent`, `SCCRegistry`, `ReviewQueueItem`.
+- **Calls**: 
+  - Evidence: `fetchEvidenceEvents()`, `fetchEvidenceEventsPaginated(page, limit, eventType?, sourceSystem?)`, `fetchEvidenceEventsWithMeta(params?)` (events, totalCount, merkleRoots), `verifyIntegrity()`
+  - SCC: `fetchSCCRegistries()`, `createSCCRegistry(data)`, `patchSCCRegistry(id, data)`, `revokeSCCRegistry(id)`
+  - Review Queue: `fetchReviewQueuePending()`, `fetchDecidedEvidenceIds()`, `fetchReviewQueueItem(id)`, `createReviewQueueItem(data)`, `approveReviewQueueItem(sealId, reason?)`, `rejectReviewQueueItem(sealId, reason?)`
+  - Shield: `evaluateTransfer(data)` → `POST /api/v1/shield/evaluate`
+  - Erasure: `executeErasure(data)` → `POST /api/v1/lenses/gdpr-rights/erasure/execute`
+- **Note**: `createReviewQueueItem` sends `evidenceEventId`; `rejectReviewQueueItem` creates `HUMAN_OVERSIGHT_REJECTED` event. See §8 for endpoint mapping.
 
 ---
 
 ## 13. Backend (Rust) — relevant for dashboard
 
-- **Evidence**: `src/routes_evidence.rs` — list events (returns events, totalCount, merkleRoots), verify-integrity.
-- **SCC**: `src/routes_shield.rs` — list, register (partnerName, destinationCountryCode, expiresAt, tiaCompleted, dpaId, sccModule), PATCH (tiaCompleted), delete. On register, `review_queue::approve_pending_reviews_for_scc()` auto-approves pending reviews whose evidence event matches the new SCC destination.
-- **Review queue**: `src/routes_review_queue.rs`, `src/review_queue.rs` — list, pending, decided-evidence-ids, create (with `evidence_event_id`), approve, reject. Reject creates `HUMAN_OVERSIGHT_REJECTED` evidence event.
+- **Evidence**: `src/routes_evidence.rs` — list events (with pagination, filters; returns events, totalCount, merkleRoots), create event, verify-integrity.
+- **Shield**: `src/routes_shield.rs` — evaluate (synchronous), ingest-logs (batch), stats, countries, requires-attention, transfers-by-destination, SCC CRUD (list, register, PATCH, delete). On register, `review_queue::approve_pending_reviews_for_scc()` auto-approves pending reviews whose evidence event matches the new SCC destination.
+- **Review queue**: `src/routes_review_queue.rs`, `src/review_queue.rs` — list (with status filter), pending, decided-evidence-ids, create (with `evidence_event_id`), approve, reject. Reject creates `HUMAN_OVERSIGHT_REJECTED` evidence event.
+- **Erasure**: `src/routes_erasure.rs` — execute erasure (requires confirmation format "ERASE {userId}").
 
 ---
 

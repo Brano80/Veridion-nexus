@@ -23,17 +23,7 @@ export default function SovereignShieldPage() {
   useEffect(() => {
     loadData();
     const interval = setInterval(loadData, 5000);
-    // Update last scan time on client only (avoid hydration mismatch)
-    setLastScanTime(new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true }));
     return () => clearInterval(interval);
-  }, []);
-  
-  useEffect(() => {
-    // Update last scan time every second on client
-    const timeInterval = setInterval(() => {
-      setLastScanTime(new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true }));
-    }, 1000);
-    return () => clearInterval(timeInterval);
   }, []);
 
   async function loadData() {
@@ -50,6 +40,16 @@ export default function SovereignShieldPage() {
       const sccArray = Array.isArray(sccData) ? sccData : [];
       setEvents(eventsArray);
       setSccRegistries(sccArray);
+      
+      // Update last scan time when data loads successfully
+      setLastScanTime(new Date().toLocaleString('en-US', { 
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric', 
+        minute: '2-digit', 
+        second: '2-digit', 
+        hour12: true 
+      }));
       
       // Track which evidence IDs are already in the review queue
       // Backend now stores evidence_event_id and returns it in evidenceId and context
@@ -364,7 +364,7 @@ export default function SovereignShieldPage() {
               </span>
             </div>
             <div className="flex items-center gap-6 text-sm text-slate-300">
-              <span>Last scan: {lastScanTime || '--:--:--'}</span>
+              <span>Last scan: {lastScanTime || 'Never'}</span>
             </div>
           </div>
         </div>

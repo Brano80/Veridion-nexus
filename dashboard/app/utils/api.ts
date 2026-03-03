@@ -57,14 +57,19 @@ export async function fetchEvidenceEvents(): Promise<EvidenceEvent[]> {
   const res = await fetch(`${API_BASE}/api/v1/evidence/events`);
   if (!res.ok) throw new Error('Failed to fetch evidence events');
   const data = await res.json();
-  return Array.isArray(data.events) ? data.events : Array.isArray(data) ? data : [];
+  const rawEvents = Array.isArray(data.events) ? data.events : Array.isArray(data) ? data : [];
+  return rawEvents.map((e: any) => ({
+    ...e,
+    sourceSystem: e.source_system || e.sourceSystem || '',
+  }));
 }
 
 /** Fetch evidence events with pagination for Transfer Log */
 export async function fetchEvidenceEventsPaginated(
   page: number = 1,
   limit: number = 50,
-  eventType?: string
+  eventType?: string,
+  sourceSystem?: string
 ): Promise<{
   events: EvidenceEvent[];
   total: number;
@@ -75,11 +80,18 @@ export async function fetchEvidenceEventsPaginated(
   if (eventType) {
     searchParams.set('event_type', eventType);
   }
+  if (sourceSystem) {
+    searchParams.set('source_system', sourceSystem);
+  }
   const url = `${API_BASE}/api/v1/evidence/events?${searchParams.toString()}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error('Failed to fetch evidence events');
   const data = await res.json();
-  const events = Array.isArray(data.events) ? data.events : Array.isArray(data) ? data : [];
+  const rawEvents = Array.isArray(data.events) ? data.events : Array.isArray(data) ? data : [];
+  const events = rawEvents.map((e: any) => ({
+    ...e,
+    sourceSystem: e.source_system || e.sourceSystem || '',
+  }));
   return {
     events,
     total: data.totalCount ?? events.length,
@@ -103,7 +115,11 @@ export async function fetchEvidenceEventsWithMeta(params?: {
   const res = await fetch(url);
   if (!res.ok) throw new Error('Failed to fetch evidence events');
   const data = await res.json();
-  const events = Array.isArray(data.events) ? data.events : Array.isArray(data) ? data : [];
+  const rawEvents = Array.isArray(data.events) ? data.events : Array.isArray(data) ? data : [];
+  const events = rawEvents.map((e: any) => ({
+    ...e,
+    sourceSystem: e.source_system || e.sourceSystem || '',
+  }));
   return {
     events,
     totalCount: data.totalCount ?? events.length,

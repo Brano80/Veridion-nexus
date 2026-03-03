@@ -359,6 +359,25 @@ export default function SCCRegistryPage() {
           </div>
         </div>
 
+        {/* SCC Registry Status Examples */}
+        <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
+          <div className="text-sm font-semibold text-white mb-3">SCC Registry Status</div>
+          <div className="space-y-2 text-sm">
+            <div className="flex items-center gap-2">
+              <span className="text-slate-300">SCC — OpenAI US</span>
+              <span className="px-2 py-0.5 bg-green-500/15 text-green-400 border border-green-500/25 rounded text-xs font-medium">Valid</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-slate-300">SCC — AWS US-East</span>
+              <span className="px-2 py-0.5 bg-red-500/15 text-red-400 border border-red-500/25 rounded text-xs font-medium">Expired</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-slate-300">SCC — Google Cloud IN</span>
+              <span className="px-2 py-0.5 bg-amber-500/15 text-amber-400 border border-amber-500/25 rounded text-xs font-medium">Review</span>
+            </div>
+          </div>
+        </div>
+
         {/* Registry Cards */}
         {loading ? (
           <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center text-slate-400">

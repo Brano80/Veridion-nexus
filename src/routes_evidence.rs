@@ -10,6 +10,7 @@ pub struct ListEventsQuery {
     pub event_type: Option<String>,
     pub search: Option<String>,
     pub destination_country: Option<String>,
+    pub source_system: Option<String>,
     pub limit: Option<i64>,
     pub offset: Option<i64>,
 }
@@ -28,6 +29,7 @@ pub async fn list_events(
         query.event_type.as_deref(),
         query.search.as_deref(),
         query.destination_country.as_deref(),
+        query.source_system.as_deref(),
         limit,
         offset,
     ).await {
