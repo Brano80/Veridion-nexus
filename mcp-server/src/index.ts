@@ -127,13 +127,14 @@ server.registerTool(
   },
   async (args) => {
     try {
+      // Convert snake_case input to camelCase for API request
       const body: Record<string, unknown> = {
-        destination_country_code: args.destination_country_code,
-        data_categories: args.data_categories,
+        destinationCountryCode: args.destination_country_code,
+        dataCategories: args.data_categories,
       };
-      if (args.partner_name) body.partner_name = args.partner_name;
+      if (args.partner_name) body.partnerName = args.partner_name;
       if (args.protocol) body.protocol = args.protocol;
-      if (args.request_path) body.request_path = args.request_path;
+      if (args.request_path) body.requestPath = args.request_path;
 
       const data = (await apiRequest(
         "POST",

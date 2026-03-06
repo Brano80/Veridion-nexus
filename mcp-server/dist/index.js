@@ -1,9 +1,7 @@
 #!/usr/bin/env node
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-const mcp_js_1 = require("@modelcontextprotocol/sdk/server/mcp.js");
-const stdio_js_1 = require("@modelcontextprotocol/sdk/server/stdio.js");
-const zod_1 = require("zod");
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { z } from "zod";
 const API_KEY = process.env.SOVEREIGN_SHIELD_API_KEY;
 const API_URL = process.env.SOVEREIGN_SHIELD_API_URL || "https://api.veridion-nexus.eu";
 if (!API_KEY) {
@@ -57,7 +55,7 @@ function formatError(err) {
 // ---------------------------------------------------------------------------
 // Server
 // ---------------------------------------------------------------------------
-const server = new mcp_js_1.McpServer({
+const server = new McpServer({
     name: "sovereign-shield",
     version: "1.0.0",
 });
@@ -69,38 +67,39 @@ server.registerTool("evaluate_transfer", {
         "Call this before every API call, database sync, or data transfer that sends " +
         "personal data outside the EU/EEA. Returns ALLOW, BLOCK, or REVIEW decision " +
         "with cryptographic evidence seal.",
-    inputSchema: zod_1.z.object({
-        destination_country_code: zod_1.z
+    inputSchema: z.object({
+        destination_country_code: z
             .string()
             .describe("ISO 3166-1 alpha-2 country code of the data recipient (e.g. 'US', 'CN', 'JP')"),
-        data_categories: zod_1.z
-            .array(zod_1.z.string())
+        data_categories: z
+            .array(z.string())
             .describe("Personal data categories being transferred. Examples: ['email', 'name', 'ip_address', 'user_id', 'health_data']. If empty or omitted, decision defaults to REVIEW."),
-        partner_name: zod_1.z
+        partner_name: z
             .string()
             .optional()
             .describe("Name of the data recipient or service (e.g. 'OpenAI', 'AWS S3', 'Stripe')"),
-        protocol: zod_1.z
+        protocol: z
             .string()
             .optional()
             .describe("Transfer protocol (e.g. 'HTTPS', 'SFTP')"),
-        request_path: zod_1.z
+        request_path: z
             .string()
             .optional()
             .describe("API endpoint or path being called (e.g. '/v1/chat/completions')"),
     }),
 }, async (args) => {
     try {
+        // Convert snake_case input to camelCase for API request
         const body = {
-            destination_country_code: args.destination_country_code,
-            data_categories: args.data_categories,
+            destinationCountryCode: args.destination_country_code,
+            dataCategories: args.data_categories,
         };
         if (args.partner_name)
-            body.partner_name = args.partner_name;
+            body.partnerName = args.partner_name;
         if (args.protocol)
             body.protocol = args.protocol;
         if (args.request_path)
-            body.request_path = args.request_path;
+            body.requestPath = args.request_path;
         const data = (await apiRequest("POST", "/api/v1/shield/evaluate", body));
         const decision = String(data.decision ?? "UNKNOWN");
         const reason = String(data.reason ?? "");
@@ -175,11 +174,11 @@ server.registerTool("check_scc_coverage", {
         "the registry for a specific partner and destination country. Use this " +
         "when you need to verify SCC coverage before proceeding with a transfer " +
         "to an SCC-required country (US, Brazil, Singapore, etc.).",
-    inputSchema: zod_1.z.object({
-        destination_country_code: zod_1.z
+    inputSchema: z.object({
+        destination_country_code: z
             .string()
             .describe("ISO 3166-1 alpha-2 country code (e.g. 'US')"),
-        partner_name: zod_1.z
+        partner_name: z
             .string()
             .optional()
             .describe("Name of the partner to check SCC coverage for (e.g. 'OpenAI')"),
@@ -238,7 +237,7 @@ server.registerTool("get_compliance_status", {
         "enforcement mode, recent transfer statistics, pending reviews, and " +
         "expiring SCCs. Use this to give users a compliance overview or to " +
         "check system status before starting a data-intensive operation.",
-    inputSchema: zod_1.z.object({}),
+    inputSchema: z.object({}),
 }, async () => {
     try {
         const [stats, pending, sccs] = await Promise.all([
@@ -364,8 +363,8 @@ server.registerTool("list_adequate_countries", {
         "or blocked (no legal basis). Use this to check a country's status before " +
         "initiating a transfer, or to show a user which countries require additional " +
         "safeguards.",
-    inputSchema: zod_1.z.object({
-        filter: zod_1.z
+    inputSchema: z.object({
+        filter: z
             .enum(["all", "adequate", "scc_required", "blocked", "eu_eea"])
             .optional()
             .describe("Filter countries by transfer status. Defaults to 'all'."),
@@ -415,7 +414,7 @@ server.registerTool("list_adequate_countries", {
 // Start
 // ---------------------------------------------------------------------------
 async function main() {
-    const transport = new stdio_js_1.StdioServerTransport();
+    const transport = new StdioServerTransport();
     await server.connect(transport);
 }
 main().catch((err) => {
