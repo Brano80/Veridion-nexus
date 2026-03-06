@@ -2,6 +2,7 @@ use actix_web::dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Tr
 use actix_web::{Error, HttpMessage};
 use futures_util::future::{ok, LocalBoxFuture, Ready};
 use std::rc::Rc;
+use std::env;
 
 use crate::tenant::{sha256_hex, load_admin_tenant, TenantContext};
 
@@ -102,7 +103,7 @@ where
             }
 
             // Require auth header
-            let api_key = match auth_header {
+            let auth_value = match auth_header {
                 Some(k) => k,
                 None => {
                     return Err(actix_web::error::ErrorUnauthorized(
@@ -115,9 +116,6 @@ where
                 }
             };
 
-            // Hash the key and look up tenant
-            let key_hash = sha256_hex(&api_key);
-
             #[derive(sqlx::FromRow)]
             struct TenantRow {
                 id: uuid::Uuid,
@@ -128,27 +126,119 @@ where
                 trial_expires_at: Option<chrono::DateTime<chrono::Utc>>,
             }
 
-            let tenant_row: Option<TenantRow> = sqlx::query_as(
-                "SELECT id, name, plan, mode, is_admin, trial_expires_at \
-                 FROM tenants WHERE api_key_hash = $1 AND deleted_at IS NULL",
-            )
-            .bind(&key_hash)
-            .fetch_optional(&pool)
-            .await
-            .ok()
-            .flatten();
+            // Determine if this is an API key or JWT token
+            let t: TenantRow = if auth_value.starts_with("ss_test_") || auth_value.starts_with("ss_live_") {
+                // API key path: hash and look up tenant
+                let key_hash = sha256_hex(&auth_value);
 
-            let t = match tenant_row {
-                Some(t) => t,
-                None => {
-                    return Err(actix_web::error::ErrorUnauthorized(
-                        serde_json::json!({
-                            "error": "unauthorized",
-                            "message": "Invalid API key"
-                        })
-                        .to_string(),
-                    ));
+                let tenant_row: Option<TenantRow> = sqlx::query_as(
+                    "SELECT id, name, plan, mode, is_admin, trial_expires_at \
+                     FROM tenants WHERE api_key_hash = $1 AND deleted_at IS NULL",
+                )
+                .bind(&key_hash)
+                .fetch_optional(&pool)
+                .await
+                .ok()
+                .flatten();
+
+                match tenant_row {
+                    Some(t) => t,
+                    None => {
+                        return Err(actix_web::error::ErrorUnauthorized(
+                            serde_json::json!({
+                                "error": "unauthorized",
+                                "message": "Invalid API key"
+                            })
+                            .to_string(),
+                        ));
+                    }
                 }
+            } else if auth_value.starts_with("eyJ") {
+                // JWT token path: decode and extract tenant_id
+                let secret = env::var("JWT_SECRET")
+                    .unwrap_or_else(|_| "veridion-api-dev-secret-change-in-production".to_string());
+
+                let validation = jsonwebtoken::Validation::default();
+                let decoded = match jsonwebtoken::decode::<serde_json::Value>(
+                    &auth_value,
+                    &jsonwebtoken::DecodingKey::from_secret(secret.as_ref()),
+                    &validation,
+                ) {
+                    Ok(d) => d,
+                    Err(e) => {
+                        log::debug!("JWT decode error: {}", e);
+                        return Err(actix_web::error::ErrorUnauthorized(
+                            serde_json::json!({
+                                "error": "unauthorized",
+                                "message": "Invalid or expired token"
+                            })
+                            .to_string(),
+                        ));
+                    }
+                };
+
+                // Extract tenant_id from claims
+                let tenant_id_str = decoded.claims
+                    .get("tenant_id")
+                    .and_then(|v| v.as_str())
+                    .or_else(|| decoded.claims.get("company_id").and_then(|v| v.as_str()));
+
+                let tenant_id = match tenant_id_str {
+                    Some(id_str) => match uuid::Uuid::parse_str(id_str) {
+                        Ok(id) => id,
+                        Err(_) => {
+                            return Err(actix_web::error::ErrorUnauthorized(
+                                serde_json::json!({
+                                    "error": "unauthorized",
+                                    "message": "Invalid tenant ID in token"
+                                })
+                                .to_string(),
+                            ));
+                        }
+                    },
+                    None => {
+                        return Err(actix_web::error::ErrorUnauthorized(
+                            serde_json::json!({
+                                "error": "unauthorized",
+                                "message": "Token missing tenant_id"
+                            })
+                            .to_string(),
+                        ));
+                    }
+                };
+
+                // Load tenant from database using tenant_id
+                let tenant_row: Option<TenantRow> = sqlx::query_as(
+                    "SELECT id, name, plan, mode, is_admin, trial_expires_at \
+                     FROM tenants WHERE id = $1 AND deleted_at IS NULL",
+                )
+                .bind(tenant_id)
+                .fetch_optional(&pool)
+                .await
+                .ok()
+                .flatten();
+
+                match tenant_row {
+                    Some(t) => t,
+                    None => {
+                        return Err(actix_web::error::ErrorUnauthorized(
+                            serde_json::json!({
+                                "error": "unauthorized",
+                                "message": "Tenant not found"
+                            })
+                            .to_string(),
+                        ));
+                    }
+                }
+            } else {
+                // Unknown format
+                return Err(actix_web::error::ErrorUnauthorized(
+                    serde_json::json!({
+                        "error": "unauthorized",
+                        "message": "Invalid authorization format. Use API key (ss_test_/ss_live_) or JWT token"
+                    })
+                    .to_string(),
+                ));
             };
 
             // Check trial expiry for free_trial plans

@@ -2,6 +2,9 @@
 -- Links user accounts to their tenant for multi-tenancy auth.
 
 ALTER TABLE users
+  DROP CONSTRAINT IF EXISTS fk_users_tenant;
+
+ALTER TABLE users
   ADD CONSTRAINT fk_users_tenant
   FOREIGN KEY (company_id) REFERENCES tenants(id);
 

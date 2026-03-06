@@ -126,9 +126,9 @@ export default function LandingPage() {
       </section>
 
       {/* SECTION 3 — Problem Statement (White) */}
-      <section className="bg-white py-16 md:py-24">
+      <section className="bg-white py-16">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
+          <div className="text-center mb-8">
             <p className="text-xs font-bold uppercase tracking-widest text-sky-500 mb-4">The Problem</p>
             <h2 className="text-3xl font-bold text-slate-900 mb-4">
               Cross-Border Transfers Are Invisible
@@ -139,38 +139,38 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-6">
-            <div className="bg-slate-50 rounded-xl p-8 shadow-sm">
+          <div className="grid md:grid-cols-2 gap-4">
+            <div className="bg-slate-50 rounded-xl p-6 shadow-sm">
               <AlertCircle className="w-10 h-10 text-red-500 mb-4" />
               <h3 className="text-lg font-semibold text-slate-900 mb-2">No Visibility</h3>
-              <p className="text-base text-slate-600">
+              <p className="text-sm text-slate-600">
                 You can&apos;t demonstrate compliance if you don&apos;t know which transfers are happening, 
                 where they&apos;re going, or whether adequate safeguards exist.
               </p>
             </div>
 
-            <div className="bg-slate-50 rounded-xl p-8 shadow-sm">
+            <div className="bg-slate-50 rounded-xl p-6 shadow-sm">
               <AlertCircle className="w-10 h-10 text-red-500 mb-4" />
               <h3 className="text-lg font-semibold text-slate-900 mb-2">Manual Audits Are Too Late</h3>
-              <p className="text-base text-slate-600">
+              <p className="text-sm text-slate-600">
                 By the time an auditor asks for evidence, it&apos;s too late to create it. GDPR Art. 30 requires 
                 processing records, but retroactive documentation doesn&apos;t satisfy Art. 25.
               </p>
             </div>
 
-            <div className="bg-slate-50 rounded-xl p-8 shadow-sm">
+            <div className="bg-slate-50 rounded-xl p-6 shadow-sm">
               <AlertCircle className="w-10 h-10 text-red-500 mb-4" />
               <h3 className="text-lg font-semibold text-slate-900 mb-2">DPAs Aren&apos;t Enough</h3>
-              <p className="text-base text-slate-600">
+              <p className="text-sm text-slate-600">
                 A Data Processing Agreement establishes the contractual framework, but GDPR Art. 5(2) requires 
                 you to demonstrate compliance per transfer. A DPA alone cannot provide the audit trail you need.
               </p>
             </div>
 
-            <div className="bg-slate-50 rounded-xl p-8 shadow-sm">
+            <div className="bg-slate-50 rounded-xl p-6 shadow-sm">
               <AlertCircle className="w-10 h-10 text-red-500 mb-4" />
               <h3 className="text-lg font-semibold text-slate-900 mb-2">Flying Blind</h3>
-              <p className="text-base text-slate-600">
+              <p className="text-sm text-slate-600">
                 Without runtime enforcement, you&apos;re flying blind until an incident occurs. Shadow Mode 
                 lets you observe policy behavior before enabling enforcement.
               </p>
@@ -233,7 +233,8 @@ export default function LandingPage() {
               Three Steps to Runtime Enforcement
             </h2>
             <p className="text-base text-slate-600 max-w-2xl mx-auto">
-              Integrate Sovereign Shield into your application in minutes.
+              Integrate Veridion Nexus into your application in minutes.
+              Install via REST API or MCP.
             </p>
           </div>
 

@@ -7,7 +7,5 @@ CREATE TABLE IF NOT EXISTS system_settings (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Seed enforcement_mode = 'shadow' as default
-INSERT INTO system_settings (key, value, updated_at)
-VALUES ('enforcement_mode', 'shadow', NOW())
-ON CONFLICT (key) DO NOTHING;
+-- Note: Per-tenant settings will be seeded in migration 029 after tenants table exists
+-- Do not seed here because tenant_id is required (added in migration 026)
