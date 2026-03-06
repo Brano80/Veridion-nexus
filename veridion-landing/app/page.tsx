@@ -43,7 +43,7 @@ export default function LandingPage() {
                 href="/signup" 
                 className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-semibold transition-colors"
               >
-                Apply for Access
+                Apply for Design Partner Access
               </Link>
             </div>
 
@@ -76,7 +76,7 @@ export default function LandingPage() {
                 className="block w-full text-center px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-semibold transition-colors"
                 onClick={() => setMobileMenuOpen(false)}
               >
-                Apply for Access
+                Apply for Design Partner Access
               </Link>
             </div>
           )}
@@ -109,7 +109,7 @@ export default function LandingPage() {
               href="/signup"
               className="inline-flex items-center gap-2 px-8 py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-base font-semibold transition-colors shadow-lg shadow-emerald-500/20"
             >
-              Start Free Trial
+              Apply for Design Partner Access
               <ArrowRight className="w-5 h-5" />
             </Link>
             <a
