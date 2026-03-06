@@ -248,7 +248,6 @@ export default function AdminPage() {
         {/* Header */}
         <div>
           <h1 className="text-2xl font-bold text-white">TENANT MANAGEMENT</h1>
-          <p className="text-sm text-slate-400 mt-1">Internal admin — not customer facing</p>
           <span className="inline-block mt-2 text-xs font-bold uppercase tracking-widest text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded">
             Internal — Admin access only
           </span>

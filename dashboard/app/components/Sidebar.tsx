@@ -3,8 +3,8 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import { Globe, FileText, Shield, ClipboardCheck, List, MapPin, Settings } from 'lucide-react';
-import { getCurrentUser, isAdmin, CurrentUser } from '../utils/api';
+import { Globe, FileText, Shield, ClipboardCheck, List, MapPin, Settings, LogOut } from 'lucide-react';
+import { getCurrentUser, isAdmin, getAuthHeaders, clearAuthState, CurrentUser } from '../utils/api';
 
 const navItems = [
   { href: '/', label: 'Sovereign Shield', icon: Globe },
@@ -23,9 +23,20 @@ export default function Sidebar() {
     getCurrentUser().then(setCurrentUser);
   }, []);
 
+  async function handleLogout() {
+    try {
+      await fetch('/api/v1/auth/logout', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+      });
+    } catch { /* ignore */ }
+    clearAuthState();
+    window.location.href = '/login';
+  }
+
   return (
-    <div className="w-64 bg-slate-800 border-r border-slate-700 h-screen fixed left-0 top-0 overflow-y-auto">
-      <div className="p-6">
+    <div className="w-64 bg-slate-800 border-r border-slate-700 h-screen fixed left-0 top-0 overflow-y-auto flex flex-col">
+      <div className="p-6 flex-1">
         <div className="mb-8">
           <h1 className="flex items-baseline gap-1.5 mb-1" style={{ fontFamily: "Inter, sans-serif" }}>
             <span className="text-xl font-black italic uppercase text-white" style={{ letterSpacing: "-0.05em", lineHeight: 0.85 }}>VERIDION</span>
@@ -74,6 +85,15 @@ export default function Sidebar() {
             </>
           )}
         </nav>
+      </div>
+      <div className="p-4 border-t border-slate-700">
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-700/50 transition-colors w-full"
+        >
+          <LogOut className="w-4 h-4" />
+          Sign Out
+        </button>
       </div>
     </div>
   );

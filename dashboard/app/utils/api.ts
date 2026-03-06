@@ -28,41 +28,48 @@ export interface CurrentUser {
   roles: string[];
   onboarded: boolean;
   company_id: string | null;
+  is_admin?: boolean;
+  tenant_id?: string;
 }
 
-// Cache for current user (fetched once per session)
 let currentUserCache: CurrentUser | null = null;
 
+export function getAuthHeaders(): Record<string, string> {
+  if (typeof window === 'undefined') return { 'Content-Type': 'application/json' };
+  const token = localStorage.getItem('ss_token');
+  return token
+    ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+    : { 'Content-Type': 'application/json' };
+}
+
+export function clearAuthState(): void {
+  currentUserCache = null;
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('ss_token');
+    localStorage.removeItem('ss_user');
+  }
+}
+
 export async function getCurrentUser(): Promise<CurrentUser | null> {
-  if (currentUserCache) {
-    return currentUserCache;
+  if (currentUserCache) return currentUserCache;
+
+  if (typeof window === 'undefined') return null;
+
+  const stored = localStorage.getItem('ss_user');
+  const token = localStorage.getItem('ss_token');
+
+  if (stored && token) {
+    try {
+      const user = JSON.parse(stored);
+      currentUserCache = user;
+      return user;
+    } catch {
+      localStorage.removeItem('ss_user');
+      localStorage.removeItem('ss_token');
+    }
   }
 
-  try {
-    const res = await fetch(`${API_BASE}/api/v1/auth/dev-bypass`);
-    if (res.status === 402) {
-      triggerTrialExpired();
-      throw new Error('Trial expired');
-    }
-    if (!res.ok) {
-      return null;
-    }
-    const data = await res.json();
-    // Extract user object from response
-    const user = data.user || data;
-    currentUserCache = {
-      id: user.id,
-      username: user.username,
-      email: user.email || '',
-      full_name: user.full_name || null,
-      roles: user.roles || [],
-      onboarded: user.onboarded ?? true,
-      company_id: user.company_id || null,
-    };
-    return currentUserCache;
-  } catch {
-    return null;
-  }
+  return null;
 }
 
 export function isAdmin(user: CurrentUser | null): boolean {
@@ -122,7 +129,7 @@ export interface ReviewQueueItem {
 }
 
 export async function fetchEvidenceEvents(): Promise<EvidenceEvent[]> {
-  const res = await fetch(`${API_BASE}/api/v1/evidence/events?limit=500`);
+  const res = await fetch(`${API_BASE}/api/v1/evidence/events?limit=500`, { headers: getAuthHeaders() });
   checkTrialExpired(res);
   if (!res.ok) throw new Error('Failed to fetch evidence events');
   const data = await res.json();
@@ -153,7 +160,7 @@ export async function fetchEvidenceEventsPaginated(
     searchParams.set('source_system', sourceSystem);
   }
   const url = `${API_BASE}/api/v1/evidence/events?${searchParams.toString()}`;
-  const res = await fetch(url);
+  const res = await fetch(url, { headers: getAuthHeaders() });
   checkTrialExpired(res);
   if (!res.ok) throw new Error('Failed to fetch evidence events');
   const data = await res.json();
@@ -183,7 +190,7 @@ export async function fetchEvidenceEventsWithMeta(params?: {
   if (params?.limit) searchParams.set('limit', String(params.limit));
   const qs = searchParams.toString();
   const url = `${API_BASE}/api/v1/evidence/events${qs ? `?${qs}` : ''}`;
-  const res = await fetch(url);
+  const res = await fetch(url, { headers: getAuthHeaders() });
   checkTrialExpired(res);
   if (!res.ok) throw new Error('Failed to fetch evidence events');
   const data = await res.json();
@@ -201,7 +208,7 @@ export async function fetchEvidenceEventsWithMeta(params?: {
 }
 
 export async function fetchSCCRegistries(): Promise<SCCRegistry[]> {
-  const res = await fetch(`${API_BASE}/api/v1/scc-registries`);
+  const res = await fetch(`${API_BASE}/api/v1/scc-registries`, { headers: getAuthHeaders() });
   checkTrialExpired(res);
   if (!res.ok) throw new Error('Failed to fetch SCC registries');
   const data = await res.json();
@@ -227,7 +234,7 @@ export async function fetchSCCRegistries(): Promise<SCCRegistry[]> {
 export async function patchSCCRegistry(id: string, data: { tiaCompleted: boolean }): Promise<{ success: boolean; id: string; tiaCompleted: boolean }> {
   const res = await fetch(`${API_BASE}/api/v1/scc-registries/${id}`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
     body: JSON.stringify(data),
   });
   checkTrialExpired(res);
@@ -246,7 +253,7 @@ export async function patchSCCRegistry(id: string, data: { tiaCompleted: boolean
 /** Revoke (active) or archive (expired) SCC registry. DELETE with ?revoke=1 for Revoke, otherwise Archive */
 export async function revokeSCCRegistry(id: string, options?: { revoke?: boolean }): Promise<{ success: boolean; id: string; status: string }> {
   const url = options?.revoke ? `${API_BASE}/api/v1/scc-registries/${id}?revoke=1` : `${API_BASE}/api/v1/scc-registries/${id}`;
-  const res = await fetch(url, { method: 'DELETE' });
+  const res = await fetch(url, { method: 'DELETE', headers: getAuthHeaders() });
   checkTrialExpired(res);
   const text = await res.text();
   if (!res.ok) {
@@ -328,7 +335,7 @@ export async function createSCCRegistry(data: {
 
   const res = await fetch(`${API_BASE}/api/v1/scc-registries`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
     body: JSON.stringify(requestBody),
   });
   
@@ -370,7 +377,7 @@ export async function createSCCRegistry(data: {
 }
 
 export async function fetchReviewQueuePending(): Promise<ReviewQueueItem[]> {
-  const res = await fetch(`${API_BASE}/api/v1/human_oversight/pending`);
+  const res = await fetch(`${API_BASE}/api/v1/human_oversight/pending`, { headers: getAuthHeaders() });
   checkTrialExpired(res);
   if (!res.ok) throw new Error('Failed to fetch review queue');
   const data = await res.json();
@@ -380,7 +387,7 @@ export async function fetchReviewQueuePending(): Promise<ReviewQueueItem[]> {
 /** Evidence event IDs that already have a decision (rejected/approved). Exclude these from REQUIRES ATTENTION. */
 export async function fetchDecidedEvidenceIds(): Promise<string[]> {
   try {
-    const res = await fetch(`${API_BASE}/api/v1/human_oversight/decided-evidence-ids`);
+    const res = await fetch(`${API_BASE}/api/v1/human_oversight/decided-evidence-ids`, { headers: getAuthHeaders() });
     checkTrialExpired(res);
     if (!res.ok) return [];
     const data = await res.json();
@@ -392,7 +399,7 @@ export async function fetchDecidedEvidenceIds(): Promise<string[]> {
 
 export async function fetchReviewQueueItem(id: string): Promise<ReviewQueueItem | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/v1/review-queue`);
+    const res = await fetch(`${API_BASE}/api/v1/review-queue`, { headers: getAuthHeaders() });
     checkTrialExpired(res);
     if (!res.ok) throw new Error('Failed to fetch review queue');
     const data = await res.json();
@@ -413,7 +420,7 @@ export async function createReviewQueueItem(data: {
 }): Promise<{ sealId: string }> {
   const res = await fetch(`${API_BASE}/api/v1/review-queue`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
     body: JSON.stringify({
       agentId: data.agentId || 'sovereign-shield',
       action: data.action,
@@ -444,7 +451,7 @@ export async function createReviewQueueItem(data: {
 export async function approveReviewQueueItem(sealId: string, reason?: string): Promise<void> {
   const res = await fetch(`${API_BASE}/api/v1/action/${sealId}/approve`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
     body: JSON.stringify({
       decision: 'APPROVE',
       reason: reason || 'Approved via dashboard',
@@ -471,7 +478,7 @@ export async function approveReviewQueueItem(sealId: string, reason?: string): P
 export async function rejectReviewQueueItem(sealId: string, reason?: string): Promise<void> {
   const res = await fetch(`${API_BASE}/api/v1/action/${sealId}/reject`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
     body: JSON.stringify({
       decision: 'REJECT',
       reason: reason || 'Rejected via dashboard',
@@ -519,7 +526,7 @@ export async function evaluateTransfer(data: {
 }> {
   const res = await fetch(`${API_BASE}/api/v1/shield/evaluate`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
     body: JSON.stringify({
       destinationCountryCode: data.destinationCountryCode,
       destinationCountry: data.destinationCountry,
@@ -548,7 +555,7 @@ export async function evaluateTransfer(data: {
 
 /** GET /api/v1/settings — current enforcement mode (shadow | enforce) */
 export async function fetchSettings(): Promise<{ enforcement_mode: string; updated_at: string }> {
-  const res = await fetch(`${API_BASE}/api/v1/settings`);
+  const res = await fetch(`${API_BASE}/api/v1/settings`, { headers: getAuthHeaders() });
   checkTrialExpired(res);
   if (!res.ok) throw new Error('Failed to fetch settings');
   return res.json();
@@ -568,7 +575,7 @@ export async function patchSettings(data: {
   }
   const res = await fetch(`${API_BASE}/api/v1/settings`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
     body: JSON.stringify(body),
   });
   checkTrialExpired(res);
@@ -587,7 +594,7 @@ export async function patchSettings(data: {
 export async function verifyIntegrity(): Promise<{ status: 'VALID' | 'TAMPERED'; verified?: boolean }> {
   const res = await fetch(`${API_BASE}/api/v1/evidence/verify-integrity`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
     body: JSON.stringify({ source_system: 'sovereign-shield' }),
   });
   

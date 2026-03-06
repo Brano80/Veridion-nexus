@@ -1,17 +1,18 @@
-// Auth token management utilities
-// Placeholder implementations — full implementation in Phase 0.4 login
-
 export function getAuthToken(): string | null {
-  // Placeholder — will read from localStorage/cookies in Phase 0.4
-  return null;
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem('ss_token');
 }
 
 export function setAuthToken(token: string): void {
-  // Placeholder — will write to localStorage/cookies in Phase 0.4
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('ss_token', token);
+  }
 }
 
 export function removeAuthToken(): void {
-  // Placeholder — will clear localStorage/cookies in Phase 0.4
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('ss_token');
+  }
 }
 
 export function getAuthHeaders(): Record<string, string> {

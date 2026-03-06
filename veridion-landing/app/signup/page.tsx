@@ -93,16 +93,24 @@ export default function SignupPage() {
 
   if (step === 'success' && result) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-4">
-        <div className="w-full max-w-lg">
+      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center px-4">
+        <div className="w-full max-w-md">
           {/* Brand */}
           <div className="text-center mb-8">
-            <h1 className="flex items-center justify-center gap-2 mb-2">
-              <Shield className="w-8 h-8 text-emerald-500" />
-              <span className="text-2xl font-black italic uppercase text-white" style={{ letterSpacing: '-0.05em' }}>
-                SOVEREIGN SHIELD
-              </span>
-            </h1>
+            <div className="flex items-center justify-center gap-2 mb-3">
+              <Shield className="w-8 h-8 text-emerald-400" />
+              <h1 style={{ fontFamily: 'Inter, sans-serif' }}>
+                <span className="text-2xl font-black italic uppercase text-white" style={{ letterSpacing: '-0.05em' }}>
+                  VERIDION
+                </span>{' '}
+                <span className="text-lg font-semibold italic lowercase" style={{ color: '#10b981', filter: 'drop-shadow(0 0 15px rgba(16, 185, 129, 0.3))' }}>
+                  nexus
+                </span>
+              </h1>
+            </div>
+            <p className="text-emerald-400 text-sm font-semibold tracking-widest uppercase">
+              Sovereign Shield
+            </p>
           </div>
 
           <div className="bg-slate-800 border border-slate-700 rounded-xl p-8 space-y-6">
@@ -155,10 +163,10 @@ export default function SignupPage() {
             {/* Actions */}
             <div className="space-y-3">
               <a
-                href="http://localhost:3000"
-                className="flex items-center justify-center gap-2 w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg transition-colors"
+                href="http://localhost:3000/login"
+                className="flex items-center justify-center gap-2 w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg transition-colors"
               >
-                Open Dashboard
+                Sign In to Dashboard
                 <ExternalLink className="w-4 h-4" />
               </a>
               <a
@@ -170,83 +178,99 @@ export default function SignupPage() {
               </a>
             </div>
           </div>
+
+          {/* Footer */}
+          <p className="text-center text-xs text-slate-600 mt-6">
+            &copy; 2026 Veridion Nexus
+          </p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4">
+    <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center px-4">
       <div className="w-full max-w-md">
-        {/* Brand */}
+        {/* Logo */}
         <div className="text-center mb-8">
-          <h1 className="flex items-center justify-center gap-2 mb-2">
-            <Shield className="w-8 h-8 text-emerald-500" />
-            <span className="text-2xl font-black italic uppercase text-white" style={{ letterSpacing: '-0.05em' }}>
-              SOVEREIGN SHIELD
-            </span>
-          </h1>
-          <p className="text-slate-400 text-sm">GDPR-compliant data transfer monitoring</p>
+          <div className="flex items-center justify-center gap-2 mb-3">
+            <Shield className="w-8 h-8 text-emerald-400" />
+            <h1 style={{ fontFamily: 'Inter, sans-serif' }}>
+              <span className="text-2xl font-black italic uppercase text-white" style={{ letterSpacing: '-0.05em' }}>
+                VERIDION
+              </span>{' '}
+              <span className="text-lg font-semibold italic lowercase" style={{ color: '#10b981', filter: 'drop-shadow(0 0 15px rgba(16, 185, 129, 0.3))' }}>
+                nexus
+              </span>
+            </h1>
+          </div>
+          <p className="text-emerald-400 text-sm font-semibold tracking-widest uppercase">
+            Sovereign Shield
+          </p>
         </div>
 
+        {/* Card */}
         <div className="bg-slate-800 border border-slate-700 rounded-xl p-8">
-          <h2 className="text-xl font-bold text-white mb-1">Start your free trial</h2>
-          <p className="text-sm text-slate-400 mb-6">30 days free. No credit card required.</p>
+          <h2 className="text-lg font-semibold text-white mb-6 text-center">
+            Start your free trial
+          </h2>
 
           {serverError && (
-            <div className="bg-red-900/30 border border-red-800 rounded-lg p-3 mb-4">
-              <p className="text-red-400 text-sm">{serverError}</p>
+            <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">
+              {serverError}
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Company Name */}
             <div>
-              <label className="block text-sm text-slate-400 mb-1 font-medium">Company name</label>
+              <label htmlFor="companyName" className="block text-sm font-medium text-slate-300 mb-1.5">
+                Company name
+              </label>
               <input
+                id="companyName"
                 type="text"
                 value={companyName}
                 onChange={(e) => { setCompanyName(e.target.value); setErrors(prev => { const n = {...prev}; delete n.companyName; return n; }); }}
-                className={`w-full px-4 py-2.5 bg-slate-900 border rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600/50 ${
-                  errors.companyName ? 'border-red-500' : 'border-slate-700'
-                }`}
+                className="w-full px-3 py-2.5 bg-slate-900 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-colors"
                 placeholder="Acme Corp"
               />
               {errors.companyName && <p className="text-red-400 text-xs mt-1">{errors.companyName}</p>}
             </div>
 
-            {/* Email */}
             <div>
-              <label className="block text-sm text-slate-400 mb-1 font-medium">Email</label>
+              <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-1.5">
+                Email address
+              </label>
               <input
+                id="email"
                 type="email"
                 value={email}
                 onChange={(e) => { setEmail(e.target.value); setErrors(prev => { const n = {...prev}; delete n.email; return n; }); }}
-                className={`w-full px-4 py-2.5 bg-slate-900 border rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600/50 ${
-                  errors.email ? 'border-red-500' : 'border-slate-700'
-                }`}
+                className="w-full px-3 py-2.5 bg-slate-900 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-colors"
                 placeholder="you@company.com"
+                autoComplete="email"
               />
               {errors.email && <p className="text-red-400 text-xs mt-1">{errors.email}</p>}
             </div>
 
-            {/* Password */}
             <div>
-              <label className="block text-sm text-slate-400 mb-1 font-medium">Password</label>
+              <label htmlFor="password" className="block text-sm font-medium text-slate-300 mb-1.5">
+                Password
+              </label>
               <div className="relative">
                 <input
+                  id="password"
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => { setPassword(e.target.value); setErrors(prev => { const n = {...prev}; delete n.password; return n; }); }}
-                  className={`w-full px-4 py-2.5 pr-11 bg-slate-900 border rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600/50 ${
-                    errors.password ? 'border-red-500' : 'border-slate-700'
-                  }`}
-                  placeholder="Minimum 8 characters"
+                  className="w-full px-3 py-2.5 bg-slate-900 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-colors pr-10"
+                  placeholder="••••••••"
+                  autoComplete="new-password"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-300"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -257,22 +281,28 @@ export default function SignupPage() {
             <button
               type="submit"
               disabled={submitting}
-              className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors mt-2"
+              className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-800 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
             >
               {submitting ? 'Creating account...' : 'Start Free Trial'}
             </button>
           </form>
 
-          <p className="text-center text-sm text-slate-500 mt-6">
-            Already have an account?{' '}
-            <a href="http://localhost:3000" className="text-emerald-400 hover:text-emerald-300">
-              Open Dashboard →
-            </a>
-          </p>
+          <div className="mt-6 text-center">
+            <p className="text-sm text-slate-500">
+              Already have an account?{' '}
+              <a
+                href="http://localhost:3000/login"
+                className="text-emerald-400 hover:text-emerald-300 transition-colors"
+              >
+                Sign in
+              </a>
+            </p>
+          </div>
         </div>
 
+        {/* Footer */}
         <p className="text-center text-xs text-slate-600 mt-6">
-          By signing up you agree to our terms of service.
+          &copy; 2026 Veridion Nexus
         </p>
       </div>
     </div>

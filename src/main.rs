@@ -17,6 +17,10 @@ struct UserResponse {
     onboarded: bool,
     enforcement_override: bool,
     company_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    is_admin: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tenant_id: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -109,6 +113,8 @@ async fn dev_bypass(pool: web::Data<PgPool>) -> HttpResponse {
             onboarded: true,
             enforcement_override: false,
             company_id: None,
+            is_admin: Some(true),
+            tenant_id: None,
         },
     })
 }
@@ -289,6 +295,9 @@ async fn main() -> std::io::Result<()> {
     println!("  Admin tenants:   GET  /api/v1/admin/tenants");
     println!("  Admin stats:     GET  /api/v1/admin/stats");
     println!("  Signup:          POST /api/v1/auth/register");
+    println!("  Login:           POST /api/v1/auth/login");
+    println!("  Logout:          POST /api/v1/auth/logout");
+    println!("  Dev reset pwd:   POST /api/v1/auth/dev-reset-password (dev only)");
 
     let signup_rate_limiter = web::Data::new(routes_auth::SignupRateLimiter::new());
 

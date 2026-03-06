@@ -364,9 +364,9 @@ export default function SovereignShieldPage() {
   // Transfers in Review Queue awaiting human decision
   const actualPending = reviewQueuePending.length;
 
-  // Status: ATTENTION only when transfers await human decision; PROTECTED otherwise
+  // Status: ATTENTION only when transfers await human decision; ACTIVE otherwise
   // Expiring SCCs and expired SCCs are informational KPIs only — they don't change compliance status
-  const status = actualPending > 0 ? 'ATTENTION' : 'PROTECTED';
+  const status = actualPending > 0 ? 'ATTENTION' : 'ACTIVE';
 
   // SCC COVERAGE: destinations with unresolved REVIEW transfers OR valid SCC
   // Denominator = union of unresolved destinations + covered destinations
@@ -544,7 +544,7 @@ export default function SovereignShieldPage() {
             <div className="flex items-center gap-3">
               {connectionError ? (
                 <AlertTriangle className="w-5 h-5 text-orange-400" />
-              ) : status === 'PROTECTED' ? (
+              ) : status === 'ACTIVE' ? (
                 <CheckCircle className="w-5 h-5 text-green-400" />
               ) : (
                 <AlertTriangle className="w-5 h-5 text-orange-400" />
@@ -553,8 +553,8 @@ export default function SovereignShieldPage() {
                 Status:{' '}
                 {connectionError ? (
                   <span className="text-orange-400">DISABLED</span>
-                ) : status === 'PROTECTED' ? (
-                  <span className="text-green-400">PROTECTED</span>
+                ) : status === 'ACTIVE' ? (
+                  <span className="text-green-400">ACTIVE</span>
                 ) : (
                   <span className="text-orange-400">ATTENTION</span>
                 )}

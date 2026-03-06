@@ -62,6 +62,9 @@ where
                 || path == "/"
                 || path == "/api/v1/auth/dev-bypass"
                 || path == "/api/v1/auth/register"
+                || path == "/api/v1/auth/login"
+                || path == "/api/v1/auth/logout"
+                || path == "/api/v1/auth/dev-reset-password"
                 || !path.starts_with("/api/v1/")
             {
                 return service.call(req).await;

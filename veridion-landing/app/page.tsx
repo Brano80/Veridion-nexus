@@ -20,12 +20,10 @@ export default function LandingPage() {
           <div className="flex items-center justify-between h-16">
             {/* Left: Logo */}
             <div className="flex items-center">
-              <div className="flex items-center gap-2">
-                <Shield className="w-5 h-5 text-emerald-500" />
-                <span className="text-base font-black italic uppercase text-white" style={{ letterSpacing: '-0.05em' }}>
-                  VERIDION NEXUS
-                </span>
-              </div>
+              <h1 className="flex items-baseline gap-1.5" style={{ fontFamily: "Inter, sans-serif" }}>
+                <span className="text-xl font-black italic uppercase text-white" style={{ letterSpacing: "-0.05em", lineHeight: 0.85 }}>VERIDION</span>
+                <span className="text-base font-semibold italic lowercase" style={{ color: "#10b981", letterSpacing: "-0.02em", filter: "drop-shadow(0 0 15px rgba(16, 185, 129, 0.3))" }}>nexus</span>
+              </h1>
             </div>
 
             {/* Right: Desktop Nav */}
@@ -34,7 +32,7 @@ export default function LandingPage() {
                 Documentation
               </a>
               <a 
-                href="http://localhost:3000" 
+                href="http://localhost:3000/login" 
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-slate-300 hover:text-white transition-colors text-sm"
@@ -65,7 +63,7 @@ export default function LandingPage() {
                 Documentation
               </a>
               <a 
-                href="http://localhost:3000" 
+                href="http://localhost:3000/login" 
                 target="_blank"
                 rel="noopener noreferrer"
                 className="block text-slate-300 hover:text-white transition-colors text-sm"
@@ -466,11 +464,11 @@ export default function LandingPage() {
           <div className="grid md:grid-cols-3 gap-8 md:gap-12">
             {/* Left */}
             <div className="space-y-3">
-              <div className="flex items-center gap-2 mb-2">
-                <Shield className="w-5 h-5 text-emerald-500" />
-                <span className="text-lg font-black italic uppercase text-white" style={{ letterSpacing: '-0.05em' }}>
-                  VERIDION NEXUS
-                </span>
+              <div className="mb-2">
+                <h1 className="flex items-baseline gap-1.5" style={{ fontFamily: "Inter, sans-serif" }}>
+                  <span className="text-lg font-black italic uppercase text-white" style={{ letterSpacing: "-0.05em", lineHeight: 0.85 }}>VERIDION</span>
+                  <span className="text-base font-semibold italic lowercase" style={{ color: "#10b981", letterSpacing: "-0.02em", filter: "drop-shadow(0 0 15px rgba(16, 185, 129, 0.3))" }}>nexus</span>
+                </h1>
               </div>
               <p className="text-sm text-slate-400">
                 Sovereign Shield — GDPR Chapter V Runtime Enforcement
@@ -483,7 +481,7 @@ export default function LandingPage() {
             {/* Center Links */}
             <div className="space-y-2">
               <a
-                href="http://localhost:3000"
+                href="http://localhost:3000/login"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="block text-slate-400 hover:text-sky-400 transition-colors text-sm"
