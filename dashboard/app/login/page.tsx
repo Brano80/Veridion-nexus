@@ -77,9 +77,6 @@ export default function LoginPage() {
               </span>
             </h1>
           </div>
-          <p className="text-emerald-400 text-sm font-semibold tracking-widest uppercase">
-            Sovereign Shield
-          </p>
         </div>
 
         {/* Card */}

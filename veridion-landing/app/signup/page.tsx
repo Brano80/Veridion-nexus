@@ -108,9 +108,6 @@ export default function SignupPage() {
                 </span>
               </h1>
             </div>
-            <p className="text-emerald-400 text-sm font-semibold tracking-widest uppercase">
-              Sovereign Shield
-            </p>
           </div>
 
           <div className="bg-slate-800 border border-slate-700 rounded-xl p-8 space-y-6">
@@ -204,9 +201,6 @@ export default function SignupPage() {
               </span>
             </h1>
           </div>
-          <p className="text-emerald-400 text-sm font-semibold tracking-widest uppercase">
-            Sovereign Shield
-          </p>
         </div>
 
         {/* Card */}

@@ -19,6 +19,7 @@ export default function SovereignShieldPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [connectionError, setConnectionError] = useState(false);
+  const [backendAvailable, setBackendAvailable] = useState(false);
   const [lastScanTime, setLastScanTime] = useState<string>('');
   const [enforcementMode, setEnforcementMode] = useState<'shadow' | 'enforce'>('shadow');
   const [showEnforceModal, setShowEnforceModal] = useState(false);
@@ -35,13 +36,28 @@ export default function SovereignShieldPage() {
   async function loadData() {
     try {
       setConnectionError(false);
-      const [eventsData, sccData, reviewData, decidedIds, settingsData] = await Promise.all([
-        fetchEvidenceEvents(),
-        fetchSCCRegistries(),
+      
+      // Check backend availability via settings API
+      let settingsData;
+      let settingsSuccess = false;
+      try {
+        settingsData = await fetchSettings();
+        settingsSuccess = true;
+        setBackendAvailable(true);
+      } catch (error) {
+        console.error('Settings API failed:', error);
+        settingsSuccess = false;
+        setBackendAvailable(false);
+        settingsData = { enforcement_mode: 'shadow' };
+      }
+      
+      const [eventsData, sccData, reviewData, decidedIds] = await Promise.all([
+        fetchEvidenceEvents().catch(() => []),
+        fetchSCCRegistries().catch(() => []),
         fetchReviewQueuePending().catch(() => []),
-        fetchDecidedEvidenceIds(),
-        fetchSettings().catch(() => ({ enforcement_mode: 'shadow' })),
+        fetchDecidedEvidenceIds().catch(() => []),
       ]);
+      
       setEnforcementMode((settingsData?.enforcement_mode === 'enforce' ? 'enforce' : 'shadow') as 'shadow' | 'enforce');
       setDecidedEvidenceIds(new Set(decidedIds));
       const eventsArray = Array.isArray(eventsData) ? eventsData : [];
@@ -98,6 +114,7 @@ export default function SovereignShieldPage() {
       setEvents([]);
       setSccRegistries([]);
       setConnectionError(true);
+      setBackendAvailable(false);
     } finally {
       setLoading(false);
     }
@@ -364,9 +381,10 @@ export default function SovereignShieldPage() {
   // Transfers in Review Queue awaiting human decision
   const actualPending = reviewQueuePending.length;
 
-  // Status: ATTENTION only when transfers await human decision; ACTIVE otherwise
-  // Expiring SCCs and expired SCCs are informational KPIs only — they don't change compliance status
-  const status = actualPending > 0 ? 'ATTENTION' : 'ACTIVE';
+  // Status: Based on backend availability, not transfer counts
+  // ACTIVE = backend is reachable and settings API succeeded
+  // DISABLED = backend unreachable or settings API failed
+  const status = backendAvailable ? 'ACTIVE' : 'DISABLED';
 
   // SCC COVERAGE: destinations with unresolved REVIEW transfers OR valid SCC
   // Denominator = union of unresolved destinations + covered destinations
@@ -542,21 +560,17 @@ export default function SovereignShieldPage() {
         <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              {connectionError ? (
-                <AlertTriangle className="w-5 h-5 text-orange-400" />
-              ) : status === 'ACTIVE' ? (
+              {status === 'ACTIVE' ? (
                 <CheckCircle className="w-5 h-5 text-green-400" />
               ) : (
-                <AlertTriangle className="w-5 h-5 text-orange-400" />
+                <AlertTriangle className="w-5 h-5 text-red-400" />
               )}
               <span className="text-sm font-medium text-white">
                 Status:{' '}
-                {connectionError ? (
-                  <span className="text-orange-400">DISABLED</span>
-                ) : status === 'ACTIVE' ? (
+                {status === 'ACTIVE' ? (
                   <span className="text-green-400">ACTIVE</span>
                 ) : (
-                  <span className="text-orange-400">ATTENTION</span>
+                  <span className="text-red-400">DISABLED</span>
                 )}
               </span>
             </div>

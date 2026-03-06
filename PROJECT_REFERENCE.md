@@ -1,6 +1,6 @@
 # Project Reference — Veridion API / Sovereign Shield
 
-**Version:** 1.4  
+**Version:** 1.5  
 **Last updated:** 2026-03-06
 
 This is the **single project reference** for Veridion API: vision, scope, tech stack, configuration, and current behaviour (dashboard and API). Use it to onboard, scope work, and keep the codebase and docs aligned.
@@ -40,6 +40,7 @@ The vision is a **single, deployable API** that owns its schema and can grow fro
 - **Backend**: Rust (Actix-web) API on `http://localhost:8080`.
 - **Frontend**: Next.js 14 dashboard (Sovereign Shield) in `dashboard/`, on `http://localhost:3000`.
 - **Landing page**: Next.js 14 in `veridion-landing/`, on `http://localhost:3001`. Contains marketing page and self-serve signup flow.
+- **MCP Server**: Node.js/TypeScript MCP server in `mcp-server/`. Provides GDPR compliance tools for AI agents (Claude, Cursor, etc.).
 - **Theme**: Dark (slate-900/800/700), emerald accents. Icons: `lucide-react`. Fonts: Inter, JetBrains Mono.
 
 ---
@@ -65,6 +66,15 @@ Dependencies: serde/serde_json, chrono, uuid, dotenv.
 - **Next** 14.x (App Router), **React** 18, **Tailwind CSS** 3.x, **lucide-react**, **react-simple-maps** (TopoJSON from world-atlas@2).
 - **Scripts**: `npm run dev` (port 3000), `build`, `start`, `lint`.
 
+### 4.3 MCP Server (Node.js/TypeScript)
+
+- **Language**: TypeScript 5.x
+- **Runtime**: Node.js (ESM modules)
+- **Framework**: `@modelcontextprotocol/sdk` v1.27+
+- **Transport**: stdio (for Claude Desktop, Cursor)
+- **Dependencies**: `zod` (schema validation), `node-fetch` (HTTP client)
+- **Scripts**: `npm run build` (TypeScript compilation), `npm run dev` (ts-node), `npm start` (run compiled dist)
+
 ---
 
 ## 5. Project structure and configuration
@@ -78,6 +88,7 @@ veridion-api/
 ├── migrations/             # Schema 001–027 (no external path)
 ├── dashboard/              # Next.js Sovereign Shield dashboard (port 3000)
 ├── veridion-landing/       # Next.js landing page + signup flow (port 3001)
+├── mcp-server/            # MCP server (Node.js/TypeScript) for AI agent integration
 ├── .env
 ├── PROJECT_REFERENCE.md    # This file
 └── …
@@ -184,6 +195,36 @@ veridion-api/
 
 **Note:** Dashboard calls `/api/v1/shield/evaluate` via `evaluateTransfer()`. Full route list in `src/main.rs` startup log. Evidence API returns `merkleRoots` for chain integrity display.
 
+### 8.6 MCP Server
+
+The MCP (Model Context Protocol) server provides GDPR compliance tools for AI agents (Claude Desktop, Cursor, etc.). It runs as a standalone Node.js process with stdio transport.
+
+**Location**: `mcp-server/`
+
+**Environment Variables**:
+- `SOVEREIGN_SHIELD_API_KEY` (required) — Tenant API key (`ss_test_...` or `ss_live_...`)
+- `SOVEREIGN_SHIELD_API_URL` (optional) — Defaults to `https://api.veridion-nexus.eu`
+
+**Tools Provided**:
+
+| Tool | Description |
+|---|---|
+| `evaluate_transfer` | Evaluate a cross-border transfer before it happens. Returns ALLOW, BLOCK, or REVIEW with cryptographic evidence seal. |
+| `check_scc_coverage` | Check SCC registry for a specific partner/country combination. |
+| `get_compliance_status` | Get account compliance overview (enforcement mode, transfer stats, pending reviews, expiring SCCs). |
+| `list_adequate_countries` | List countries by GDPR transfer status (EU/EEA, adequate, SCC required, blocked). Optional filter parameter. |
+
+**Setup**:
+- **Claude Desktop**: Add to `claude_desktop_config.json` (macOS: `~/Library/Application Support/Claude/`, Windows: `%APPDATA%\Claude\`)
+- **Cursor**: Add to `.cursor/mcp.json` in project root
+- **Manual**: Run `npm run build` then `node dist/index.js`
+
+**Error Handling**: Returns formatted error messages for 401 (auth failed), 402 (trial expired), 500 (server error), and network errors.
+
+**Shadow Mode**: When API response reason starts with "SHADOW MODE", appends warning that decision is recorded but not enforced.
+
+**Documentation**: See `mcp-server/README.md` and `veridion-landing/app/docs/page.tsx` (MCP Server section).
+
 ### 8.7 Shadow Mode
 
 **Shadow Mode** is a pre-enforcement observation mode where the system records real policy decisions (BLOCK/REVIEW/ALLOW) but always returns `ALLOW` to the caller. This allows organizations to observe policy behavior before enabling enforcement.
@@ -241,7 +282,15 @@ veridion-api/
 
 - **Route**: `/scc-registry`. Data: `fetchSCCRegistries()`, `createSCCRegistry()`, `patchSCCRegistry()`. Wizard (Partner, Country; SCC Module C2C/C2P/P2P/P2C, DPA ID, dates, TIA completed; Submit). Pre-fill from `?country=` and `?partner=` query params. Filters (status, search) and KPI cards (Total Active, Expiring Soon, Expired, Archived). **KPI cards**: Grey icon and number when count is 0, colored (green/amber/red) when >= 1. Registry cards show Partner, Country, Module, DPA ID, expiry, TIA status; **Mark TIA Complete** button calls PATCH. Renew flow for expiring SCCs. Active/History tabs.
 
-### 10.5 Adequate Countries — `dashboard/app/adequate-countries/page.tsx`
+### 10.5 Login — `dashboard/app/login/page.tsx`
+
+- **Route**: `/login`. Full-page login form with email/password authentication.
+- **Auth**: Calls `POST /api/v1/auth/login` with email and password. Stores JWT token in `localStorage` (`ss_token`, `ss_user`).
+- **Redirect**: On success, redirects to `/` (Sovereign Shield home). On error, displays error message.
+- **Remember me**: Optional checkbox (not yet implemented in backend).
+- **Layout**: Does not use `DashboardLayout` — standalone full-page form.
+
+### 10.6 Adequate Countries — `dashboard/app/adequate-countries/page.tsx`
 
 - **Route**: `/adequate-countries`. Static page (no API calls). 
 - **KPI Summary Bar**: Four cards showing counts — ADEQUATE (green Shield icon), SCC REQUIRED (amber Globe icon), DPF CERTIFIED (US) — "Partial" (blue Shield icon), BLOCKED (red Shield icon).
@@ -258,17 +307,17 @@ veridion-api/
 - **Data**: India in SCC Required list, Venezuela in Blocked list. Last reviewed: March 2026.
 - **Footer**: Includes BCR footnote about Binding Corporate Rules and approved codes of conduct.
 
-### 10.6 Evidence Vault — `dashboard/app/evidence-vault/page.tsx`
+### 10.7 Evidence Vault — `dashboard/app/evidence-vault/page.tsx`
 
 - **Route**: `/evidence-vault`. Data: `fetchEvidenceEventsWithMeta()` (events, merkleRoots, totalCount), `verifyIntegrity()`. Query `?eventId=` highlights row. Auto-run chain integrity on load. KPI cards, status bar, filters (Risk Level, Destination Country, Search, Event Type). Filters exclude only `HUMAN_OVERSIGHT_REVIEW`; keep `HUMAN_OVERSIGHT_REJECTED` and `HUMAN_OVERSIGHT_APPROVED`. Severity: `HUMAN_OVERSIGHT_REJECTED` → CRITICAL, `HUMAN_OVERSIGHT_APPROVED` → LOW. Labels: "Human Decision — Blocked", "Human Decision — Approved". **Shadow events** (`payload.shadow_mode === true`): yellow "SHADOW" badge in EVENT column; uses normal event types (`DATA_TRANSFER_BLOCKED`, `DATA_TRANSFER_REVIEW`, `DATA_TRANSFER`). Evidence Events Archive: paginated (10/page). Table: EVENT and GDPR BASIS columns. **GDPR basis for human oversight:** when `sourceSystem === 'human-oversight'` or `eventType` includes `HUMAN_OVERSIGHT`, show **Art. 22** (right not to be subject to automated decision-making). Drawer: event details, Transfer sections, Cryptographic Evidence. Export JSON; **PDF export** (jsPDF-generated PDF report; includes Art. 22 for human oversight events). **CHAIN STATUS KPI card shows VALID/TAMPERED status + LAST HASH (first 8...last 8 chars of last event's payload_hash, full hash on hover, hidden when no events exist).**
 
-### 10.7 Transfer Detail — `dashboard/app/transfer-detail/[id]/page.tsx`
+### 10.8 Transfer Detail — `dashboard/app/transfer-detail/[id]/page.tsx`
 
 - **Route**: `/transfer-detail/[id]` (id = seal_id or evidence id). Data: `fetchReviewQueueItem(id)`, `fetchEvidenceEvents()` for linked event.
 - **Actions**: **Reject** (red), **Approve** (green, only when **not** missing SCC), **Add SCC** (orange when SCC required). When missing SCC, Approve hidden; user registers SCC and backend auto-approves matching pending reviews. Reject → sealed `HUMAN_OVERSIGHT_REJECTED`, counted in BLOCKED (24H).
 - **Sections**: Status banner; Regulatory Context (GDPR Art. 44–49, 22, 46, EU AI Act 14); Transfer Details (Partner, Destination, Action, Data categories, Records); Technical Details (IPs, path, protocol, User-Agent); Reason Flagged; Evidence Chain (Seal ID, Evidence ID, etc.); Evidence Event (when linked).
 
-### 10.8 Admin Panel — `dashboard/app/admin/page.tsx`
+### 10.9 Admin Panel — `dashboard/app/admin/page.tsx`
 
 - **Route**: `/admin`. Internal admin-only tenant management.
 - **Features**: 
@@ -281,7 +330,27 @@ veridion-api/
 
 ---
 
-## 11. Shared components
+## 11. Landing page (`veridion-landing/`)
+
+### 11.1 Documentation page — `veridion-landing/app/docs/page.tsx`
+
+- **Route**: `/docs`. Comprehensive API documentation with sidebar navigation.
+- **Sections**: Quick Start, Authentication, Evaluate Transfer, Response Reference, Error Codes, Shadow Mode, Code Examples (curl/Python/Node.js tabs), **MCP Server**, Limitations.
+- **MCP Server Section**: 
+  - Comparison cards: REST API (manual integration) vs MCP Server (zero-code integration)
+  - Setup instructions for Claude Desktop and Cursor with JSON config examples
+  - Available tools table (`evaluate_transfer`, `check_scc_coverage`, `get_compliance_status`, `list_adequate_countries`)
+- **Features**: Sticky sidebar, mobile dropdown, code examples with copy buttons, responsive design.
+
+### 11.2 Signup page — `veridion-landing/app/signup/page.tsx`
+
+- **Route**: `/signup`. Self-serve tenant registration form.
+- **Styling**: Matches `dashboard/app/login/page.tsx` exactly (same card size, form elements, branding).
+- **Success page**: Redirects to success page with dashboard link after registration.
+
+---
+
+## 12. Shared components
 
 - **SovereignMap.tsx**: Maps `EvidenceEvent[]` to country status (adequate/SCC/blocked) and transfer counts; outputs for WorldMap. Markers type: `{ lat: number; lng: number; code: string; name: string; color: string }[]`.
 - **WorldMap.tsx**: react-simple-maps; 400px map, legend, tooltips; fill by status. Accepts `markers` prop for small country markers.
@@ -290,7 +359,7 @@ veridion-api/
 
 ---
 
-## 12. API client — `dashboard/app/utils/api.ts`
+## 13. API client — `dashboard/app/utils/api.ts`
 
 - **Base**: Uses relative URL (`API_BASE = ''`) so Next.js rewrites proxy to backend (avoids CORS). Types: `EvidenceEvent`, `SCCRegistry`, `ReviewQueueItem`.
 - **Trial Expiry Detection**: Global 402 (Payment Required) handler:
@@ -306,7 +375,7 @@ veridion-api/
   - Shield: `evaluateTransfer(data)` → `POST /api/v1/shield/evaluate`
 - **Note**: `createReviewQueueItem` sends `evidenceEventId`; `rejectReviewQueueItem` creates `HUMAN_OVERSIGHT_REJECTED` event. See §8 for endpoint mapping.
 
-### 12.1 Auth utilities — `dashboard/app/utils/auth.ts`
+### 13.1 Auth utilities — `dashboard/app/utils/auth.ts`
 
 - **Placeholder implementations** for Phase 0.4 login:
   - `getAuthToken()` — returns token from storage (placeholder)
@@ -316,7 +385,7 @@ veridion-api/
 
 ---
 
-## 13. Backend (Rust) — relevant for dashboard
+## 14. Backend (Rust) — relevant for dashboard
 
 - **Evidence**: `src/routes_evidence.rs` — list events (with pagination, filters; returns events, totalCount, merkleRoots), create event, verify-integrity.
 - **Shield**: `src/routes_shield.rs` — evaluate (synchronous), ingest-logs (batch), stats, countries, requires-attention, transfers-by-destination, SCC CRUD (list, register, PATCH, delete). On register, `review_queue::approve_pending_reviews_for_scc()` auto-approves pending reviews whose evidence event matches the new SCC destination.
@@ -325,7 +394,7 @@ veridion-api/
 
 ---
 
-## 14. File map (dashboard)
+## 15. File map (dashboard)
 
 | Path | Purpose |
 |------|--------|
@@ -349,9 +418,9 @@ veridion-api/
 
 ---
 
-## 15. Build and deployment
+## 16. Build and deployment
 
-### 15.1 Dynamic rendering
+### 16.1 Dynamic rendering
 
 All dashboard pages that fetch backend data use `export const dynamic = 'force-dynamic'` to disable static prerendering:
 - `/` (Sovereign Shield home)
@@ -363,7 +432,7 @@ All dashboard pages that fetch backend data use `export const dynamic = 'force-d
 
 Pages using `useSearchParams()` are wrapped in Suspense boundaries to satisfy Next.js 14 requirements.
 
-### 15.2 Trial expiry handling
+### 16.2 Trial expiry handling
 
 - **Backend**: Returns `402 Payment Required` when tenant trial has expired (middleware checks `trial_expires_at`).
 - **Frontend**: Global 402 detection in `api.ts` triggers `TrialExpiredModal` via callback system.

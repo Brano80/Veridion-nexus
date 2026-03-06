@@ -12,6 +12,7 @@ const sections = [
   { id: 'error-codes', label: 'Error Codes' },
   { id: 'shadow-mode', label: 'Shadow Mode' },
   { id: 'code-examples', label: 'Code Examples' },
+  { id: 'mcp-server', label: 'MCP Server' },
   { id: 'limitations', label: 'Limitations' },
 ];
 
@@ -819,6 +820,109 @@ async function callOpenAI(userData) {
 }`}
                   />
                 )}
+              </div>
+            </section>
+
+            {/* MCP Server */}
+            <section
+              id="mcp-server"
+              ref={(el) => { sectionRefs.current['mcp-server'] = el; }}
+              className="mb-16"
+            >
+              <h2 className="text-3xl font-bold text-slate-900 mb-4">MCP Server</h2>
+              <p className="text-slate-700 mb-6">
+                Sovereign Shield is available as an MCP (Model Context Protocol) server. This allows AI agents — including Claude, Cursor, and any MCP-compatible assistant — to enforce GDPR compliance automatically, without manual API integration.
+              </p>
+
+              <div className="grid md:grid-cols-2 gap-6 mb-8">
+                <div className="bg-white border border-slate-200 rounded-lg p-6">
+                  <h3 className="text-lg font-semibold text-slate-900 mb-3">REST API</h3>
+                  <ul className="space-y-2 text-slate-700 text-sm">
+                    <li>• Manual integration (~30 minutes)</li>
+                    <li>• Add <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">evaluate()</code> call before each transfer</li>
+                    <li>• Handle ALLOW/BLOCK/REVIEW in your code</li>
+                    <li>• Best for: existing codebases</li>
+                  </ul>
+                </div>
+                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-6">
+                  <h3 className="text-lg font-semibold text-slate-900 mb-3">MCP Server</h3>
+                  <ul className="space-y-2 text-slate-700 text-sm">
+                    <li>• Zero-code integration (~5 minutes)</li>
+                    <li>• AI agent calls <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">evaluate_transfer</code> automatically</li>
+                    <li>• Agent handles decisions autonomously</li>
+                    <li>• Best for: AI-native applications</li>
+                  </ul>
+                </div>
+              </div>
+
+              <h3 className="text-xl font-semibold text-slate-900 mb-3">Setup: Claude Desktop</h3>
+              <CodeBlock
+                id="mcp-claude-config"
+                language="json"
+                code={`{
+  "mcpServers": {
+    "sovereign-shield": {
+      "command": "npx",
+      "args": ["sovereign-shield-mcp"],
+      "env": {
+        "SOVEREIGN_SHIELD_API_KEY": "ss_test_your_key_here"
+      }
+    }
+  }
+}`}
+              />
+              <p className="text-slate-600 text-sm mt-2 mb-8">
+                File location: <code className="bg-slate-200 px-1.5 py-0.5 rounded text-xs font-mono">~/Library/Application Support/Claude/claude_desktop_config.json</code> (macOS) or <code className="bg-slate-200 px-1.5 py-0.5 rounded text-xs font-mono">%APPDATA%\Claude\claude_desktop_config.json</code> (Windows)
+              </p>
+
+              <h3 className="text-xl font-semibold text-slate-900 mb-3">Setup: Cursor</h3>
+              <CodeBlock
+                id="mcp-cursor-config"
+                language="json"
+                code={`{
+  "mcpServers": {
+    "sovereign-shield": {
+      "command": "npx",
+      "args": ["sovereign-shield-mcp"],
+      "env": {
+        "SOVEREIGN_SHIELD_API_KEY": "ss_test_your_key_here"
+      }
+    }
+  }
+}`}
+              />
+              <p className="text-slate-600 text-sm mt-2 mb-8">
+                File location: <code className="bg-slate-200 px-1.5 py-0.5 rounded text-xs font-mono">.cursor/mcp.json</code> in your project root.
+              </p>
+
+              <h3 className="text-xl font-semibold text-slate-900 mb-3 mt-8">Available tools</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse min-w-[600px]">
+                  <thead>
+                    <tr className="bg-slate-200">
+                      <th className="border border-slate-300 px-4 py-2 text-left">Tool</th>
+                      <th className="border border-slate-300 px-4 py-2 text-left">When to use</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 font-mono text-sm">evaluate_transfer</td>
+                      <td className="border border-slate-300 px-4 py-2">Before any external API call with personal data</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 font-mono text-sm">check_scc_coverage</td>
+                      <td className="border border-slate-300 px-4 py-2">To verify SCC exists for a partner/country</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 font-mono text-sm">get_compliance_status</td>
+                      <td className="border border-slate-300 px-4 py-2">To get account overview and pending reviews</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 font-mono text-sm">list_adequate_countries</td>
+                      <td className="border border-slate-300 px-4 py-2">To check a country{"'"}s GDPR transfer status</td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
             </section>
 
