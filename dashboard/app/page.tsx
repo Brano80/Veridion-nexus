@@ -692,7 +692,14 @@ export default function SovereignShieldPage() {
                       const evidenceId = item.evidenceId || item.context?.event_id || item.context?.evidence_id;
                       if (evidenceId && decidedEvidenceIds.has(evidenceId)) return false;
 
+                      // If status is PENDING, always show it (needs human attention regardless of destination)
+                      const status = (item.status || '').toUpperCase();
+                      if (status === 'PENDING') {
+                        return true;
+                      }
+
                       // Exclude items with no actionable destination (null, empty, N/A, Unknown)
+                      // But only if status is not PENDING (already handled above)
                       const countryName = (item.context?.destination_country || item.context?.destination || '').trim();
                       let countryCode = (item.context?.destination_country_code || item.context?.destinationCountryCode || '').trim().toUpperCase();
                       if (!countryCode && countryName) countryCode = getCountryCodeFromName(countryName);
