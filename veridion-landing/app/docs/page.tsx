@@ -1,0 +1,955 @@
+'use client';
+
+import { useState, useEffect, useRef } from 'react';
+import { Shield, Menu, X, Copy, Check } from 'lucide-react';
+import Link from 'next/link';
+
+const sections = [
+  { id: 'quick-start', label: 'Quick Start' },
+  { id: 'authentication', label: 'Authentication' },
+  { id: 'evaluate-transfer', label: 'Evaluate Transfer' },
+  { id: 'response-reference', label: 'Response Reference' },
+  { id: 'error-codes', label: 'Error Codes' },
+  { id: 'shadow-mode', label: 'Shadow Mode' },
+  { id: 'code-examples', label: 'Code Examples' },
+  { id: 'limitations', label: 'Limitations' },
+];
+
+export default function DocsPage() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState('quick-start');
+  const [codeTab, setCodeTab] = useState<'curl' | 'python' | 'nodejs'>('curl');
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const sectionRefs = useRef<{ [key: string]: HTMLElement | null }>({});
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            setActiveSection(entry.target.id);
+          }
+        });
+      },
+      { rootMargin: '-20% 0px -70% 0px' }
+    );
+
+    sections.forEach((section) => {
+      const element = sectionRefs.current[section.id];
+      if (element) observer.observe(element);
+    });
+
+    return () => observer.disconnect();
+  }, []);
+
+  function copyToClipboard(text: string, id: string) {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  }
+
+  function scrollToSection(id: string) {
+    const element = sectionRefs.current[id];
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setMobileMenuOpen(false);
+    }
+  }
+
+  const CodeBlock = ({ code, language, id }: { code: string; language: string; id: string }) => (
+    <div className="relative group">
+      <pre className="bg-slate-800 text-slate-100 p-4 rounded-lg overflow-x-auto text-sm font-mono">
+        <code>{code}</code>
+      </pre>
+      <button
+        onClick={() => copyToClipboard(code, id)}
+        className="absolute top-2 right-2 p-2 bg-slate-700 hover:bg-slate-600 rounded text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity"
+        title="Copy code"
+      >
+        {copiedId === id ? (
+          <Check className="w-4 h-4 text-emerald-400" />
+        ) : (
+          <Copy className="w-4 h-4" />
+        )}
+      </button>
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-white">
+      {/* Navigation */}
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-[#0f172a] border-b border-slate-800">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <Link href="/" className="flex items-center">
+              <h1 className="flex items-baseline gap-1.5" style={{ fontFamily: "Inter, sans-serif" }}>
+                <span className="text-xl font-black italic uppercase text-white" style={{ letterSpacing: "-0.05em", lineHeight: 0.85 }}>VERIDION</span>
+                <span className="text-base font-semibold italic lowercase" style={{ color: "#10b981", letterSpacing: "-0.02em", filter: "drop-shadow(0 0 15px rgba(16, 185, 129, 0.3))" }}>nexus</span>
+              </h1>
+            </Link>
+            <div className="hidden md:flex items-center gap-6">
+              <Link href="/docs" className="text-slate-300 hover:text-white transition-colors text-sm">
+                Documentation
+              </Link>
+              <a 
+                href="http://localhost:3000/login" 
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-slate-300 hover:text-white transition-colors text-sm"
+              >
+                Sign In
+              </a>
+            </div>
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="md:hidden p-2 text-slate-300 hover:text-white"
+            >
+              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            </button>
+          </div>
+          {mobileMenuOpen && (
+            <div className="md:hidden border-t border-slate-800 py-4 space-y-3">
+              <Link href="/docs" className="block text-slate-300 hover:text-white transition-colors text-sm">
+                Documentation
+              </Link>
+              <a 
+                href="http://localhost:3000/login" 
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block text-slate-300 hover:text-white transition-colors text-sm"
+              >
+                Sign In
+              </a>
+            </div>
+          )}
+        </div>
+      </nav>
+
+      <div className="flex pt-16">
+        {/* Sidebar */}
+        <aside className="hidden lg:block w-64 bg-slate-50 border-r border-slate-200 h-screen sticky top-16 overflow-y-auto">
+          <div className="p-6">
+            <nav className="space-y-1">
+              {sections.map((section) => (
+                <button
+                  key={section.id}
+                  onClick={() => scrollToSection(section.id)}
+                  className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
+                    activeSection === section.id
+                      ? 'bg-emerald-100 text-emerald-700 font-medium'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  {section.label}
+                </button>
+              ))}
+            </nav>
+          </div>
+        </aside>
+
+        {/* Mobile Sidebar Dropdown */}
+        <div className="lg:hidden w-full">
+          <div className="bg-slate-50 border-b border-slate-200 p-4">
+            <select
+              value={activeSection}
+              onChange={(e) => scrollToSection(e.target.value)}
+              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm"
+            >
+              {sections.map((section) => (
+                <option key={section.id} value={section.id}>
+                  {section.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <main className="flex-1 bg-[#f8fafc] min-h-screen">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+            
+            {/* Quick Start */}
+            <section
+              id="quick-start"
+              ref={(el) => { sectionRefs.current['quick-start'] = el; }}
+              className="mb-16"
+            >
+              <h1 className="text-4xl font-bold text-slate-900 mb-4">Quick Start</h1>
+              <h2 className="text-2xl font-semibold text-slate-800 mb-6">Integrate in under 30 minutes</h2>
+
+              <div className="space-y-8">
+                <div>
+                  <h3 className="text-xl font-semibold text-slate-900 mb-3">Step 1 — Get your API key</h3>
+                  <p className="text-slate-700 mb-4">
+                    Sign up at veridion-nexus.eu. Your API key is displayed once on the success screen and emailed to you. It starts with <code className="bg-slate-200 px-1.5 py-0.5 rounded text-sm font-mono">ss_test_</code>
+                  </p>
+                </div>
+
+                <div>
+                  <h3 className="text-xl font-semibold text-slate-900 mb-3">Step 2 — Make your first evaluation</h3>
+                  <CodeBlock
+                    id="quick-start-curl"
+                    language="bash"
+                    code={`curl -X POST https://api.veridion-nexus.eu/api/v1/shield/evaluate \\
+  -H "Authorization: Bearer ss_test_your_key_here" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "destination_country_code": "US",
+    "data_categories": ["email", "name"],
+    "partner_name": "OpenAI"
+  }'`}
+                  />
+                </div>
+
+                <div>
+                  <h3 className="text-xl font-semibold text-slate-900 mb-3">Step 3 — Handle the decision</h3>
+                  <CodeBlock
+                    id="quick-start-js"
+                    language="javascript"
+                    code={`const { decision, reason, legal_basis } = response;
+
+if (decision === 'BLOCK') {
+  throw new Error(\`Transfer blocked: \${reason}\`);
+}
+if (decision === 'REVIEW') {
+  await queueForHumanReview(transferId);
+  return; // do not proceed
+}
+// decision === 'ALLOW' — proceed with transfer`}
+                  />
+                </div>
+              </div>
+            </section>
+
+            {/* Authentication */}
+            <section
+              id="authentication"
+              ref={(el) => { sectionRefs.current['authentication'] = el; }}
+              className="mb-16"
+            >
+              <h2 className="text-3xl font-bold text-slate-900 mb-4">Authentication</h2>
+              <p className="text-slate-700 mb-6">
+                All API requests require a Bearer token in the Authorization header.
+              </p>
+              <CodeBlock
+                id="auth-example"
+                language="bash"
+                code={`Authorization: Bearer ss_test_your_api_key`}
+              />
+              <div className="mt-6">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-slate-200">
+                      <th className="border border-slate-300 px-4 py-2 text-left">Header</th>
+                      <th className="border border-slate-300 px-4 py-2 text-left">Required</th>
+                      <th className="border border-slate-300 px-4 py-2 text-left">Description</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 font-mono text-sm">Authorization</td>
+                      <td className="border border-slate-300 px-4 py-2">Yes</td>
+                      <td className="border border-slate-300 px-4 py-2">Bearer {`{api_key}`}</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 font-mono text-sm">Content-Type</td>
+                      <td className="border border-slate-300 px-4 py-2">Yes</td>
+                      <td className="border border-slate-300 px-4 py-2">application/json</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-slate-600 text-sm mt-4">
+                API keys start with <code className="bg-slate-200 px-1.5 py-0.5 rounded text-sm font-mono">ss_test_</code> during the design partner period. Production keys will start with <code className="bg-slate-200 px-1.5 py-0.5 rounded text-sm font-mono">ss_live_</code> when paid plans launch.
+              </p>
+            </section>
+
+            {/* Evaluate Transfer */}
+            <section
+              id="evaluate-transfer"
+              ref={(el) => { sectionRefs.current['evaluate-transfer'] = el; }}
+              className="mb-16"
+            >
+              <h2 className="text-3xl font-bold text-slate-900 mb-4">Evaluate Transfer</h2>
+              <h3 className="text-xl font-semibold text-slate-800 mb-2 font-mono">POST /api/v1/shield/evaluate</h3>
+              <p className="text-slate-700 mb-6">
+                Evaluates a cross-border data transfer and returns a compliance decision with a cryptographically sealed evidence record.
+              </p>
+
+              <h4 className="text-lg font-semibold text-slate-900 mb-3 mt-8">Request body</h4>
+              <div className="overflow-x-auto mb-6">
+                <table className="w-full border-collapse min-w-[600px]">
+                  <thead>
+                    <tr className="bg-slate-200">
+                      <th className="border border-slate-300 px-4 py-2 text-left">Field</th>
+                      <th className="border border-slate-300 px-4 py-2 text-left">Type</th>
+                      <th className="border border-slate-300 px-4 py-2 text-left">Required</th>
+                      <th className="border border-slate-300 px-4 py-2 text-left">Description</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 font-mono text-sm">destination_country_code</td>
+                      <td className="border border-slate-300 px-4 py-2">string</td>
+                      <td className="border border-slate-300 px-4 py-2">Yes*</td>
+                      <td className="border border-slate-300 px-4 py-2">ISO 3166-1 alpha-2 country code (e.g. "US", "CN")</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 font-mono text-sm">destination_country</td>
+                      <td className="border border-slate-300 px-4 py-2">string</td>
+                      <td className="border border-slate-300 px-4 py-2">No</td>
+                      <td className="border border-slate-300 px-4 py-2">Human-readable country name</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 font-mono text-sm">data_categories</td>
+                      <td className="border border-slate-300 px-4 py-2">array</td>
+                      <td className="border border-slate-300 px-4 py-2">Yes*</td>
+                      <td className="border border-slate-300 px-4 py-2">Personal data categories being transferred (e.g. ["email", "name"])</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 font-mono text-sm">partner_name</td>
+                      <td className="border border-slate-300 px-4 py-2">string</td>
+                      <td className="border border-slate-300 px-4 py-2">No</td>
+                      <td className="border border-slate-300 px-4 py-2">Name of receiving party (e.g. "OpenAI")</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 font-mono text-sm">source_ip</td>
+                      <td className="border border-slate-300 px-4 py-2">string</td>
+                      <td className="border border-slate-300 px-4 py-2">No</td>
+                      <td className="border border-slate-300 px-4 py-2">Source IP address</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 font-mono text-sm">dest_ip</td>
+                      <td className="border border-slate-300 px-4 py-2">string</td>
+                      <td className="border border-slate-300 px-4 py-2">No</td>
+                      <td className="border border-slate-300 px-4 py-2">Destination IP address</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 font-mono text-sm">protocol</td>
+                      <td className="border border-slate-300 px-4 py-2">string</td>
+                      <td className="border border-slate-300 px-4 py-2">No</td>
+                      <td className="border border-slate-300 px-4 py-2">Transfer protocol (e.g. "HTTPS")</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 font-mono text-sm">request_path</td>
+                      <td className="border border-slate-300 px-4 py-2">string</td>
+                      <td className="border border-slate-300 px-4 py-2">No</td>
+                      <td className="border border-slate-300 px-4 py-2">API endpoint being called</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-slate-600 text-sm mb-6">
+                *Either destination_country_code or destination_country is required. If data_categories is omitted, the decision defaults to REVIEW.
+              </p>
+
+              <h4 className="text-lg font-semibold text-slate-900 mb-3">Example request</h4>
+              <CodeBlock
+                id="evaluate-request"
+                language="json"
+                code={`{
+  "destination_country_code": "US",
+  "destination_country": "United States",
+  "data_categories": ["email", "name", "user_id"],
+  "partner_name": "OpenAI",
+  "protocol": "HTTPS",
+  "request_path": "/v1/chat/completions"
+}`}
+              />
+
+              <h4 className="text-lg font-semibold text-slate-900 mb-3 mt-8">Example responses</h4>
+              
+              <div className="space-y-6">
+                <div>
+                  <p className="text-sm font-semibold text-slate-700 mb-2">ALLOW (EU/EEA destination):</p>
+                  <CodeBlock
+                    id="response-allow-eu"
+                    language="json"
+                    code={`{
+  "decision": "ALLOW",
+  "reason": "Germany is EU/EEA — no transfer restrictions",
+  "legal_basis": [],
+  "country_status": "eu_eea",
+  "seal_id": "seal_a1b2c3d4e5f6...",
+  "evidence_id": "evt_..."
+}`}
+                  />
+                </div>
+
+                <div>
+                  <p className="text-sm font-semibold text-slate-700 mb-2">ALLOW (Adequate country):</p>
+                  <CodeBlock
+                    id="response-allow-adequate"
+                    language="json"
+                    code={`{
+  "decision": "ALLOW", 
+  "reason": "Japan has EU adequacy decision",
+  "legal_basis": ["GDPR Art. 45"],
+  "country_status": "adequate_protection",
+  "seal_id": "seal_...",
+  "evidence_id": "evt_..."
+}`}
+                  />
+                </div>
+
+                <div>
+                  <p className="text-sm font-semibold text-slate-700 mb-2">REVIEW (SCC required):</p>
+                  <CodeBlock
+                    id="response-review"
+                    language="json"
+                    code={`{
+  "decision": "REVIEW",
+  "reason": "United States requires SCC — human review needed to verify safeguards",
+  "legal_basis": ["GDPR Art. 46(2)(c)"],
+  "country_status": "scc_required",
+  "seal_id": "seal_...",
+  "evidence_id": "evt_..."
+}`}
+                  />
+                </div>
+
+                <div>
+                  <p className="text-sm font-semibold text-slate-700 mb-2">BLOCK:</p>
+                  <CodeBlock
+                    id="response-block"
+                    language="json"
+                    code={`{
+  "decision": "BLOCK",
+  "reason": "China is blocked — no legal transfer mechanism available",
+  "legal_basis": ["GDPR Art. 44", "GDPR Art. 46"],
+  "country_status": "blocked",
+  "seal_id": "seal_...",
+  "evidence_id": "evt_..."
+}`}
+                  />
+                </div>
+              </div>
+            </section>
+
+            {/* Response Reference */}
+            <section
+              id="response-reference"
+              ref={(el) => { sectionRefs.current['response-reference'] = el; }}
+              className="mb-16"
+            >
+              <h2 className="text-3xl font-bold text-slate-900 mb-4">Response Reference</h2>
+              
+              <h3 className="text-xl font-semibold text-slate-800 mb-3">Response fields</h3>
+              <div className="overflow-x-auto mb-8">
+                <table className="w-full border-collapse min-w-[600px]">
+                  <thead>
+                    <tr className="bg-slate-200">
+                      <th className="border border-slate-300 px-4 py-2 text-left">Field</th>
+                      <th className="border border-slate-300 px-4 py-2 text-left">Type</th>
+                      <th className="border border-slate-300 px-4 py-2 text-left">Description</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 font-mono text-sm">decision</td>
+                      <td className="border border-slate-300 px-4 py-2">string</td>
+                      <td className="border border-slate-300 px-4 py-2">ALLOW, BLOCK, or REVIEW</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 font-mono text-sm">reason</td>
+                      <td className="border border-slate-300 px-4 py-2">string</td>
+                      <td className="border border-slate-300 px-4 py-2">Human-readable explanation</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 font-mono text-sm">legal_basis</td>
+                      <td className="border border-slate-300 px-4 py-2">array</td>
+                      <td className="border border-slate-300 px-4 py-2">Applicable GDPR articles</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 font-mono text-sm">country_status</td>
+                      <td className="border border-slate-300 px-4 py-2">string</td>
+                      <td className="border border-slate-300 px-4 py-2">eu_eea, adequate_protection, scc_required, blocked, unknown</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 font-mono text-sm">seal_id</td>
+                      <td className="border border-slate-300 px-4 py-2">string</td>
+                      <td className="border border-slate-300 px-4 py-2">Cryptographic seal ID for evidence lookup</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 font-mono text-sm">evidence_id</td>
+                      <td className="border border-slate-300 px-4 py-2">string</td>
+                      <td className="border border-slate-300 px-4 py-2">Evidence event ID in the vault</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <h3 className="text-xl font-semibold text-slate-800 mb-3">Decision logic</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse min-w-[700px]">
+                  <thead>
+                    <tr className="bg-slate-200">
+                      <th className="border border-slate-300 px-4 py-2 text-left">Destination</th>
+                      <th className="border border-slate-300 px-4 py-2 text-left">Personal Data</th>
+                      <th className="border border-slate-300 px-4 py-2 text-left">SCC Registered</th>
+                      <th className="border border-slate-300 px-4 py-2 text-left">Decision</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2">EU/EEA country</td>
+                      <td className="border border-slate-300 px-4 py-2">Any</td>
+                      <td className="border border-slate-300 px-4 py-2">N/A</td>
+                      <td className="border border-slate-300 px-4 py-2">ALLOW</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2">Adequate country (Art. 45)</td>
+                      <td className="border border-slate-300 px-4 py-2">Any</td>
+                      <td className="border border-slate-300 px-4 py-2">N/A</td>
+                      <td className="border border-slate-300 px-4 py-2">ALLOW</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2">SCC-required country</td>
+                      <td className="border border-slate-300 px-4 py-2">No</td>
+                      <td className="border border-slate-300 px-4 py-2">N/A</td>
+                      <td className="border border-slate-300 px-4 py-2">ALLOW</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2">SCC-required country</td>
+                      <td className="border border-slate-300 px-4 py-2">Yes</td>
+                      <td className="border border-slate-300 px-4 py-2">Yes (active)</td>
+                      <td className="border border-slate-300 px-4 py-2">ALLOW</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2">SCC-required country</td>
+                      <td className="border border-slate-300 px-4 py-2">Yes</td>
+                      <td className="border border-slate-300 px-4 py-2">No</td>
+                      <td className="border border-slate-300 px-4 py-2">REVIEW</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2">Blocked country</td>
+                      <td className="border border-slate-300 px-4 py-2">Any</td>
+                      <td className="border border-slate-300 px-4 py-2">N/A</td>
+                      <td className="border border-slate-300 px-4 py-2">BLOCK</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2">Unknown country</td>
+                      <td className="border border-slate-300 px-4 py-2">Any</td>
+                      <td className="border border-slate-300 px-4 py-2">N/A</td>
+                      <td className="border border-slate-300 px-4 py-2">REVIEW</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2">Missing data_categories</td>
+                      <td className="border border-slate-300 px-4 py-2">—</td>
+                      <td className="border border-slate-300 px-4 py-2">—</td>
+                      <td className="border border-slate-300 px-4 py-2">REVIEW</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            {/* Error Codes */}
+            <section
+              id="error-codes"
+              ref={(el) => { sectionRefs.current['error-codes'] = el; }}
+              className="mb-16"
+            >
+              <h2 className="text-3xl font-bold text-slate-900 mb-4">Error Codes</h2>
+              <div className="overflow-x-auto mb-6">
+                <table className="w-full border-collapse min-w-[600px]">
+                  <thead>
+                    <tr className="bg-slate-200">
+                      <th className="border border-slate-300 px-4 py-2 text-left">HTTP Status</th>
+                      <th className="border border-slate-300 px-4 py-2 text-left">Code</th>
+                      <th className="border border-slate-300 px-4 py-2 text-left">Description</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2">400</td>
+                      <td className="border border-slate-300 px-4 py-2 font-mono text-sm">bad_request</td>
+                      <td className="border border-slate-300 px-4 py-2">Missing or invalid request body</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2">401</td>
+                      <td className="border border-slate-300 px-4 py-2 font-mono text-sm">unauthorized</td>
+                      <td className="border border-slate-300 px-4 py-2">Missing or invalid API key</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2">402</td>
+                      <td className="border border-slate-300 px-4 py-2 font-mono text-sm">trial_expired</td>
+                      <td className="border border-slate-300 px-4 py-2">Trial period has ended</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2">422</td>
+                      <td className="border border-slate-300 px-4 py-2 font-mono text-sm">validation_error</td>
+                      <td className="border border-slate-300 px-4 py-2">Request validation failed</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2">500</td>
+                      <td className="border border-slate-300 px-4 py-2 font-mono text-sm">internal_error</td>
+                      <td className="border border-slate-300 px-4 py-2">Server error</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-slate-700 mb-3">Error response format:</p>
+              <CodeBlock
+                id="error-response"
+                language="json"
+                code={`{
+  "error": "unauthorized",
+  "message": "Missing or invalid API key"
+}`}
+              />
+            </section>
+
+            {/* Shadow Mode */}
+            <section
+              id="shadow-mode"
+              ref={(el) => { sectionRefs.current['shadow-mode'] = el; }}
+              className="mb-16"
+            >
+              <h2 className="text-3xl font-bold text-slate-900 mb-4">Shadow Mode</h2>
+              <p className="text-slate-700 mb-6">
+                During your 30-day trial, your account starts in Shadow Mode.
+              </p>
+              <div className="grid md:grid-cols-2 gap-6">
+                <div className="bg-white border border-slate-200 rounded-lg p-6">
+                  <h3 className="text-lg font-semibold text-slate-900 mb-3">Shadow Mode behaviour</h3>
+                  <ul className="space-y-2 text-slate-700">
+                    <li>• All transfers are evaluated normally</li>
+                    <li>• ALLOW/BLOCK/REVIEW decisions are made and sealed in evidence</li>
+                    <li>• Your application always receives ALLOW — nothing is blocked</li>
+                    <li>• Use this to understand your transfer risk profile</li>
+                  </ul>
+                </div>
+                <div className="bg-white border border-slate-200 rounded-lg p-6">
+                  <h3 className="text-lg font-semibold text-slate-900 mb-3">Enforce Mode behaviour</h3>
+                  <ul className="space-y-2 text-slate-700">
+                    <li>• All transfers evaluated normally</li>
+                    <li>• BLOCK decisions actually block the transfer (API returns 403)</li>
+                    <li>• REVIEW decisions queue for human approval</li>
+                    <li>• Available after upgrading to Pro</li>
+                  </ul>
+                </div>
+              </div>
+              <p className="text-slate-600 text-sm mt-6">
+                Switch between modes in your dashboard under Settings.
+              </p>
+            </section>
+
+            {/* Code Examples */}
+            <section
+              id="code-examples"
+              ref={(el) => { sectionRefs.current['code-examples'] = el; }}
+              className="mb-16"
+            >
+              <h2 className="text-3xl font-bold text-slate-900 mb-4">Code Examples</h2>
+              
+              {/* Tab Switcher */}
+              <div className="flex gap-2 mb-4 border-b border-slate-200">
+                <button
+                  onClick={() => setCodeTab('curl')}
+                  className={`px-4 py-2 font-medium transition-colors ${
+                    codeTab === 'curl'
+                      ? 'text-emerald-600 border-b-2 border-emerald-600'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  curl
+                </button>
+                <button
+                  onClick={() => setCodeTab('python')}
+                  className={`px-4 py-2 font-medium transition-colors ${
+                    codeTab === 'python'
+                      ? 'text-emerald-600 border-b-2 border-emerald-600'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Python
+                </button>
+                <button
+                  onClick={() => setCodeTab('nodejs')}
+                  className={`px-4 py-2 font-medium transition-colors ${
+                    codeTab === 'nodejs'
+                      ? 'text-emerald-600 border-b-2 border-emerald-600'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Node.js
+                </button>
+              </div>
+
+              {/* Code Content */}
+              <div className="mt-4">
+                {codeTab === 'curl' && (
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-sm text-slate-600 mb-2">Evaluate a transfer to the US (OpenAI):</p>
+                      <CodeBlock
+                        id="curl-example-1"
+                        language="bash"
+                        code={`# Evaluate a transfer to the US (OpenAI)
+curl -X POST https://api.veridion-nexus.eu/api/v1/shield/evaluate \\
+  -H "Authorization: Bearer ss_test_your_key" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "destination_country_code": "US",
+    "data_categories": ["email", "name"],
+    "partner_name": "OpenAI"
+  }'`}
+                      />
+                    </div>
+                    <div>
+                      <p className="text-sm text-slate-600 mb-2">Evaluate a transfer to Germany (EU/EEA - always ALLOW):</p>
+                      <CodeBlock
+                        id="curl-example-2"
+                        language="bash"
+                        code={`# Evaluate a transfer to Germany (EU/EEA - always ALLOW)
+curl -X POST https://api.veridion-nexus.eu/api/v1/shield/evaluate \\
+  -H "Authorization: Bearer ss_test_your_key" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "destination_country_code": "DE",
+    "data_categories": ["email"],
+    "partner_name": "AWS Frankfurt"
+  }'`}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {codeTab === 'python' && (
+                  <CodeBlock
+                    id="python-example"
+                    language="python"
+                    code={`import requests
+
+class SovereignShield:
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+        self.base_url = "https://api.veridion-nexus.eu"
+    
+    def evaluate(
+        self, 
+        destination_country_code: str,
+        data_categories: list[str],
+        partner_name: str = None
+    ) -> dict:
+        response = requests.post(
+            f"{self.base_url}/api/v1/shield/evaluate",
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "destination_country_code": destination_country_code,
+                "data_categories": data_categories,
+                "partner_name": partner_name
+            }
+        )
+        response.raise_for_status()
+        return response.json()
+
+# Usage
+shield = SovereignShield(api_key="ss_test_your_key")
+
+# Before calling OpenAI
+result = shield.evaluate(
+    destination_country_code="US",
+    data_categories=["email", "name"],
+    partner_name="OpenAI"
+)
+
+if result["decision"] == "BLOCK":
+    raise Exception(f"Transfer blocked: {result['reason']}")
+elif result["decision"] == "REVIEW":
+    queue_for_review(result["seal_id"])
+else:
+    # ALLOW — proceed
+    response = openai.chat.completions.create(...)`}
+                  />
+                )}
+
+                {codeTab === 'nodejs' && (
+                  <CodeBlock
+                    id="nodejs-example"
+                    language="javascript"
+                    code={`class SovereignShield {
+  constructor(apiKey) {
+    this.apiKey = apiKey;
+    this.baseUrl = 'https://api.veridion-nexus.eu';
+  }
+
+  async evaluate({ destinationCountryCode, dataCategories, partnerName }) {
+    const res = await fetch(\`\${this.baseUrl}/api/v1/shield/evaluate\`, {
+      method: 'POST',
+      headers: {
+        'Authorization': \`Bearer \${this.apiKey}\`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        destination_country_code: destinationCountryCode,
+        data_categories: dataCategories,
+        partner_name: partnerName
+      })
+    });
+    
+    if (!res.ok) throw new Error(\`Shield API error: \${res.status}\`);
+    return res.json();
+  }
+}
+
+// Usage — wrap your OpenAI calls
+const shield = new SovereignShield('ss_test_your_key');
+
+async function callOpenAI(userData) {
+  const { decision, reason, seal_id } = await shield.evaluate({
+    destinationCountryCode: 'US',
+    dataCategories: ['email', 'name'],
+    partnerName: 'OpenAI'
+  });
+
+  if (decision === 'BLOCK') throw new Error(\`Blocked: \${reason}\`);
+  if (decision === 'REVIEW') {
+    await queueForReview(seal_id);
+    return null;
+  }
+
+  return openai.chat.completions.create({
+    messages: [{ role: 'user', content: userData }]
+  });
+}`}
+                  />
+                )}
+              </div>
+            </section>
+
+            {/* Limitations */}
+            <section
+              id="limitations"
+              ref={(el) => { sectionRefs.current['limitations'] = el; }}
+              className="mb-16"
+            >
+              <h2 className="text-3xl font-bold text-slate-900 mb-4">Limitations</h2>
+              <p className="text-slate-700 mb-6">
+                Sovereign Shield supports demonstrable compliance — it does not guarantee it. Understand these limitations before integrating:
+              </p>
+              
+              <div className="space-y-4">
+                <div className="border-l-4 border-amber-400 bg-amber-50 p-4 rounded-r-lg">
+                  <h3 className="font-semibold text-slate-900 mb-2">Caller-provided classification</h3>
+                  <p className="text-slate-700 text-sm">
+                    Sovereign Shield trusts the data_categories you provide. It does not inspect payload content. If you classify personal data incorrectly, the evaluation reflects that.
+                  </p>
+                </div>
+
+                <div className="border-l-4 border-amber-400 bg-amber-50 p-4 rounded-r-lg">
+                  <h3 className="font-semibold text-slate-900 mb-2">Country list is static</h3>
+                  <p className="text-slate-700 text-sm">
+                    EU adequacy decisions change. The blocked/adequate/SCC-required classification is updated manually — it does not pull live from the EU Commission. Verify current adequacy status at commission.europa.eu.
+                  </p>
+                </div>
+
+                <div className="border-l-4 border-amber-400 bg-amber-50 p-4 rounded-r-lg">
+                  <h3 className="font-semibold text-slate-900 mb-2">Not legal advice</h3>
+                  <p className="text-slate-700 text-sm">
+                    Sovereign Shield is a technical enforcement and evidence tool. It does not replace a DPO, legal counsel, or a Transfer Impact Assessment. Consult a privacy lawyer for your specific situation.
+                  </p>
+                </div>
+
+                <div className="border-l-4 border-amber-400 bg-amber-50 p-4 rounded-r-lg">
+                  <h3 className="font-semibold text-slate-900 mb-2">No TIA generation</h3>
+                  <p className="text-slate-700 text-sm">
+                    Transfer Impact Assessments require legal and factual analysis specific to your organisation. Sovereign Shield does not generate TIAs.
+                  </p>
+                </div>
+
+                <div className="border-l-4 border-amber-400 bg-amber-50 p-4 rounded-r-lg">
+                  <h3 className="font-semibold text-slate-900 mb-2">Shadow Mode does not block</h3>
+                  <p className="text-slate-700 text-sm">
+                    During the 30-day trial, Shadow Mode always returns ALLOW to your application. Evidence is sealed, but no transfers are actually blocked. Enforcement requires upgrading to Pro.
+                  </p>
+                </div>
+
+                <div className="border-l-4 border-amber-400 bg-amber-50 p-4 rounded-r-lg">
+                  <h3 className="font-semibold text-slate-900 mb-2">SCC verification is registry-based</h3>
+                  <p className="text-slate-700 text-sm">
+                    Sovereign Shield checks whether an active SCC exists in your registry for the destination partner. It does not verify the legal validity or completeness of your SCCs.
+                  </p>
+                </div>
+              </div>
+            </section>
+          </div>
+        </main>
+      </div>
+
+      {/* Footer */}
+      <footer className="bg-[#0f172a] py-12 md:py-16">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid md:grid-cols-3 gap-8 md:gap-12">
+            <div className="space-y-3">
+              <div className="mb-2">
+                <h1 className="flex items-baseline gap-1.5" style={{ fontFamily: "Inter, sans-serif" }}>
+                  <span className="text-lg font-black italic uppercase text-white" style={{ letterSpacing: "-0.05em", lineHeight: 0.85 }}>VERIDION</span>
+                  <span className="text-base font-semibold italic lowercase" style={{ color: "#10b981", letterSpacing: "-0.02em", filter: "drop-shadow(0 0 15px rgba(16, 185, 129, 0.3))" }}>nexus</span>
+                </h1>
+              </div>
+              <p className="text-sm text-slate-400">
+                Sovereign Shield — GDPR Chapter V Runtime Enforcement
+              </p>
+              <p className="text-xs text-slate-500">
+                © 2026 Veridion Nexus. Built in the EU.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <a
+                href="http://localhost:3000/login"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block text-slate-400 hover:text-sky-400 transition-colors text-sm"
+              >
+                Dashboard
+              </a>
+              <Link
+                href="/docs"
+                className="block text-slate-400 hover:text-sky-400 transition-colors text-sm"
+              >
+                Documentation
+              </Link>
+              <a
+                href="http://localhost:3000/adequate-countries"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block text-slate-400 hover:text-sky-400 transition-colors text-sm"
+              >
+                Adequate Countries
+              </a>
+              <a
+                href="#"
+                className="block text-slate-400 hover:text-sky-400 transition-colors text-sm"
+              >
+                Privacy Policy
+              </a>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-slate-400 text-sm">
+                <span>Data centers:</span>
+                <span>Hetzner (EU)</span>
+                <span>🇩🇪</span>
+              </div>
+              <a
+                href="https://veridion-nexus.eu"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block text-slate-400 hover:text-sky-400 transition-colors text-sm"
+              >
+                veridion-nexus.eu
+              </a>
+              <div className="bg-slate-800 border border-slate-700 rounded-full px-3 py-1 inline-block text-xs text-slate-300">
+                GDPR Art. 44-49 Infrastructure Supporting Demonstrable Compliance
+              </div>
+            </div>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}

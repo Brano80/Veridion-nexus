@@ -28,9 +28,9 @@ export default function LandingPage() {
 
             {/* Right: Desktop Nav */}
             <div className="hidden md:flex items-center gap-6">
-              <a href="#faq" className="text-slate-300 hover:text-white transition-colors text-sm">
+              <Link href="/docs" className="text-slate-300 hover:text-white transition-colors text-sm">
                 Documentation
-              </a>
+              </Link>
               <a 
                 href="http://localhost:3000/login" 
                 target="_blank"
@@ -39,12 +39,6 @@ export default function LandingPage() {
               >
                 Sign In
               </a>
-              <Link 
-                href="/signup" 
-                className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-semibold transition-colors"
-              >
-                Apply for Design Partner Access
-              </Link>
             </div>
 
             {/* Mobile Menu Button */}
@@ -59,9 +53,9 @@ export default function LandingPage() {
           {/* Mobile Menu */}
           {mobileMenuOpen && (
             <div className="md:hidden border-t border-slate-800 py-4 space-y-3">
-              <a href="#faq" className="block text-slate-300 hover:text-white transition-colors text-sm" onClick={() => setMobileMenuOpen(false)}>
+              <Link href="/docs" className="block text-slate-300 hover:text-white transition-colors text-sm" onClick={() => setMobileMenuOpen(false)}>
                 Documentation
-              </a>
+              </Link>
               <a 
                 href="http://localhost:3000/login" 
                 target="_blank"
@@ -71,13 +65,6 @@ export default function LandingPage() {
               >
                 Sign In
               </a>
-              <Link 
-                href="/signup" 
-                className="block w-full text-center px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-semibold transition-colors"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                Apply for Design Partner Access
-              </Link>
             </div>
           )}
         </div>
