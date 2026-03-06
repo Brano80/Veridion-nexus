@@ -20,15 +20,10 @@ export default function LandingPage() {
           <div className="flex items-center justify-between h-16">
             {/* Left: Logo */}
             <div className="flex items-center">
-              <div className="flex flex-col">
-                <div className="flex items-center gap-2">
-                  <Shield className="w-5 h-5 text-emerald-500" />
-                  <span className="text-base font-black italic uppercase text-white" style={{ letterSpacing: '-0.05em' }}>
-                    VERIDION NEXUS
-                  </span>
-                </div>
-                <span className="text-xs text-emerald-500 font-semibold uppercase tracking-wider mt-0.5">
-                  SOVEREIGN SHIELD
+              <div className="flex items-center gap-2">
+                <Shield className="w-5 h-5 text-emerald-500" />
+                <span className="text-base font-black italic uppercase text-white" style={{ letterSpacing: '-0.05em' }}>
+                  VERIDION NEXUS
                 </span>
               </div>
             </div>
@@ -382,7 +377,7 @@ export default function LandingPage() {
             </p>
             <Link
               href="/signup"
-              className="inline-flex items-center gap-2 px-8 py-4 bg-white text-emerald-600 text-lg font-semibold rounded-xl hover:bg-slate-50 transition-colors"
+              className="inline-flex items-center gap-2 px-8 py-4 bg-white text-emerald-600 text-lg font-bold rounded-xl hover:bg-slate-50 transition-colors shadow-md"
             >
               Apply for Design Partner Access
               <ArrowRight className="w-5 h-5" />
@@ -419,7 +414,7 @@ export default function LandingPage() {
                 a: 'Any transfer of personal data to a country outside the EU/EEA requires a legal basis under GDPR Chapter V (Art. 44-49). This includes API calls that include personal data — names, emails, IDs — to US-based AI providers like OpenAI or Anthropic.',
               },
               {
-                q: 'Does having a DPA with OpenAI make me compliant?',
+                q: 'Does having a DPA with OpenAI satisfy GDPR Art. 5(2)?',
                 a: 'A Data Processing Agreement establishes the contractual framework, but GDPR Art. 5(2) requires you to demonstrate compliance per transfer. Sovereign Shield creates a cryptographically sealed evidence record for every evaluated transfer, giving you the audit trail a DPA alone cannot provide.',
               },
               {

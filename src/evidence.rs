@@ -24,10 +24,11 @@ pub fn compute_nexus_seal(payload_hash: &str, previous_hash: &str) -> String {
     sha256_hex(&input)
 }
 
-pub async fn get_latest_hash(pool: &PgPool, source_system: &str) -> Option<String> {
+pub async fn get_latest_hash(pool: &PgPool, source_system: &str, tenant_id: uuid::Uuid) -> Option<String> {
     sqlx::query_scalar::<_, String>(
-        "SELECT payload_hash FROM evidence_events WHERE source_system = $1 ORDER BY sequence_number DESC LIMIT 1"
+        "SELECT payload_hash FROM evidence_events WHERE tenant_id = $1 AND source_system = $2 ORDER BY sequence_number DESC LIMIT 1"
     )
+    .bind(tenant_id)
     .bind(source_system)
     .fetch_optional(pool)
     .await
@@ -35,10 +36,11 @@ pub async fn get_latest_hash(pool: &PgPool, source_system: &str) -> Option<Strin
     .flatten()
 }
 
-pub async fn get_next_sequence(pool: &PgPool, source_system: &str) -> i64 {
+pub async fn get_next_sequence(pool: &PgPool, source_system: &str, tenant_id: uuid::Uuid) -> i64 {
     let max: Option<i64> = sqlx::query_scalar(
-        "SELECT MAX(sequence_number) FROM evidence_events WHERE source_system = $1"
+        "SELECT MAX(sequence_number) FROM evidence_events WHERE tenant_id = $1 AND source_system = $2"
     )
+    .bind(tenant_id)
     .bind(source_system)
     .fetch_one(pool)
     .await
@@ -58,6 +60,7 @@ pub struct CreateEventParams {
     pub causation_id: Option<String>,
     pub source_ip: Option<String>,
     pub source_user_agent: Option<String>,
+    pub tenant_id: uuid::Uuid,
 }
 
 pub async fn create_event(pool: &PgPool, params: CreateEventParams) -> Result<EvidenceEventRow, String> {
@@ -65,9 +68,9 @@ pub async fn create_event(pool: &PgPool, params: CreateEventParams) -> Result<Ev
     let event_id = Uuid::new_v4().to_string();
     let correlation_id = params.correlation_id.unwrap_or_else(|| Uuid::new_v4().to_string());
 
-    let sequence_number = get_next_sequence(pool, &params.source_system).await;
+    let sequence_number = get_next_sequence(pool, &params.source_system, params.tenant_id).await;
     let payload_hash = compute_payload_hash(&params.payload);
-    let previous_hash = get_latest_hash(pool, &params.source_system).await.unwrap_or_default();
+    let previous_hash = get_latest_hash(pool, &params.source_system, params.tenant_id).await.unwrap_or_default();
     let nexus_seal = compute_nexus_seal(&payload_hash, &previous_hash);
 
     let tags_json = serde_json::to_value(&params.regulatory_tags).unwrap_or_default();
@@ -80,8 +83,8 @@ pub async fn create_event(pool: &PgPool, params: CreateEventParams) -> Result<Ev
              source_system, source_ip, source_user_agent,
              regulatory_tags, articles, payload,
              payload_hash, previous_hash, nexus_seal,
-             verification_status)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, 'VERIFIED')"#
+             verification_status, tenant_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, 'VERIFIED', $18)"#
     )
     .bind(&event_id)
     .bind(&correlation_id)
@@ -100,6 +103,7 @@ pub async fn create_event(pool: &PgPool, params: CreateEventParams) -> Result<Ev
     .bind(&payload_hash)
     .bind(&previous_hash)
     .bind(&nexus_seal)
+    .bind(params.tenant_id)
     .execute(pool)
     .await
     .map_err(|e| format!("Failed to insert evidence event: {}", e))?;
@@ -136,10 +140,23 @@ pub async fn create_event(pool: &PgPool, params: CreateEventParams) -> Result<Ev
 }
 
 /// Count distinct source_system chains that have at least one event with nexus_seal (sealed chain roots)
-pub async fn count_sealed_chain_roots(pool: &PgPool) -> Result<i64, String> {
+pub async fn count_sealed_chain_roots(pool: &PgPool, tenant_id: uuid::Uuid) -> Result<i64, String> {
     let count: Option<i64> = sqlx::query_scalar(
-        "SELECT COUNT(DISTINCT source_system) FROM evidence_events WHERE nexus_seal IS NOT NULL AND nexus_seal != ''"
+        "SELECT COUNT(DISTINCT source_system) FROM evidence_events WHERE tenant_id = $1 AND nexus_seal IS NOT NULL AND nexus_seal != ''"
     )
+    .bind(tenant_id)
+    .fetch_one(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+    Ok(count.unwrap_or(0))
+}
+
+/// Count total events that have a nexus_seal (sealed events)
+pub async fn count_total_sealed_events(pool: &PgPool, tenant_id: uuid::Uuid) -> Result<i64, String> {
+    let count: Option<i64> = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM evidence_events WHERE tenant_id = $1 AND nexus_seal IS NOT NULL AND nexus_seal != ''"
+    )
+    .bind(tenant_id)
     .fetch_one(pool)
     .await
     .map_err(|e| e.to_string())?;
@@ -155,9 +172,10 @@ pub async fn list_events(
     source_system: Option<&str>,
     limit: i64,
     offset: i64,
+    tenant_id: uuid::Uuid,
 ) -> Result<(Vec<EvidenceEventResponse>, i64), String> {
-    let mut conditions = vec!["1=1".to_string()];
-    let mut bind_idx = 0u32;
+    let mut conditions = vec!["tenant_id = $1".to_string()];
+    let mut bind_idx = 1u32;
 
     if severity.is_some() {
         bind_idx += 1;
@@ -204,6 +222,10 @@ pub async fn list_events(
     let mut query = sqlx::query_as::<_, EvidenceEventRow>(&query_str);
     let mut count_query = sqlx::query_scalar::<_, i64>(&count_str);
 
+    // Always bind tenant_id first
+    query = query.bind(tenant_id);
+    count_query = count_query.bind(tenant_id);
+
     if let Some(s) = severity {
         query = query.bind(s.to_string());
         count_query = count_query.bind(s.to_string());
@@ -234,10 +256,11 @@ pub async fn list_events(
     Ok((events, total))
 }
 
-pub async fn verify_chain_integrity(pool: &PgPool, source_system: &str) -> Result<(bool, String), String> {
+pub async fn verify_chain_integrity(pool: &PgPool, source_system: &str, tenant_id: uuid::Uuid) -> Result<(bool, String), String> {
     let rows = sqlx::query_as::<_, EvidenceEventRow>(
-        "SELECT * FROM evidence_events WHERE source_system = $1 ORDER BY sequence_number ASC"
+        "SELECT * FROM evidence_events WHERE tenant_id = $1 AND source_system = $2 ORDER BY sequence_number ASC"
     )
+    .bind(tenant_id)
     .bind(source_system)
     .fetch_all(pool)
     .await

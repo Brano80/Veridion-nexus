@@ -1,12 +1,4 @@
-mod models;
-mod evidence;
-mod shield;
-mod crypto_shredder;
-mod review_queue;
-mod routes_evidence;
-mod routes_shield;
-mod routes_review_queue;
-mod routes_erasure;
+use veridion_api::{routes_evidence, routes_shield, routes_review_queue, routes_admin, routes_auth, review_queue, middleware_tenant};
 
 use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer, get};
 use actix_cors::Cors;
@@ -198,7 +190,11 @@ async fn main() -> std::io::Result<()> {
 
     println!("Connecting to database...");
     let pool = sqlx::postgres::PgPoolOptions::new()
-        .max_connections(5)
+        .max_connections(20)
+        .min_connections(2)
+        .acquire_timeout(std::time::Duration::from_secs(5))
+        .idle_timeout(std::time::Duration::from_secs(600))
+        .max_lifetime(std::time::Duration::from_secs(1800))
         .connect(&database_url)
         .await
         .expect("Failed to connect to database");
@@ -255,6 +251,28 @@ async fn main() -> std::io::Result<()> {
     }
     println!("Migrations applied.");
 
+    // SLA timeout background job — auto-block pending reviews older than 4 hours
+    let pool_clone = pool.clone();
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(tokio::time::Duration::from_secs(300)).await;
+            if let Err(e) = review_queue::process_sla_timeouts(&pool_clone).await {
+                log::error!("SLA timeout job error: {}", e);
+            }
+        }
+    });
+
+    // SCC auto-expiry background job — mark expired SCCs every hour
+    let pool_clone_scc = pool.clone();
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(tokio::time::Duration::from_secs(3600)).await; // 1 hour
+            if let Err(e) = routes_shield::auto_expire_sccs(&pool_clone_scc).await {
+                log::error!("SCC auto-expiry job error: {}", e);
+            }
+        }
+    });
+
     let origins: Vec<String> = allowed_origins.split(',').map(|s| s.trim().to_string()).collect();
 
     println!("Veridion API starting on http://{}:{}", server_host, server_port);
@@ -268,7 +286,11 @@ async fn main() -> std::io::Result<()> {
     println!("  SCC list:        GET  /api/v1/scc-registries");
     println!("  SCC revoke:      DELETE /api/v1/scc-registries/{{id}}");
     println!("  Review queue:    GET  /api/v1/review-queue");
-    println!("  Erasure:         POST /api/v1/lenses/gdpr-rights/erasure/execute");
+    println!("  Admin tenants:   GET  /api/v1/admin/tenants");
+    println!("  Admin stats:     GET  /api/v1/admin/stats");
+    println!("  Signup:          POST /api/v1/auth/register");
+
+    let signup_rate_limiter = web::Data::new(routes_auth::SignupRateLimiter::new());
 
     HttpServer::new(move || {
         let mut cors = Cors::default()
@@ -279,7 +301,9 @@ async fn main() -> std::io::Result<()> {
         }
         App::new()
             .app_data(web::Data::new(pool.clone()))
+            .app_data(signup_rate_limiter.clone())
             .wrap(cors)
+            .wrap(middleware_tenant::TenantAuthMiddleware::new(pool.clone()))
             .service(index)
             .service(health)
             .service(dev_bypass)
@@ -291,7 +315,8 @@ async fn main() -> std::io::Result<()> {
             .configure(routes_evidence::configure)
             .configure(routes_shield::configure)
             .configure(routes_review_queue::configure)
-            .configure(routes_erasure::configure)
+            .configure(routes_admin::configure)
+            .configure(routes_auth::configure)
     })
     .bind((server_host.as_str(), server_port))?
     .run()

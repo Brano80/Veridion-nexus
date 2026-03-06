@@ -1,6 +1,74 @@
 // Use relative URL so Next.js rewrites proxy to backend (avoids CORS)
 const API_BASE = '';
 
+// Global trial expiry state
+let trialExpiredCallback: (() => void) | null = null;
+
+export function onTrialExpired(callback: () => void) {
+  trialExpiredCallback = callback;
+}
+
+export function triggerTrialExpired() {
+  if (trialExpiredCallback) trialExpiredCallback();
+}
+
+// Helper to check for 402 status and trigger trial expired
+function checkTrialExpired(res: Response): void {
+  if (res.status === 402) {
+    triggerTrialExpired();
+    throw new Error('Trial expired');
+  }
+}
+
+export interface CurrentUser {
+  id: string;
+  username: string;
+  email: string;
+  full_name: string | null;
+  roles: string[];
+  onboarded: boolean;
+  company_id: string | null;
+}
+
+// Cache for current user (fetched once per session)
+let currentUserCache: CurrentUser | null = null;
+
+export async function getCurrentUser(): Promise<CurrentUser | null> {
+  if (currentUserCache) {
+    return currentUserCache;
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/auth/dev-bypass`);
+    if (res.status === 402) {
+      triggerTrialExpired();
+      throw new Error('Trial expired');
+    }
+    if (!res.ok) {
+      return null;
+    }
+    const data = await res.json();
+    // Extract user object from response
+    const user = data.user || data;
+    currentUserCache = {
+      id: user.id,
+      username: user.username,
+      email: user.email || '',
+      full_name: user.full_name || null,
+      roles: user.roles || [],
+      onboarded: user.onboarded ?? true,
+      company_id: user.company_id || null,
+    };
+    return currentUserCache;
+  } catch {
+    return null;
+  }
+}
+
+export function isAdmin(user: CurrentUser | null): boolean {
+  return user?.roles?.includes('admin') ?? false;
+}
+
 export interface EvidenceEvent {
   id: string;
   eventId: string;
@@ -27,7 +95,7 @@ export interface SCCRegistry {
   id: string;
   partnerName: string;
   destinationCountry: string;
-  status: 'Valid' | 'Expired';
+  status: string; // active, expired, revoked, archived
   expiryDate?: string;
   createdAt: string;
   tiaCompleted?: boolean;
@@ -54,7 +122,8 @@ export interface ReviewQueueItem {
 }
 
 export async function fetchEvidenceEvents(): Promise<EvidenceEvent[]> {
-  const res = await fetch(`${API_BASE}/api/v1/evidence/events`);
+  const res = await fetch(`${API_BASE}/api/v1/evidence/events?limit=500`);
+  checkTrialExpired(res);
   if (!res.ok) throw new Error('Failed to fetch evidence events');
   const data = await res.json();
   const rawEvents = Array.isArray(data.events) ? data.events : Array.isArray(data) ? data : [];
@@ -85,6 +154,7 @@ export async function fetchEvidenceEventsPaginated(
   }
   const url = `${API_BASE}/api/v1/evidence/events?${searchParams.toString()}`;
   const res = await fetch(url);
+  checkTrialExpired(res);
   if (!res.ok) throw new Error('Failed to fetch evidence events');
   const data = await res.json();
   const rawEvents = Array.isArray(data.events) ? data.events : Array.isArray(data) ? data : [];
@@ -98,7 +168,7 @@ export async function fetchEvidenceEventsPaginated(
   };
 }
 
-/** Fetch evidence events with metadata (merkleRoots, totalCount) for Evidence Vault */
+/** Fetch evidence events with metadata (merkleRoots, totalCount, totalSealed) for Evidence Vault */
 export async function fetchEvidenceEventsWithMeta(params?: {
   eventType?: string;
   limit?: number;
@@ -106,6 +176,7 @@ export async function fetchEvidenceEventsWithMeta(params?: {
   events: EvidenceEvent[];
   totalCount: number;
   merkleRoots: number;
+  totalSealed: number;
 }> {
   const searchParams = new URLSearchParams();
   if (params?.eventType) searchParams.set('event_type', params.eventType);
@@ -113,6 +184,7 @@ export async function fetchEvidenceEventsWithMeta(params?: {
   const qs = searchParams.toString();
   const url = `${API_BASE}/api/v1/evidence/events${qs ? `?${qs}` : ''}`;
   const res = await fetch(url);
+  checkTrialExpired(res);
   if (!res.ok) throw new Error('Failed to fetch evidence events');
   const data = await res.json();
   const rawEvents = Array.isArray(data.events) ? data.events : Array.isArray(data) ? data : [];
@@ -124,59 +196,26 @@ export async function fetchEvidenceEventsWithMeta(params?: {
     events,
     totalCount: data.totalCount ?? events.length,
     merkleRoots: data.merkleRoots ?? 0,
+    totalSealed: data.totalSealed ?? 0,
   };
-}
-
-/** Execute GDPR Art. 17 erasure (Crypto Shredder). Links to transfer via requestId = transfer event id. */
-export async function executeErasure(data: {
-  requestId: string;
-  userId: string;
-  grounds: string;
-  confirmation: string;
-}): Promise<{
-  success: boolean;
-  requestId: string;
-  userId: string;
-  executedAt: string;
-  executedBy: string;
-  grounds: string;
-  shreddedItems: Array<{ source?: string; records?: number; size_mb?: number; method?: string; status?: string }>;
-  summary: { totalRecords: number; totalSizeMb: number; cryptoLogId: string; evidenceSealed: boolean; integrityLevel: string };
-  certificate: { id: string; issuedAt: string; issuedBy: string; compliance: string; verification: string };
-}> {
-  const res = await fetch(`${API_BASE}/api/v1/lenses/gdpr-rights/erasure/execute`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  });
-  const text = await res.text();
-  if (!res.ok) {
-    let msg = 'Failed to execute erasure';
-    try {
-      const j = JSON.parse(text);
-      msg = j.message || j.error || msg;
-    } catch { /* ignore */ }
-    throw new Error(msg);
-  }
-  return JSON.parse(text);
 }
 
 export async function fetchSCCRegistries(): Promise<SCCRegistry[]> {
   const res = await fetch(`${API_BASE}/api/v1/scc-registries`);
+  checkTrialExpired(res);
   if (!res.ok) throw new Error('Failed to fetch SCC registries');
   const data = await res.json();
   console.log('fetchSCCRegistries raw response:', JSON.stringify(data, null, 2));
   
-  // Backend returns { registries: [...], total: ... }
+  // Backend returns { registries: [...], total: ... } — return all statuses, frontend filters by tab
   const raw = Array.isArray(data.registries) ? data.registries : Array.isArray(data) ? data : [];
-  const registries = raw.filter((r: any) => (r.status || '').toLowerCase() === 'active');
 
   // Convert backend format to frontend format
-  return registries.map((r: any) => ({
+  return raw.map((r: any) => ({
     id: r.id,
     partnerName: r.partnerName || r.partner_name,
     destinationCountry: r.destinationCountryCode || r.destination_country_code || r.destinationCountry,
-    status: r.status === 'active' ? 'Valid' : 'Expired',
+    status: (r.status || '').toLowerCase(), // active, expired, revoked, archived
     expiryDate: r.expiresAt || r.expires_at,
     createdAt: r.createdAt || r.created_at,
     tiaCompleted: r.tiaCompleted ?? r.tia_completed ?? false,
@@ -191,6 +230,7 @@ export async function patchSCCRegistry(id: string, data: { tiaCompleted: boolean
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
+  checkTrialExpired(res);
   const text = await res.text();
   if (!res.ok) {
     let msg = 'Failed to update SCC registry';
@@ -203,9 +243,11 @@ export async function patchSCCRegistry(id: string, data: { tiaCompleted: boolean
   return JSON.parse(text);
 }
 
-/** Revoke (delete) SCC registry. DELETE /api/v1/scc-registries/{id} */
-export async function revokeSCCRegistry(id: string): Promise<{ success: boolean; id: string; status: string }> {
-  const res = await fetch(`${API_BASE}/api/v1/scc-registries/${id}`, { method: 'DELETE' });
+/** Revoke (active) or archive (expired) SCC registry. DELETE with ?revoke=1 for Revoke, otherwise Archive */
+export async function revokeSCCRegistry(id: string, options?: { revoke?: boolean }): Promise<{ success: boolean; id: string; status: string }> {
+  const url = options?.revoke ? `${API_BASE}/api/v1/scc-registries/${id}?revoke=1` : `${API_BASE}/api/v1/scc-registries/${id}`;
+  const res = await fetch(url, { method: 'DELETE' });
+  checkTrialExpired(res);
   const text = await res.text();
   if (!res.ok) {
     let msg = 'Failed to revoke SCC';
@@ -290,6 +332,7 @@ export async function createSCCRegistry(data: {
     body: JSON.stringify(requestBody),
   });
   
+  checkTrialExpired(res);
   console.log('SCC Registry API Response Status:', res.status, res.statusText);
   
   // Read response body once as text
@@ -328,6 +371,7 @@ export async function createSCCRegistry(data: {
 
 export async function fetchReviewQueuePending(): Promise<ReviewQueueItem[]> {
   const res = await fetch(`${API_BASE}/api/v1/human_oversight/pending`);
+  checkTrialExpired(res);
   if (!res.ok) throw new Error('Failed to fetch review queue');
   const data = await res.json();
   return data.reviews || [];
@@ -337,6 +381,7 @@ export async function fetchReviewQueuePending(): Promise<ReviewQueueItem[]> {
 export async function fetchDecidedEvidenceIds(): Promise<string[]> {
   try {
     const res = await fetch(`${API_BASE}/api/v1/human_oversight/decided-evidence-ids`);
+    checkTrialExpired(res);
     if (!res.ok) return [];
     const data = await res.json();
     return Array.isArray(data.evidenceEventIds) ? data.evidenceEventIds : [];
@@ -348,6 +393,7 @@ export async function fetchDecidedEvidenceIds(): Promise<string[]> {
 export async function fetchReviewQueueItem(id: string): Promise<ReviewQueueItem | null> {
   try {
     const res = await fetch(`${API_BASE}/api/v1/review-queue`);
+    checkTrialExpired(res);
     if (!res.ok) throw new Error('Failed to fetch review queue');
     const data = await res.json();
     const items = data.reviews || [];
@@ -377,6 +423,7 @@ export async function createReviewQueueItem(data: {
     }),
   });
   
+  checkTrialExpired(res);
   // Read response body once as text
   const responseText = await res.text();
   
@@ -405,6 +452,7 @@ export async function approveReviewQueueItem(sealId: string, reason?: string): P
     }),
   });
   
+  checkTrialExpired(res);
   // Read response body once as text
   const responseText = await res.text();
   
@@ -431,6 +479,7 @@ export async function rejectReviewQueueItem(sealId: string, reason?: string): Pr
     }),
   });
   
+  checkTrialExpired(res);
   // Read response body once as text
   const responseText = await res.text();
   
@@ -484,9 +533,48 @@ export async function evaluateTransfer(data: {
       requestPath: data.requestPath,
     }),
   });
+  checkTrialExpired(res);
   const text = await res.text();
   if (!res.ok) {
     let msg = 'Failed to evaluate transfer';
+    try {
+      const j = JSON.parse(text);
+      msg = j.message || j.error || msg;
+    } catch { /* ignore */ }
+    throw new Error(msg);
+  }
+  return JSON.parse(text);
+}
+
+/** GET /api/v1/settings — current enforcement mode (shadow | enforce) */
+export async function fetchSettings(): Promise<{ enforcement_mode: string; updated_at: string }> {
+  const res = await fetch(`${API_BASE}/api/v1/settings`);
+  checkTrialExpired(res);
+  if (!res.ok) throw new Error('Failed to fetch settings');
+  return res.json();
+}
+
+/** PATCH /api/v1/settings — update enforcement mode. shadow→enforce requires confirmationToken: 'ENABLE_ENFORCEMENT' */
+export async function patchSettings(data: {
+  enforcement_mode: 'shadow' | 'enforce';
+  confirmation_token?: string;
+}): Promise<{ enforcement_mode: string; updated_at: string }> {
+  // Backend expects camelCase. Always send enforcementMode; add confirmationToken only when switching to enforce
+  const body: Record<string, string> = {
+    enforcementMode: data.enforcement_mode,
+  };
+  if (data.enforcement_mode === 'enforce' && data.confirmation_token) {
+    body.confirmationToken = data.confirmation_token;
+  }
+  const res = await fetch(`${API_BASE}/api/v1/settings`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  checkTrialExpired(res);
+  const text = await res.text();
+  if (!res.ok) {
+    let msg = 'Failed to update settings';
     try {
       const j = JSON.parse(text);
       msg = j.message || j.error || msg;
@@ -503,6 +591,7 @@ export async function verifyIntegrity(): Promise<{ status: 'VALID' | 'TAMPERED';
     body: JSON.stringify({ source_system: 'sovereign-shield' }),
   });
   
+  checkTrialExpired(res);
   const responseText = await res.text();
   
   if (!res.ok) {

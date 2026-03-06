@@ -1,48 +1,16 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import DashboardLayout from '../components/DashboardLayout';
-import { fetchEvidenceEventsWithMeta, verifyIntegrity, /* executeErasure, */ EvidenceEvent } from '../utils/api';
-import { RefreshCw, AlertTriangle, FileDown, Filter, Search, Download, Shield, Clock, MapPin, Server, Database, FileText, X, Copy /* Trash2, ExternalLink — Crypto Shredder */ } from 'lucide-react';
-import { getCountryCodeFromName, getLegalBasis, getLegalBasisFullText } from '../config/countries';
+import { fetchEvidenceEventsWithMeta, fetchEvidenceEventsPaginated, verifyIntegrity, EvidenceEvent } from '../utils/api';
+import { RefreshCw, AlertTriangle, FileDown, Filter, Search, Download, Shield, Clock, MapPin, Server, Database, FileText, X, Copy } from 'lucide-react';
+import { getCountryCodeFromName, getLegalBasis, getLegalBasisFullText, COUNTRY_NAMES } from '../config/countries';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
-function getDerivedSeverity(event: { eventType?: string; sourceSystem?: string; verificationStatus?: string; payload?: { decision?: string } }): 'CRITICAL' | 'HIGH' | 'LOW' | 'INFO' | 'ERASURE' {
-  const label = formatEventTypeLabel(event.eventType || '');
-  const source = (event.sourceSystem || '').toLowerCase();
-  const et = (event.eventType || '').toUpperCase();
-  const decision = (event.verificationStatus || event.payload?.decision || '').toUpperCase();
 
-  if (label === 'Transfer — Blocked') return 'CRITICAL';
-  if (et.includes('HUMAN_OVERSIGHT_REJECTED')) return 'CRITICAL';
-  if (et.includes('HUMAN_OVERSIGHT_APPROVED')) return 'LOW';
-  if (label === 'GDPR Erasure' || source.includes('crypto_shredder') || source.includes('crypto-shredder')) return 'ERASURE';
-  if (label === 'Transfer — Review') return 'HIGH';
-  if (label === 'Transfer Evaluation' && /^(ALLOW|ALLOWED|VERIFIED)$/.test(decision)) return 'LOW';
-  return 'INFO';
-}
-
-function getSeverityBadgeClass(severity: 'CRITICAL' | 'HIGH' | 'LOW' | 'INFO' | 'ERASURE'): string {
-  switch (severity) {
-    case 'CRITICAL': return 'bg-red-500/15 text-red-400 border border-red-500/25';
-    case 'HIGH': return 'bg-amber-500/15 text-amber-400 border border-amber-500/25';
-    case 'LOW': return 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25';
-    case 'ERASURE': return 'bg-purple-500/15 text-purple-400 border border-purple-500/25';
-    default: return 'bg-slate-500/15 text-slate-400 border border-slate-500/25';
-  }
-}
-
-function getSeverityExplanation(severity: 'CRITICAL' | 'HIGH' | 'LOW' | 'INFO' | 'ERASURE'): string {
-  switch (severity) {
-    case 'CRITICAL': return 'Immediate attention required — transfer was blocked';
-    case 'HIGH': return 'Awaiting human review before transfer can proceed';
-    case 'LOW': return 'Transfer evaluated and permitted under GDPR';
-    case 'ERASURE': return 'Data cryptographically destroyed under GDPR Art. 17 — right to erasure fulfilled.';
-    default: return 'Compliance record — no action required';
-  }
-}
-
-function formatEventTypeLabel(eventType: string): string {
+function formatEventTypeLabel(eventType: string, payload?: { shadow_mode?: boolean }): string {
   const et = (eventType || '').toLowerCase();
   if (et.includes('sovereign_shield') || et === 'sovereign_shield_evaluation' || et === 'sovereign_shield') return 'Transfer Evaluation';
   if (et.includes('human_oversight_rejected') || et === 'human_oversight_rejected') return 'Human Decision — Blocked';
@@ -50,8 +18,6 @@ function formatEventTypeLabel(eventType: string): string {
   if (et === 'data_transfer') return 'Transfer Evaluation';
   if (et === 'data_transfer_blocked') return 'Transfer — Blocked';
   if (et === 'data_transfer_review') return 'Transfer — Review';
-  if (et.includes('gdpr_erasure') || et === 'gdpr_erasure') return 'GDPR Erasure';
-  if (et.includes('crypto_shredder') || et === 'crypto_shredder') return 'GDPR Erasure';
   if (eventType) return eventType.replace(/_/g, ' ').toLowerCase();
   return 'Unknown';
 }
@@ -77,7 +43,7 @@ function formatRetentionDate(createdAt: string): string {
   return d.toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'short' });
 }
 
-export default function EvidenceVaultPage() {
+function EvidenceVaultPageContent() {
   const searchParams = useSearchParams();
   const highlightedEventId = searchParams.get('eventId');
   const searchParam = searchParams.get('search');
@@ -88,23 +54,21 @@ export default function EvidenceVaultPage() {
   const [integrityStatus, setIntegrityStatus] = useState<'VALID' | 'TAMPERED' | null>(null);
   const [verifying, setVerifying] = useState(false);
   const [filters, setFilters] = useState({
-    severity: '',
     destinationCountry: '',
     search: searchParam || highlightedEventId || '',
     eventType: '',
   });
   const [merkleRootsCount, setMerkleRootsCount] = useState(0);
+  const [totalSealedCount, setTotalSealedCount] = useState(0);
   const [lastVerifiedAt, setLastVerifiedAt] = useState<Date | null>(null);
+  const [lastScanTime, setLastScanTime] = useState<string>('');
+  const [lastHash, setLastHash] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [selectedEvent, setSelectedEvent] = useState<EvidenceEvent | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerEntered, setDrawerEntered] = useState(false);
+  const [pdfExporting, setPdfExporting] = useState(false);
   const drawerRef = useRef<HTMLDivElement>(null);
-  // Crypto Shredder / GDPR Art. 17 erasure UI (commented out — re-enable if product direction changes)
-  // const [erasedEventIds, setErasedEventIds] = useState<Set<string>>(new Set());
-  // const [erasureForm, setErasureForm] = useState({ requestId: '', grounds: '', confirmation: '' });
-  // const [erasureExecuting, setErasureExecuting] = useState(false);
-  // const [erasureCertificate, setErasureCertificate] = useState<Record<string, unknown> | null>(null);
 
   const EVENTS_PER_PAGE = 10;
   const totalPages = Math.max(1, Math.ceil(events.length / EVENTS_PER_PAGE));
@@ -116,7 +80,7 @@ export default function EvidenceVaultPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [filters.severity, filters.destinationCountry, filters.search, filters.eventType]);
+  }, [filters.destinationCountry, filters.search, filters.eventType]);
 
   useEffect(() => {
     if (searchParam || highlightedEventId) {
@@ -153,22 +117,22 @@ export default function EvidenceVaultPage() {
 
   async function loadEvents() {
     try {
-      const { events: rawEvents, merkleRoots } = await fetchEvidenceEventsWithMeta();
+      const { events: rawEvents, merkleRoots, totalSealed } = await fetchEvidenceEventsWithMeta();
       setMerkleRootsCount(merkleRoots);
-      // Crypto Shredder: parallel fetch of GDPR_ERASURE_COMPLETED for erasedEventIds (commented out)
-      // const [{ events: rawEvents, merkleRoots }, { events: erasureEvents }] = await Promise.all([
-      //   fetchEvidenceEventsWithMeta(),
-      //   fetchEvidenceEventsWithMeta({ eventType: 'GDPR_ERASURE_COMPLETED', limit: 500 }),
-      // ]);
-      // const erasedSet = new Set<string>();
-      // for (const ev of erasureEvents || []) { if (ev.correlationId) erasedSet.add(ev.correlationId); }
-      // setErasedEventIds(prev => new Set([...erasedSet, ...prev]));
+      setTotalSealedCount(totalSealed);
+      // Update last scan time when data loads successfully
+      setLastScanTime(new Date().toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true
+      }));
       let filtered = Array.isArray(rawEvents) ? rawEvents : [];
 
       // Apply filters
-      if (filters.severity) {
-        filtered = filtered.filter(e => getDerivedSeverity(e) === filters.severity);
-      }
       if (filters.destinationCountry) {
         filtered = filtered.filter(e => 
           e.payload?.destination_country?.toLowerCase().includes(filters.destinationCountry.toLowerCase()) ||
@@ -197,15 +161,22 @@ export default function EvidenceVaultPage() {
       // Apply event type filter
       let eventTypeFiltered = excludeHumanOversight;
       if (filters.eventType) {
-        eventTypeFiltered = excludeHumanOversight.filter(
-          (e) => formatEventTypeLabel(e.eventType) === filters.eventType
-        );
+        eventTypeFiltered = excludeHumanOversight.filter((e) => {
+          const label = formatEventTypeLabel(e.eventType, e.payload);
+          if (filters.eventType === 'Shadow') {
+            return e.payload?.shadow_mode === true;
+          }
+          return label === filters.eventType;
+        });
       }
 
       setEvents(eventTypeFiltered);
+      // Set last hash from rawEvents (before filtering) - events are sorted by sequence_number ascending
+      setLastHash(rawEvents.length > 0 ? rawEvents[rawEvents.length - 1]?.payloadHash ?? null : null);
     } catch (error) {
       console.error('Failed to load events:', error);
       setEvents([]);
+      setLastHash(null);
     } finally {
       setLoading(false);
     }
@@ -241,102 +212,146 @@ export default function EvidenceVaultPage() {
 
   function getEventDecision(e: EvidenceEvent): string {
     const et = (e.eventType || '').toUpperCase();
-    if (e.eventType === 'DATA_TRANSFER_BLOCKED' || e.verificationStatus === 'BLOCK' || et.includes('HUMAN_OVERSIGHT_REJECTED')) return 'BLOCKED';
+    if (e.eventType === 'DATA_TRANSFER_BLOCKED' || e.verificationStatus === 'BLOCK' || et.includes('HUMAN_OVERSIGHT_REJECTED')) return 'BLOCK';
     if (e.eventType === 'DATA_TRANSFER_REVIEW' || e.verificationStatus === 'REVIEW') return 'REVIEW';
-    if (et.includes('HUMAN_OVERSIGHT_APPROVED')) return 'ALLOWED';
-    return e.verificationStatus || e.payload?.decision || 'ALLOWED';
+    if (et.includes('HUMAN_OVERSIGHT_APPROVED')) return 'ALLOW';
+    return e.verificationStatus || e.payload?.decision || 'ALLOW';
+  }
+
+  async function handleExportPDF() {
+    setPdfExporting(true);
+    try {
+      // 1. Fetch all events (paginate with limit 500)
+      const allEvents: EvidenceEvent[] = [];
+      let page = 1;
+      const limit = 500;
+      while (true) {
+        const { events, total } = await fetchEvidenceEventsPaginated(page, limit);
+        allEvents.push(...events);
+        if (events.length < limit || allEvents.length >= total) break;
+        page++;
+      }
+
+      if (allEvents.length === 0) {
+        alert('No events to export');
+        return;
+      }
+
+      // 2. Get integrity status and merkle roots
+      let chainStatus: 'VALID' | 'TAMPERED' = integrityStatus || 'VALID';
+      let merkleRoots = merkleRootsCount;
+      try {
+        const integrity = await verifyIntegrity();
+        chainStatus = integrity.status;
+        const meta = await fetchEvidenceEventsWithMeta({ limit: 1 });
+        merkleRoots = meta.merkleRoots;
+      } catch {
+        // Use existing state if fetch fails
+      }
+
+      // 3. Create jsPDF instance
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+
+      // 4. Cover page — dark header block
+      doc.setFillColor(15, 23, 42); // slate-900
+      doc.rect(0, 0, pageWidth, 50, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text('SOVEREIGN SHIELD — GDPR Compliance Audit Report', pageWidth / 2, 22, { align: 'center' });
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Evidence Vault Export — GDPR Art. 5(2), 24, 30, 32', pageWidth / 2, 32, { align: 'center' });
+
+      // White body
+      doc.setTextColor(30, 41, 59);
+      doc.setFontSize(11);
+      const generated = new Date().toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'medium' });
+      doc.text(`Generated: ${generated}`, 20, 70);
+      doc.text(`Chain Status: ${chainStatus}`, 20, 78);
+      doc.text(`Total Events: ${allEvents.length}`, 20, 86);
+      doc.text(`Merkle Roots: ${merkleRoots}`, 20, 94);
+
+      // 5. Evidence Events table (page 2+)
+      doc.addPage();
+      const tableData = allEvents.map((e) => {
+        const raw = e.payload?.destination_country || e.payload?.destinationCountry || e.payload?.destination_country_code || e.payload?.destinationCountryCode || e.payload?.destination || '—';
+        const dest = (raw.length === 2 && raw === raw.toUpperCase() && COUNTRY_NAMES[raw])
+          ? COUNTRY_NAMES[raw]
+          : raw;
+        let countryCode = e.payload?.destination_country_code || e.payload?.destinationCountryCode || '';
+        if (!countryCode) countryCode = getCountryCodeFromName(String(raw));
+        const source = (e.sourceSystem || '').toLowerCase();
+        const et = (e.eventType || '').toUpperCase();
+        const gdprBasis = source === 'human-oversight' || et.includes('HUMAN_OVERSIGHT')
+          ? 'Art. 22'
+          : (e.payload?.decision === 'BLOCK' && e.payload?.country_status === 'unknown'
+            ? 'Art. 44 Blocked'
+            : e.payload?.articles?.[0] || getLegalBasis(countryCode) || '—');
+        const dataCat = e.payload?.data_categories?.[0] || e.payload?.dataCategories?.[0] || e.payload?.data_category || '—';
+        const verification = e.verificationStatus || e.payload?.decision || '—';
+        return [
+          new Date(e.occurredAt || e.createdAt).toLocaleString(),
+          formatEventTypeLabel(e.eventType, e.payload),
+          String(dest).substring(0, 20),
+          String(gdprBasis).substring(0, 18),
+          String(dataCat).substring(0, 15),
+          (e.sourceSystem || '—').substring(0, 15),
+          String(verification).substring(0, 12),
+        ];
+      });
+
+      autoTable(doc, {
+        head: [['Timestamp', 'Event Type', 'Destination', 'GDPR Basis', 'Data', 'Source', 'Verification']],
+        body: tableData,
+        startY: 20,
+        styles: { fontSize: 8 },
+        headStyles: { fillColor: [51, 65, 85] },
+      });
+
+      // 6. Add footers to all pages
+      const totalPages = doc.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setTextColor(100, 116, 139);
+        doc.text('Generated by Sovereign Shield — Veridion Nexus', pageWidth / 2, pageHeight - 14, { align: 'center' });
+        doc.text(`Page ${i} of ${totalPages}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+        doc.text('This document constitutes an auditable record per GDPR Art. 30', pageWidth / 2, pageHeight - 6, { align: 'center' });
+      }
+
+      doc.save('sovereign-shield-audit-report.pdf');
+    } catch (err) {
+      console.error('PDF export failed:', err);
+      alert('Failed to generate PDF. Please try again.');
+    } finally {
+      setPdfExporting(false);
+    }
   }
 
   function handleExport(format: 'pdf' | 'json') {
+    if (format === 'pdf') {
+      handleExportPDF();
+      return;
+    }
     if (events.length === 0) {
       alert('No events to export');
       return;
     }
-    if (format === 'json') {
-      const dataStr = JSON.stringify(events, null, 2);
-      const dataBlob = new Blob([dataStr], { type: 'application/json' });
-      const url = URL.createObjectURL(dataBlob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `evidence-vault-${new Date().toISOString().split('T')[0]}.json`;
-      link.click();
-      URL.revokeObjectURL(url);
-    } else {
-      // Fix 6: PDF Export for DPO audit - use print dialog (Save as PDF)
-      const decisionCounts = events.reduce((acc, e) => {
-        const d = getEventDecision(e);
-        acc[d] = (acc[d] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>);
-      const timestamps = events.map(e => new Date(e.occurredAt || e.createdAt).getTime());
-      const minDate = timestamps.length ? new Date(Math.min(...timestamps)).toLocaleDateString() : '—';
-      const maxDate = timestamps.length ? new Date(Math.max(...timestamps)).toLocaleDateString() : '—';
-      const companyName = 'Company Name'; // Placeholder for DPO to customize
-      const reportDate = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
-
-      const escapeHtml = (s: string) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-      const rows = events.map(e => {
-        const countryName = e.payload?.destination_country || e.payload?.destinationCountry || e.payload?.destination || 'Unknown';
-        let countryCode = e.payload?.destination_country_code || e.payload?.destinationCountryCode || '';
-        if (!countryCode) countryCode = getCountryCodeFromName(countryName);
-        const source = (e.sourceSystem || '').toLowerCase();
-        const et = (e.eventType || '').toUpperCase();
-        const gdprBasis = source === 'human-oversight' || et.includes('HUMAN_OVERSIGHT') ? 'Art. 22' : getLegalBasis(countryCode);
-        const dataCat = e.payload?.data_categories?.[0] || e.payload?.dataCategories?.[0] || e.payload?.data_category || '—';
-        const ts = new Date(e.occurredAt || e.createdAt).toLocaleString();
-        const sealId = e.nexusSeal || e.id || '—';
-        return { ts, type: formatEventTypeLabel(e.eventType), dest: countryName, gdprBasis, dataCat, decision: getEventDecision(e), sealId };
-      });
-
-      const tableRows = rows.map(r =>
-        `<tr><td>${escapeHtml(r.ts)}</td><td>${escapeHtml(r.type)}</td><td>${escapeHtml(r.dest)}</td><td>${escapeHtml(r.gdprBasis)}</td><td>${escapeHtml(r.dataCat)}</td><td>${escapeHtml(r.decision)}</td><td>${escapeHtml(r.sealId)}</td></tr>`
-      ).join('');
-
-      const html = `<!DOCTYPE html><html><head><title>Evidence Vault Audit Report</title>
-<style>
-body{font-family:system-ui,sans-serif;color:#1e293b;padding:2rem;max-width:900px;margin:0 auto}
-h1{font-size:1.5rem;margin-bottom:0.5rem}h2{font-size:1.1rem;margin:1.5rem 0 0.5rem}
-table{width:100%;border-collapse:collapse;font-size:0.85rem;margin-top:0.5rem}
-th,td{border:1px solid #cbd5e1;padding:0.4rem 0.6rem;text-align:left}
-th{background:#f1f5f9;font-weight:600}
-.summary{background:#f8fafc;padding:1rem;border-radius:0.5rem;margin:1rem 0}
-.cover{text-align:center;padding:3rem 0;border-bottom:1px solid #e2e8f0}
-@media print{body{padding:0}}
-</style></head><body>
-<div class="cover">
-<h1>${companyName}</h1>
-<p>Evidence Vault Audit Report</p>
-<p>${reportDate}</p>
-<p class="summary">Prepared for supervisory authority under GDPR Art. 5(2)</p>
-</div>
-<h2>Summary</h2>
-<div class="summary">
-<p><strong>Total events:</strong> ${events.length}</p>
-<p><strong>Date range:</strong> ${minDate} – ${maxDate}</p>
-<p><strong>Decisions breakdown:</strong> ${Object.entries(decisionCounts).map(([k,v])=>`${k}: ${v}`).join(', ')}</p>
-</div>
-<h2>Evidence Events</h2>
-<table>
-<thead><tr><th>Timestamp</th><th>Event Type</th><th>Destination</th><th>GDPR Basis</th><th>Data Category</th><th>Decision</th><th>Seal ID</th></tr></thead>
-<tbody>${tableRows}</tbody>
-</table>
-</body></html>`;
-      const w = window.open('', '_blank');
-      if (w) {
-        w.document.write(html);
-        w.document.close();
-        w.focus();
-        setTimeout(() => { w.print(); w.close(); }, 250);
-      } else {
-        alert('Please allow pop-ups to export PDF');
-      }
-    }
+    const dataStr = JSON.stringify(events, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `evidence-vault-${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
   }
 
   const handleEventClick = useCallback((event: EvidenceEvent) => {
     setSelectedEvent(event);
-    // setErasureForm({ requestId: event.id || '', grounds: '', confirmation: '' });
-    // setErasureCertificate(null);
     setDrawerOpen(true);
     setDrawerEntered(false);
     requestAnimationFrame(() => setDrawerEntered(true));
@@ -349,8 +364,6 @@ th{background:#f1f5f9;font-weight:600}
     closeTimeoutRef.current = setTimeout(() => {
       setDrawerOpen(false);
       setSelectedEvent(null);
-      // setErasureForm({ requestId: '', grounds: '', confirmation: '' });
-      // setErasureCertificate(null);
       closeTimeoutRef.current = null;
     }, 300);
   }, []);
@@ -406,10 +419,11 @@ th{background:#f1f5f9;font-weight:600}
           <div className="flex items-center gap-2">
             <button
               onClick={() => handleExport('pdf')}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+              disabled={pdfExporting}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
             >
-              <FileDown className="w-4 h-4" />
-              Export for Audit (PDF)
+              <FileDown className={`w-4 h-4 ${pdfExporting ? 'animate-pulse' : ''}`} />
+              {pdfExporting ? 'Generating PDF...' : 'Export for Audit (PDF)'}
             </button>
             <button
               onClick={() => handleExport('json')}
@@ -434,12 +448,12 @@ th{background:#f1f5f9;font-weight:600}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Shield className="w-5 h-5 text-green-400" />
-              <span className="text-sm font-medium text-white">Status: ACTIVE</span>
+              <span className="text-sm font-medium text-white">Status: <span className="text-green-400">ACTIVE</span></span>
             </div>
             <div className="flex items-center gap-6 text-sm text-slate-300">
-              <span>Last scan: {new Date().toLocaleString()}</span>
+              <span suppressHydrationWarning>Last scan: {lastScanTime || 'Never'}</span>
               <span>•</span>
-              <span>{events.length} events archived</span>
+              <span>{totalSealedCount} events archived</span>
             </div>
             <div className="flex items-center gap-4">
               {integrityStatus && (
@@ -466,37 +480,51 @@ th{background:#f1f5f9;font-weight:600}
         <div className="grid grid-cols-4 gap-4">
           <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
             <div className="flex items-center justify-between mb-2">
-              <div className="text-sm text-slate-400 font-medium">MERKLE ROOTS</div>
-              <Database className="w-4 h-4 text-slate-500" />
+              <div className="text-sm text-slate-400 font-medium">EVENTS SEALED</div>
+              <FileText className={`w-4 h-4 ${totalSealedCount === 0 ? 'text-slate-500' : 'text-green-500'}`} />
             </div>
-            <div className={`text-2xl font-bold ${merkleRootsCount > 0 ? 'text-green-400' : 'text-white'}`}>{merkleRootsCount}</div>
+            <div className={`text-2xl font-bold ${totalSealedCount === 0 ? 'text-slate-400' : 'text-green-400'}`}>{totalSealedCount}</div>
+            <div className="text-xs text-slate-500 mt-1">Total sealed events</div>
+          </div>
+          <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-sm text-slate-400 font-medium">MERKLE ROOTS</div>
+              <Database className={`w-4 h-4 ${merkleRootsCount === 0 ? 'text-slate-500' : 'text-green-500'}`} />
+            </div>
+            <div className={`text-2xl font-bold ${merkleRootsCount === 0 ? 'text-slate-400' : 'text-green-400'}`}>{merkleRootsCount}</div>
             <div className="text-xs text-slate-500 mt-1">Sealed chain roots</div>
           </div>
           <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
             <div className="flex items-center justify-between mb-2">
-              <div className="text-sm text-slate-400 font-medium">EVENTS SEALED</div>
-              <FileText className="w-4 h-4 text-slate-500" />
-            </div>
-            <div className="text-2xl font-bold text-white">{events.length}</div>
-            <div className="text-xs text-slate-500 mt-1">In current view</div>
-          </div>
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-2">
               <div className="text-sm text-slate-400 font-medium">CHAIN STATUS</div>
-              <Shield className="w-4 h-4 text-slate-500" />
+              <Shield className={`w-4 h-4 ${integrityStatus === 'VALID' ? 'text-green-500' : integrityStatus === 'TAMPERED' ? 'text-red-500' : 'text-slate-500'}`} />
             </div>
             <div className={`text-2xl font-bold ${integrityStatus === 'VALID' ? 'text-green-400' : integrityStatus === 'TAMPERED' ? 'text-red-400' : 'text-slate-400'}`}>
               {integrityStatus ?? '—'}
             </div>
             <div className="text-xs text-slate-500 mt-1">Integrity check result</div>
+            {lastHash && (
+              <div className="mt-2 pt-2 border-t border-slate-700">
+                <p className="text-xs text-slate-500 mb-1">LAST HASH</p>
+                <p className="text-xs font-mono text-slate-400 truncate" 
+                   title={lastHash}>
+                  {lastHash.slice(0, 8)}...{lastHash.slice(-8)}
+                </p>
+              </div>
+            )}
           </div>
           <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
             <div className="flex items-center justify-between mb-2">
               <div className="text-sm text-slate-400 font-medium">LAST VERIFIED</div>
-              <Clock className="w-4 h-4 text-slate-500" />
+              <Clock className={`w-4 h-4 ${lastVerifiedAt === null ? 'text-slate-500' : 'text-green-500'}`} />
             </div>
-            <div className="text-2xl font-bold text-white">
-              {lastVerifiedAt ? lastVerifiedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
+            <div className={`text-2xl font-normal ${lastVerifiedAt === null ? 'text-slate-400' : 'text-white'}`}>
+              {lastVerifiedAt ? (
+                <div className="flex flex-col">
+                  <div>{lastVerifiedAt.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+                  <div className="text-lg">{lastVerifiedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</div>
+                </div>
+              ) : '—'}
             </div>
             <div className="text-xs text-slate-500 mt-1">When chain was verified</div>
           </div>
@@ -508,22 +536,7 @@ th{background:#f1f5f9;font-weight:600}
             <Filter className="w-4 h-4 text-slate-400" />
             <span className="text-sm font-semibold text-white">Filters</span>
           </div>
-          <div className="grid grid-cols-4 gap-4">
-            <div>
-              <label className="block text-xs text-slate-400 mb-2">Severity</label>
-              <select
-                value={filters.severity}
-                onChange={(e) => handleFilterChange('severity', e.target.value)}
-                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">All Severities</option>
-                <option value="CRITICAL">Critical</option>
-                <option value="HIGH">High</option>
-                <option value="LOW">Low</option>
-                <option value="INFO">Info</option>
-                <option value="ERASURE">Erasure</option>
-              </select>
-            </div>
+          <div className="grid grid-cols-3 gap-4">
             <div>
               <label className="block text-xs text-slate-400 mb-2">Event Type</label>
               <select
@@ -537,7 +550,7 @@ th{background:#f1f5f9;font-weight:600}
                 <option value="Transfer — Review">Transfer — Review</option>
                 <option value="Human Decision — Blocked">Human Decision — Blocked</option>
                 <option value="Human Decision — Approved">Human Decision — Approved</option>
-                <option value="GDPR Erasure">GDPR Erasure</option>
+                <option value="Shadow">Shadow</option>
               </select>
             </div>
             <div>
@@ -605,20 +618,18 @@ th{background:#f1f5f9;font-weight:600}
               <>
               <table className="w-full table-fixed" style={{ tableLayout: 'fixed' }}>
                 <colgroup>
-                  <col style={{ width: '15%' }} />
-                  <col style={{ width: '9%' }} />
-                  <col style={{ width: '13%' }} />
-                  <col style={{ width: '13%' }} />
+                  <col style={{ width: '18%' }} />
+                  <col style={{ width: '14%' }} />
+                  <col style={{ width: '14%' }} />
                   <col style={{ width: '10%' }} />
                   <col style={{ width: '13%' }} />
                   <col style={{ width: '13%' }} />
                   <col style={{ width: '9%' }} />
-                  <col style={{ width: '15%' }} />
+                  <col style={{ width: '9%' }} />
                 </colgroup>
                 <thead className="bg-slate-700/50">
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider whitespace-nowrap">Event</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider whitespace-nowrap">Severity</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider whitespace-nowrap">Destination</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider whitespace-nowrap">GDPR Basis</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider whitespace-nowrap">Data</th>
@@ -645,21 +656,34 @@ th{background:#f1f5f9;font-weight:600}
                         }`}
                       >
                         <td className="px-4 py-3 text-sm text-slate-300" title={event.eventId || event.id || undefined}>
-                          {formatEventTypeLabel(event.eventType)}
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium border ${getSeverityBadgeClass(getDerivedSeverity(event))}`}>
-                            {getDerivedSeverity(event)}
-                          </span>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {formatEventTypeLabel(event.eventType, event.payload)}
+                            {event.payload?.shadow_mode === true && (
+                              <span className="px-2 py-0.5 bg-amber-500/15 text-amber-400 border border-amber-500/25 rounded text-xs font-medium">
+                                SHADOW
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-4 py-3">
                           <div className="min-w-0">
-                            <div className="text-sm text-white truncate" title={event.payload?.destination_country ?? event.payload?.destinationCountry ?? undefined}>
-                              {event.payload?.destination_country ?? event.payload?.destinationCountry ?? 'N/A'}
-                            </div>
-                            {event.payload?.destination_country_code && (
-                              <div className="text-xs text-slate-400">({event.payload.destination_country_code})</div>
-                            )}
+                            {(() => {
+                              const raw = event.payload?.destination_country || event.payload?.destinationCountry || 
+                                          event.payload?.destination_country_code || event.payload?.destinationCountryCode || 'N/A';
+                              const destination = (raw.length === 2 && COUNTRY_NAMES[raw.toUpperCase()]) 
+                                ? COUNTRY_NAMES[raw.toUpperCase()] 
+                                : raw;
+                              return (
+                                <>
+                                  <div className="text-sm text-white truncate" title={destination}>
+                                    {destination}
+                                  </div>
+                                  {event.payload?.destination_country_code && (
+                                    <div className="text-xs text-slate-400">({event.payload.destination_country_code})</div>
+                                  )}
+                                </>
+                              );
+                            })()}
                           </div>
                         </td>
                         <td className="px-4 py-3 text-sm text-slate-300 font-mono whitespace-nowrap">
@@ -675,7 +699,7 @@ th{background:#f1f5f9;font-weight:600}
                         </td>
                         <td className="px-4 py-3">
                           <div className="min-w-0">
-                            <div className="text-sm text-white truncate">{event.payload?.data_categories?.[0] || event.payload?.dataCategories?.[0] || event.payload?.data_category ?? 'N/A'}</div>
+                            <div className="text-sm text-white truncate">{event.payload?.data_categories?.[0] || event.payload?.dataCategories?.[0] || '—'}</div>
                             {event.payload?.records && (
                               <div className="text-xs text-slate-400">{event.payload.records.toLocaleString()} records</div>
                             )}
@@ -760,7 +784,10 @@ th{background:#f1f5f9;font-weight:600}
             >
               {(() => {
                 const e = selectedEvent;
-                const countryName = e.payload?.destination_country || e.payload?.destinationCountry || e.payload?.destination || '';
+                const raw = e.payload?.destination_country || e.payload?.destinationCountry || e.payload?.destination || '';
+                const countryName = (raw.length === 2 && COUNTRY_NAMES[raw.toUpperCase()]) 
+                  ? COUNTRY_NAMES[raw.toUpperCase()] 
+                  : raw;
                 let countryCode = e.payload?.destination_country_code || e.payload?.destinationCountryCode || '';
                 if (!countryCode && countryName) countryCode = getCountryCodeFromName(countryName);
                 const source = (e.sourceSystem || '').toLowerCase();
@@ -786,15 +813,17 @@ th{background:#f1f5f9;font-weight:600}
 
                 return (
                   <>
-                    {/* Header — Event Label, Severity, Verification, Close */}
+                    {/* Header — Event Label, Verification, Close */}
                     <div className="p-5 border-b border-slate-700 flex items-start justify-between gap-3">
                       <div className="flex flex-wrap gap-2 items-center min-w-0">
                         <span className={`px-3 py-1.5 rounded text-sm font-medium ${getEventTypeColor()}`}>
-                          {formatEventTypeLabel(e.eventType)}
+                          {formatEventTypeLabel(e.eventType, e.payload)}
                         </span>
-                        <span className={`px-2 py-1 rounded text-xs font-medium border ${getSeverityBadgeClass(getDerivedSeverity(e))}`}>
-                          {getDerivedSeverity(e)}
-                        </span>
+                        {e.payload?.shadow_mode === true && (
+                          <span className="px-2 py-0.5 bg-amber-500/15 text-amber-400 border border-amber-500/25 rounded text-xs font-medium">
+                            SHADOW
+                          </span>
+                        )}
                         <span className={`px-2 py-1 rounded text-xs font-medium border ${
                             e.verificationStatus === 'VERIFIED' || e.verificationStatus === 'BLOCK' ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25' :
                             e.verificationStatus === 'REVIEW' || e.verificationStatus === 'PENDING' ? 'bg-amber-500/15 text-amber-400 border-amber-500/25' :
@@ -814,10 +843,11 @@ th{background:#f1f5f9;font-weight:600}
                     </div>
 
                     <div className="flex-1 overflow-y-auto p-5 space-y-5">
-                      {/* Section 1 — Transfer Details, Erasure Certificate, or Erasure Details */}
+                      {/* Section 1 — Transfer Details */}
                       {(() => {
                         const et = (e.eventType || '').toUpperCase();
-                        if (et === 'GDPR_ERASURE_COMPLETED') {
+                        // Removed GDPR_ERASURE_COMPLETED handling - Crypto Shredder feature removed
+                        if (false) {
                           const p = e.payload || {};
                           const requestId = p.requestId ?? p.request_id ?? '—';
                           const userId = p.userId ?? p.user_id ?? '—';
@@ -829,7 +859,7 @@ th{background:#f1f5f9;font-weight:600}
                           const totalSizeMb = p.totalSizeMb ?? p.total_size_mb ?? 0;
                           const execDate = executedAt !== '—' ? new Date(executedAt) : null;
                           const certId = execDate && requestId !== '—'
-                            ? `CERT-${requestId}-${execDate.toISOString().replace(/[-:T.Z]/g, '').slice(0, 14)}`
+                            ? `CERT-${requestId}-${execDate!.toISOString().replace(/[-:T.Z]/g, '').slice(0, 14)}`
                             : (e.nexusSeal || e.eventId || e.id);
                           const certObj = {
                             certificateId: certId,
@@ -918,7 +948,6 @@ th{background:#f1f5f9;font-weight:600}
                         }
                         const destCountry = (e.payload?.destination_country ?? e.payload?.destinationCountry ?? e.payload?.destination ?? '').trim();
                         const hasDestCountry = destCountry && destCountry !== 'N/A';
-                        const isErasure = getDerivedSeverity(e) === 'ERASURE';
 
                         if (hasDestCountry) {
                           return (
@@ -932,23 +961,9 @@ th{background:#f1f5f9;font-weight:600}
                                   <span className="text-white">{countryName || '—'}</span>
                                 </div>
                                 <div><span className="text-slate-400">GDPR Legal Basis:</span> <span className="text-white">{gdprBasisFull}</span></div>
-                                <div><span className="text-slate-400">Data Category:</span> <span className="text-white">{e.payload?.data_categories?.[0] || e.payload?.dataCategories?.[0] || e.payload?.data_category ?? '—'}</span></div>
+                                <div><span className="text-slate-400">Data Category:</span> <span className="text-white">{e.payload?.data_categories?.[0] || e.payload?.dataCategories?.[0] || (e.payload?.data_category ?? '—')}</span></div>
                                 <div><span className="text-slate-400">Source System:</span> <span className="text-white">{e.sourceSystem || '—'}</span></div>
                                 <div><span className="text-slate-400">Purpose:</span> <span className="text-white">{e.payload?.purpose || '—'}</span></div>
-                              </div>
-                            </section>
-                          );
-                        }
-                        if (isErasure) {
-                          return (
-                            <section>
-                              <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">Erasure Details</h3>
-                              <div className="space-y-2 text-sm">
-                                <div><span className="text-slate-400">Executed by:</span> <span className="text-white">{e.sourceSystem || '—'}</span></div>
-                                <div><span className="text-slate-400">Key ID:</span> <span className="text-white font-mono">{e.payload?.key_id ?? '—'}</span></div>
-                                <div><span className="text-slate-400">Records affected:</span> <span className="text-white">{e.payload?.records_affected ?? '—'}</span></div>
-                                <div><span className="text-slate-400">Method:</span> <span className="text-white">AES-256-GCM Cryptographic Key Destruction</span></div>
-                                <div><span className="text-slate-400">Legal basis:</span> <span className="text-white">GDPR Art. 17 — Right to Erasure</span></div>
                               </div>
                             </section>
                           );
@@ -964,9 +979,6 @@ th{background:#f1f5f9;font-weight:600}
                           <CopyRow label="Seal ID" value={e.nexusSeal || ''} />
                           <CopyRow label="Payload Hash" value={e.payloadHash || ''} />
                           <CopyRow label="Previous Hash" value={e.previousHash || ''} />
-                        </div>
-                        <div className="mt-3">
-                          <div className="text-xs text-slate-400">{getSeverityExplanation(getDerivedSeverity(e))}</div>
                         </div>
                       </section>
 
@@ -994,155 +1006,6 @@ th{background:#f1f5f9;font-weight:600}
                         </div>
                       </section>
 
-                      {/* Section 5 — GDPR Art. 17 Erasure (Crypto Shredder) — COMMENTED OUT: re-enable if product direction changes */}
-                      {/* {(() => {
-                        const dataCategories = e.payload?.data_categories || e.payload?.dataCategories || [];
-                        const hasDataCategories = Array.isArray(dataCategories) && dataCategories.length > 0;
-                        const isSovereignShield = (e.sourceSystem || '').toLowerCase() === 'sovereign-shield';
-                        const isAlreadyErased = erasedEventIds.has(e.id);
-                        const userId = e.payload?.user_id || e.payload?.userId || e.correlationId || e.id;
-
-                        if (!hasDataCategories || !isSovereignShield) return null;
-
-                        if (isAlreadyErased) {
-                          return (
-                            <section className="border-t border-slate-700 pt-5">
-                              <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">🔒 PERSONAL DATA ERASED</h3>
-                              <div className="bg-slate-900 rounded p-4 space-y-3 text-sm">
-                                <p className="text-slate-300">
-                                  This transfer&apos;s personal data has been cryptographically shredded per GDPR Art. 17.
-                                </p>
-                                <p className="text-slate-400">
-                                  The encryption key has been permanently destroyed.
-                                </p>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setFilters(prev => ({ ...prev, search: e.id }));
-                                    closeDrawer();
-                                  }}
-                                  className="inline-flex items-center gap-1.5 text-purple-400 hover:text-purple-300 font-medium text-left"
-                                >
-                                  <ExternalLink className="w-3.5 h-3.5" />
-                                  View Erasure Certificate →
-                                </button>
-                              </div>
-                            </section>
-                          );
-                        }
-
-                        if (erasureCertificate) {
-                          const cert = erasureCertificate as { certificate?: { id?: string }; executedAt?: string; summary?: { totalRecords?: number; cryptoLogId?: string } };
-                          const certId = cert.certificate?.id || 'certificate';
-                          return (
-                            <section className="border-t border-slate-700 pt-5">
-                              <h3 className="text-xs font-bold uppercase tracking-widest text-emerald-400 mb-3">✓ ERASURE COMPLETED</h3>
-                              <div className="bg-slate-900 rounded p-4 space-y-2 text-sm">
-                                <div><span className="text-slate-400">Certificate ID:</span> <span className="text-white font-mono">{certId}</span></div>
-                                <div><span className="text-slate-400">Executed at:</span> <span className="text-white">{formatDrawerTimestamp(cert.executedAt as string)}</span></div>
-                                <div><span className="text-slate-400">Records affected:</span> <span className="text-white">{cert.summary?.totalRecords ?? '—'}</span></div>
-                                <div><span className="text-slate-400">Crypto Log ID:</span> <code className="text-emerald-400 font-mono text-xs">{cert.summary?.cryptoLogId ?? '—'}</code></div>
-                                <div><span className="text-slate-400">Compliance:</span> <span className="text-white">GDPR Article 17 — Right to Erasure</span></div>
-                                <button
-                                  onClick={() => {
-                                    const blob = new Blob([JSON.stringify(erasureCertificate, null, 2)], { type: 'application/json' });
-                                    const url = URL.createObjectURL(blob);
-                                    const a = document.createElement('a');
-                                    a.href = url;
-                                    a.download = `erasure-certificate-${certId}.json`;
-                                    a.click();
-                                    URL.revokeObjectURL(url);
-                                  }}
-                                  className="mt-2 px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded text-sm font-medium transition-colors"
-                                >
-                                  Download Certificate
-                                </button>
-                              </div>
-                            </section>
-                          );
-                        }
-
-                        const expectedConfirmation = `ERASE ${userId}`;
-                        const formValid = erasureForm.requestId.trim() && erasureForm.grounds && erasureForm.confirmation.trim() === expectedConfirmation;
-
-                        return (
-                          <section className="border-t border-slate-700 pt-5">
-                            <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">GDPR ART. 17 — RIGHT TO ERASURE</h3>
-                            <div className="bg-slate-900 rounded p-4 space-y-4">
-                              <div>
-                                <label className="block text-xs text-slate-400 mb-1">Request ID *</label>
-                                <input
-                                  type="text"
-                                  placeholder="REQ-2026-001"
-                                  value={erasureForm.requestId}
-                                  onChange={(ev) => setErasureForm(f => ({ ...f, requestId: ev.target.value }))}
-                                  className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-xs text-slate-400 mb-1">Legal Grounds *</label>
-                                <select
-                                  value={erasureForm.grounds}
-                                  onChange={(ev) => setErasureForm(f => ({ ...f, grounds: ev.target.value }))}
-                                  className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                >
-                                  <option value="">Select grounds...</option>
-                                  <option value="Withdrawal of consent (Art. 6(1)(a))">Withdrawal of consent (Art. 6(1)(a))</option>
-                                  <option value="Data no longer necessary (Art. 17(1)(a))">Data no longer necessary (Art. 17(1)(a))</option>
-                                  <option value="Unlawful processing (Art. 17(1)(d))">Unlawful processing (Art. 17(1)(d))</option>
-                                  <option value="Legal obligation (Art. 17(1)(c))">Legal obligation (Art. 17(1)(c))</option>
-                                </select>
-                              </div>
-                              <div>
-                                <label className="block text-xs text-slate-400 mb-1">User ID (for confirmation)</label>
-                                <div className="px-3 py-2 bg-slate-800/50 border border-slate-700 rounded text-slate-300 text-sm font-mono">
-                                  {userId}
-                                </div>
-                              </div>
-                              <div>
-                                <label className="block text-xs text-slate-400 mb-1">Confirmation *</label>
-                                <input
-                                  type="text"
-                                  placeholder={`Type: ERASE ${userId}`}
-                                  value={erasureForm.confirmation}
-                                  onChange={(ev) => setErasureForm(f => ({ ...f, confirmation: ev.target.value }))}
-                                  className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                />
-                                <p className="text-xs text-slate-400 mt-1">Type ERASE followed by the user ID to confirm permanent erasure</p>
-                              </div>
-                              <div className="bg-amber-500/10 border border-amber-500/25 rounded p-3 text-sm text-amber-200">
-                                <strong>⚠ This action is irreversible.</strong> The encryption key will be cryptographically destroyed. The transfer record will remain in the Evidence Vault as required by GDPR Art. 30, but the personal data will be permanently unrecoverable.
-                              </div>
-                              <button
-                                onClick={async () => {
-                                  if (!formValid || !selectedEvent) return;
-                                  setErasureExecuting(true);
-                                  try {
-                                    const res = await executeErasure({
-                                      requestId: erasureForm.requestId.trim(),
-                                      userId,
-                                      grounds: erasureForm.grounds,
-                                      confirmation: erasureForm.confirmation.trim(),
-                                    });
-                                    setErasureCertificate(res as unknown as Record<string, unknown>);
-                                    setErasedEventIds(prev => new Set([...prev, selectedEvent.id]));
-                                    loadEvents();
-                                  } catch (err) {
-                                    alert(err instanceof Error ? err.message : 'Erasure failed');
-                                  } finally {
-                                    setErasureExecuting(false);
-                                  }
-                                }}
-                                disabled={!formValid || erasureExecuting}
-                                className="flex items-center justify-center gap-2 w-full px-4 py-2 bg-red-500/15 text-red-400 border border-red-500/25 rounded text-sm font-medium hover:bg-red-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                                {erasureExecuting ? 'Executing...' : 'Execute Erasure'}
-                              </button>
-                            </div>
-                          </section>
-                        );
-                      })()} */}
 
                     </div>
 
@@ -1164,7 +1027,10 @@ th{background:#f1f5f9;font-weight:600}
                         onClick={() => {
                           if (!selectedEvent) return;
                           const e = selectedEvent;
-                          const countryName = e.payload?.destination_country || e.payload?.destinationCountry || e.payload?.destination || '';
+                          const raw = e.payload?.destination_country || e.payload?.destinationCountry || e.payload?.destination || '';
+                          const countryName = (raw.length === 2 && COUNTRY_NAMES[raw.toUpperCase()]) 
+                            ? COUNTRY_NAMES[raw.toUpperCase()] 
+                            : raw;
                           let countryCode = e.payload?.destination_country_code || e.payload?.destinationCountryCode || '';
                           if (!countryCode && countryName) countryCode = getCountryCodeFromName(countryName);
                           const html = `<html><head><title>Evidence - ${e.eventId || e.id}</title>
@@ -1204,3 +1070,13 @@ code{font-family:monospace;font-size:0.75rem;color:#059669;word-break:break-all}
     </DashboardLayout>
   );
 }
+
+export default function EvidenceVaultPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-screen"><div className="text-slate-400">Loading...</div></div>}>
+      <EvidenceVaultPageContent />
+    </Suspense>
+  );
+}
+
+export const dynamic = 'force-dynamic';

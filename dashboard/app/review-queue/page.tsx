@@ -8,22 +8,15 @@ import {
   ReviewQueueItem,
 } from '../utils/api';
 import { CheckCircle } from 'lucide-react';
-
-const COUNTRY_CODE_TO_NAME: Record<string, string> = {
-  us: 'United States', usa: 'United States', uk: 'United Kingdom', gb: 'United Kingdom',
-  de: 'Germany', fr: 'France', it: 'Italy', es: 'Spain', nl: 'Netherlands', be: 'Belgium',
-  ch: 'Switzerland', at: 'Austria', se: 'Sweden', no: 'Norway', dk: 'Denmark', fi: 'Finland',
-  ie: 'Ireland', pt: 'Portugal', pl: 'Poland', cz: 'Czech Republic', gr: 'Greece',
-  cn: 'China', jp: 'Japan', in: 'India', au: 'Australia', ca: 'Canada', mx: 'Mexico',
-  br: 'Brazil', kr: 'South Korea', sg: 'Singapore', za: 'South Africa', ru: 'Russia',
-};
+import { COUNTRY_NAMES } from '../config/countries';
 
 function getCountryFromAction(action: string): { code: string; name: string } {
   if (!action) return { code: '—', name: 'Unknown' };
   const parts = action.split('_');
-  const code = (parts[parts.length - 1] || '').toLowerCase();
-  const name = COUNTRY_CODE_TO_NAME[code] || code.toUpperCase();
-  return { code: code || '—', name };
+  const code = (parts[parts.length - 1] || '').toUpperCase();
+  if (!code || code.length !== 2) return { code: '—', name: 'Unknown' };
+  const name = COUNTRY_NAMES[code] || code;
+  return { code, name };
 }
 
 function formatSlaRemaining(createdAt: string): { text: string; badgeClass: string; borderClass: string } {
@@ -33,7 +26,7 @@ function formatSlaRemaining(createdAt: string): { text: string; badgeClass: stri
 
   if (now >= deadline) {
     return {
-      text: '⚠ SLA Overdue',
+      text: '⏱ SLA EXPIRED — pending auto-block',
       badgeClass: 'flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-red-500/15 text-red-400 border border-red-500/25',
       borderClass: 'border-l-4 border-l-red-500/60',
     };
@@ -147,13 +140,15 @@ export default function ReviewQueuePage() {
                     <div className="flex items-center gap-2">
                       {code && code !== '—' && code.length === 2 && (
                         <img
-                          src={`https://flagcdn.com/24x18/${code}.png`}
+                          src={`https://flagcdn.com/24x18/${code.toLowerCase()}.png`}
                           alt=""
                           className="w-6 h-[18px] object-cover rounded-sm"
                         />
                       )}
                       <span className="font-bold text-white">{name}</span>
-                      <span className="text-slate-500 text-sm">{code !== '—' ? code.toUpperCase() : ''}</span>
+                      {code !== '—' && code.length === 2 && name !== code && (
+                        <span className="text-slate-500 text-xs">({code})</span>
+                      )}
                     </div>
                     <span className="px-2 py-1 bg-amber-500/15 text-amber-400 border border-amber-500/25 rounded text-xs font-medium">
                       GDPR Art. 46 — SCC Required
@@ -203,3 +198,5 @@ export default function ReviewQueuePage() {
     </DashboardLayout>
   );
 }
+
+export const dynamic = 'force-dynamic';

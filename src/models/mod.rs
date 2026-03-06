@@ -155,13 +155,3 @@ pub struct ReviewItemResponse {
     pub expires_at: Option<String>,
 }
 
-// ── Encrypted Log Keys (Crypto Shredder) ──
-
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
-pub struct EncryptedLogKeyRow {
-    pub id: Uuid,
-    pub log_id: String,
-    pub wrapped_dek: Vec<u8>,
-    pub created_at: DateTime<Utc>,
-    pub shredded_at: Option<DateTime<Utc>>,
-}

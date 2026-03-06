@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import WorldMap from './WorldMap';
-import { EvidenceEvent } from '../utils/api';
+import { EvidenceEvent, SCCRegistry } from '../utils/api';
 import {
   EU_EEA_COUNTRIES,
   SCC_REQUIRED_COUNTRIES,
@@ -10,11 +10,14 @@ import {
   ADEQUATE_COUNTRIES,
   COUNTRY_NAMES,
   TOPOJSON_COUNTRY_NAMES,
+  SMALL_COUNTRY_MARKERS,
   getCountryCodeFromName,
 } from '../config/countries';
 
 interface SovereignMapProps {
   evidenceEvents?: EvidenceEvent[];
+  sccRegistries?: SCCRegistry[];
+  decidedEvidenceIds?: Set<string>;
   isLoading?: boolean;
   onCountryClick?: (country: any) => void;
 }
@@ -23,22 +26,56 @@ interface CountryData {
   code: string;
   name: string;
   status: 'adequate_protection' | 'scc_required' | 'blocked';
+  sccDisplay?: 'fill' | 'border'; // 'fill' = full orange, 'border' = orange border only
   transfers: number;
 }
 
-const SovereignMap: React.FC<SovereignMapProps> = ({ evidenceEvents = [], isLoading, onCountryClick }) => {
+function hasValidSCCForPartner(
+  sccRegistries: SCCRegistry[],
+  partnerName: string,
+  countryCode: string
+): boolean {
+  const partnerNorm = (partnerName || '').trim().toLowerCase();
+  const countryNorm = countryCode.toUpperCase();
+  if (!partnerNorm) return false;
+
+  return sccRegistries.some((scc) => {
+    if (scc.status !== 'active' && scc.status !== 'Valid') return false;
+    const sccCountryRaw = getCountryCodeFromName(scc.destinationCountry) || (scc.destinationCountry.length === 2 ? scc.destinationCountry : '');
+    const sccCountry = sccCountryRaw.toUpperCase();
+    if (!sccCountry || sccCountry !== countryNorm) return false;
+    if (scc.expiryDate && new Date(scc.expiryDate) <= new Date()) return false;
+    const sccPartner = (scc.partnerName || '').trim().toLowerCase();
+    return sccPartner === partnerNorm || sccPartner.includes(partnerNorm) || partnerNorm.includes(sccPartner);
+  });
+}
+
+const SovereignMap: React.FC<SovereignMapProps> = ({
+  evidenceEvents = [],
+  sccRegistries = [],
+  decidedEvidenceIds = new Set(),
+  isLoading,
+  onCountryClick,
+}) => {
   const [countries, setCountries] = useState<CountryData[]>([]);
 
   const processedCountries = useMemo(() => {
+    const now = Date.now();
+    const twentyFourHoursAgo = now - 24 * 60 * 60 * 1000;
+
+    const greenCountries = new Set<string>();
+    const redCountries = new Set<string>();
+    const orangeFillCountries = new Set<string>();
+    const orangeBorderCountries = new Set<string>();
+
     if (!evidenceEvents || evidenceEvents.length === 0) {
-      return [];
+      return { countries: [], markers: [] };
     }
 
-    const now = Date.now();
-    const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
-    const countryEventMap = new Map<string, { lastTransfer: number; lastBlocked: number; count: number }>();
+    const isSccRequiredCountry = (code: string) =>
+      SCC_REQUIRED_COUNTRIES.has(code) ||
+      (!EU_EEA_COUNTRIES.has(code) && !ADEQUATE_COUNTRIES.has(code) && !BLOCKED_COUNTRIES.has(code));
 
-    // Process events to build country map — include any event with valid destination (ALLOW, BLOCK, or REVIEW)
     evidenceEvents.forEach((event: any) => {
       const payload = event.payload || {};
       const destCode =
@@ -56,84 +93,132 @@ const SovereignMap: React.FC<SovereignMapProps> = ({ evidenceEvents = [], isLoad
       if (!countryCode && destCountry) {
         countryCode = getCountryCodeFromName(destCountry);
       }
-      const mappedName = TOPOJSON_COUNTRY_NAMES[countryCode] || COUNTRY_NAMES[countryCode] || countryCode;
-      if (process.env.NODE_ENV === 'development' && countryCode) {
-        console.log('[Map] extracted code:', countryCode, '→ topoName:', mappedName);
-      }
 
-      if (!countryCode || countryCode === 'EU' || countryCode === 'UN' || countryCode.length !== 2) {
-        return;
-      }
+      if (!countryCode || countryCode === 'EU' || countryCode === 'UN' || countryCode.length !== 2) return;
 
-      // Include any event with valid destination — case-insensitive, regardless of exact event type
       const eventTime = event.occurredAt || event.recordedAt || event.createdAt;
       if (!eventTime) return;
-
       const eventTimestamp = new Date(eventTime).getTime();
-      if (eventTimestamp < thirtyDaysAgo) return;
-
-      if (!countryEventMap.has(countryCode)) {
-        countryEventMap.set(countryCode, { lastTransfer: 0, lastBlocked: 0, count: 0 });
-      }
-
-      const countryEvents = countryEventMap.get(countryCode)!;
-      countryEvents.count += 1;
+      const eventId = event.id || event.eventId;
+      const isDecided = eventId && decidedEvidenceIds.has(eventId);
 
       const eventType = (event.eventType || '').toUpperCase();
       const isBlocked = eventType.includes('BLOCK') || (event.verificationStatus || '').toUpperCase() === 'BLOCK';
-      if (isBlocked) {
-        countryEvents.lastBlocked = Math.max(countryEvents.lastBlocked, eventTimestamp);
-      } else {
-        countryEvents.lastTransfer = Math.max(countryEvents.lastTransfer, eventTimestamp);
+      const isReview = eventType === 'DATA_TRANSFER_REVIEW' || (event.verificationStatus || '').toUpperCase() === 'REVIEW';
+      const isAllow = eventType === 'DATA_TRANSFER' || eventType === 'TRANSFER_EVALUATION' || (event.verificationStatus || '').toUpperCase() === 'ALLOW';
+
+      const countryStatus = (payload.country_status || payload.countryStatus || '').toLowerCase();
+      const isSccCovered = isAllow && countryStatus === 'scc_required';
+
+      const partnerName = payload.partner_name || payload.partnerName || '';
+
+      // Red: blocked transfers in last 24h only (event-driven)
+      if (isBlocked && eventTimestamp >= twentyFourHoursAgo) {
+        redCountries.add(countryCode);
+      }
+
+      // Green: adequate/EU countries with transfers in last 24h
+      if (eventTimestamp >= twentyFourHoursAgo && !isBlocked) {
+        if (EU_EEA_COUNTRIES.has(countryCode) || ADEQUATE_COUNTRIES.has(countryCode)) {
+          greenCountries.add(countryCode);
+        }
+      }
+
+      // Orange fill: unresolved REVIEW transfers (no valid SCC for partner, not decided)
+      if (isReview && !isDecided && isSccRequiredCountry(countryCode)) {
+        const hasValidSCC = hasValidSCCForPartner(sccRegistries, partnerName, countryCode);
+        if (!hasValidSCC) {
+          orangeFillCountries.add(countryCode);
+        }
+      }
+
+      // Orange border: SCC-covered (ALLOW + scc_required) OR resolved (decided) in last 24h, for SCC-required countries, NOT in orangeFill
+      if (eventTimestamp >= twentyFourHoursAgo && isSccRequiredCountry(countryCode) && !orangeFillCountries.has(countryCode)) {
+        if (isSccCovered || isDecided) {
+          orangeBorderCountries.add(countryCode);
+        }
       }
     });
 
-    // Convert to CountryData array
+    // Add to redCountries: any country where decision was BLOCK (includes unknown countries)
+    evidenceEvents
+      .filter((e) => {
+        const isRecent = new Date(e.occurredAt || e.recordedAt || e.createdAt).getTime() >= twentyFourHoursAgo;
+        const payload = e.payload || {};
+        const decision = payload.decision || (e as any).decision;
+        return isRecent && decision === 'BLOCK';
+      })
+      .forEach((e) => {
+        const payload = e.payload || {};
+        const code = (
+          payload.destination_country_code ||
+          payload.destinationCountryCode ||
+          (payload.destination_country || payload.destinationCountry
+            ? getCountryCodeFromName(payload.destination_country || payload.destinationCountry || '')
+            : '')
+        )
+          .toString()
+          .trim()
+          .toUpperCase();
+        if (code && code.length === 2) redCountries.add(code);
+      });
+
     const convertedCountries: CountryData[] = [];
+    const allCountryCodes = new Set([...greenCountries, ...redCountries, ...orangeFillCountries, ...orangeBorderCountries]);
 
-    countryEventMap.forEach((events, countryCode) => {
-      const hasRecentTransfer = events.lastTransfer >= thirtyDaysAgo;
-      const hasBlocked = events.lastBlocked > 0;
+    allCountryCodes.forEach((countryCode) => {
+      if (!/^[A-Z]{2}$/.test(countryCode)) return;
 
-      // Show country if it had any transfer activity (ALLOW, BLOCK, or REVIEW) in last 30 days
-      if (!hasRecentTransfer && !hasBlocked) {
+      let status: 'adequate_protection' | 'scc_required' | 'blocked';
+      let sccDisplay: 'fill' | 'border' | undefined;
+
+      if (redCountries.has(countryCode)) {
+        status = 'blocked';
+      } else if (greenCountries.has(countryCode)) {
+        status = 'adequate_protection';
+      } else if (orangeFillCountries.has(countryCode)) {
+        status = 'scc_required';
+        sccDisplay = 'fill';
+      } else if (orangeBorderCountries.has(countryCode)) {
+        status = 'scc_required';
+        sccDisplay = 'border';
+      } else {
         return;
       }
 
-      // Determine status based on country classification
-      // Order matters: check EU/EEA first, then blocked, then SCC-required, then adequate, then unknown
-      let status: 'adequate_protection' | 'scc_required' | 'blocked';
-      if (EU_EEA_COUNTRIES.has(countryCode)) {
-        // EU/EEA countries are treated as adequate protection (no transfer restrictions)
-        status = 'adequate_protection';
-      } else if (BLOCKED_COUNTRIES.has(countryCode)) {
-        status = 'blocked';
-      } else if (SCC_REQUIRED_COUNTRIES.has(countryCode)) {
-        status = 'scc_required';
-      } else if (ADEQUATE_COUNTRIES.has(countryCode)) {
-        status = 'adequate_protection';
-      } else {
-        // Default to SCC-required for unknown countries (safer than blocked per GDPR Art. 25)
-        status = 'scc_required';
-      }
-
-      // Use TopoJSON country name — TOPOJSON_COUNTRY_NAMES has exact names (e.g. "United States of America" for US)
       const mappedName = TOPOJSON_COUNTRY_NAMES[countryCode] || COUNTRY_NAMES[countryCode] || countryCode;
+      const transferCount = evidenceEvents.filter((e: any) => {
+        const p = e.payload || {};
+        const code = (p.destination_country_code || p.destinationCountryCode || getCountryCodeFromName(p.destination_country || p.destinationCountry || '')).toUpperCase();
+        return code === countryCode;
+      }).length;
 
       convertedCountries.push({
         code: countryCode,
         name: mappedName,
-        status: status,
-        transfers: events.count,
-        mechanisms: 0,
+        status,
+        sccDisplay,
+        transfers: transferCount,
       });
     });
 
-    return convertedCountries.filter(c => /^[A-Z]{2}$/.test(c.code));
-  }, [evidenceEvents]);
+    const markers: { lat: number; lng: number; code: string; name: string; color: string }[] = [];
+    const countryByCode = new Map(convertedCountries.map((c) => [c.code, c]));
+    for (const [code, info] of Object.entries(SMALL_COUNTRY_MARKERS)) {
+      const country = countryByCode.get(code);
+      if (!country) continue;
+      let color: string;
+      if (country.status === 'blocked') color = '#ef4444';
+      else if (country.status === 'adequate_protection') color = '#22c55e';
+      else color = '#f97316';
+      markers.push({ code, lat: info.lat, lng: info.lng, name: info.name, color });
+    }
+
+    return { countries: convertedCountries, markers };
+  }, [evidenceEvents, sccRegistries, decidedEvidenceIds]);
 
   useEffect(() => {
-    setCountries(processedCountries);
+    setCountries(processedCountries.countries);
   }, [processedCountries]);
 
   if (isLoading) {
@@ -145,7 +230,12 @@ const SovereignMap: React.FC<SovereignMapProps> = ({ evidenceEvents = [], isLoad
   }
 
   return (
-    <WorldMap countries={countries} isLoading={isLoading} onCountryClick={onCountryClick} />
+    <WorldMap
+      countries={countries}
+      markers={processedCountries.markers}
+      isLoading={isLoading}
+      onCountryClick={onCountryClick}
+    />
   );
 };
 

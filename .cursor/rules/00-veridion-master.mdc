@@ -1,12 +1,14 @@
 # Veridion API Master
 
 ---
-description: Veridion API master rules - standalone service, own database
+description: Veridion API master rules - standalone service, own database, multi-tenant SaaS
 globs:
   - "**/*.rs"
   - "**/*.toml"
   - "**/*.sql"
   - "**/*.md"
+  - "**/*.tsx"
+  - "**/*.ts"
 ---
 
 # VERIDION API - Master Project Rules
@@ -14,62 +16,127 @@ globs:
 You are working on **Veridion API**, a standalone HTTP service with its **own database** and migrations. It is **not** veridion-nexus.
 
 ## ALWAYS READ FIRST
-- `VERIDION_API_PROJECT_REFERENCE.md` - the definitive project reference
+- `PROJECT_REFERENCE.md` - the definitive project reference (v1.3, updated 2026-03-05)
 
 ## WHAT THIS PROJECT IS
-- Standalone API service: Evidence Vault, Sovereign Shield, Review Queue (Human Oversight), Crypto Shredder
-- Own PostgreSQL database: users, compliance_records, human_oversight, encrypted_log_keys, evidence_events
+- Standalone REST API (Rust/Actix-web) + Sovereign Shield dashboard (Next.js 14, port 3000) + Landing page with signup (Next.js 14, port 3001, veridion-landing/)
+- Own PostgreSQL database with own migrations (001–027+)
 - No shared code or migration path with veridion-nexus
-- Built from scratch using veridion-nexus only as a reference for understanding logic
+- Multi-tenant SaaS: one shared instance, all tenants isolated by tenant_id
 
-## FOUR PILLARS (CORE FEATURES)
-1. **Evidence Vault** - Immutable, cryptographically sealed audit trail (hash chains, Nexus Seals)
-2. **Sovereign Shield** - International data transfer monitoring and enforcement (GDPR Art. 44-49)
-3. **Review Queue (Human Oversight)** - EU AI Act Art. 14 human review of AI decisions
-4. **Crypto Shredder** - GDPR Art. 17 right to erasure via cryptographic key destruction
+## THREE PILLARS (CORE FEATURES)
+1. **Sovereign Shield** — International data transfer monitoring and enforcement (GDPR Art. 44–49)
+2. **Evidence Vault** — Immutable, cryptographically sealed audit trail (hash chains, Nexus Seals)
+3. **Human Oversight** — EU AI Act Art. 14 human review queue for REVIEW decisions
 
 ## FEATURE FLOW
-- **Sovereign Shield** → Makes decisions (ALLOW/BLOCK/REVIEW), creates evidence
+- **Sovereign Shield** → Evaluates transfers, returns ALLOW/BLOCK/REVIEW, creates evidence
 - **Review Queue** → When SS triggers REVIEW, creates review entry for human decision
-- **Evidence Vault** → Stores all evidence (from SS decisions and review decisions)
-- **Crypto Shredder** → Function used by Evidence Vault for erasure operations
+- **Evidence Vault** → Stores all evidence (SS decisions + human decisions), append-only
 
-## SEVEN DESIGN DECISIONS (NEVER VIOLATE)
-1. Strictest-wins aggregation - Any BLOCK = final BLOCK
-2. REVIEW as safe default - Insufficient context = REVIEW, not ALLOW
-3. Evidence is immutable - Append-only, never UPDATE or DELETE
-4. Hash chain integrity - Every event links to previous via `previous_hash`
-5. Nexus Seal required - SHA-256(`payload_hash` + `previous_hash` + salt)
-6. Human oversight for REVIEW - All REVIEW decisions go to Review Queue
-7. Crypto shredding is permanent - Once key is shredded, data is unrecoverable
+## SIX DESIGN DECISIONS (NEVER VIOLATE)
+1. Strictest-wins aggregation — Any BLOCK = final BLOCK
+2. REVIEW as safe default — Insufficient context = REVIEW, not ALLOW
+3. Evidence is immutable — Append-only, never UPDATE or DELETE on evidence_events
+4. Hash chain integrity — Every event links to previous via `previous_hash`
+5. Nexus Seal required — SHA-256(`payload_hash` + `previous_hash` + salt)
+6. Human oversight for REVIEW — All REVIEW decisions go to Review Queue
+
+## MULTI-TENANCY RULES (NEVER VIOLATE)
+- Every data query MUST filter by `tenant_id` (evidence_events, scc_registries, compliance_records, human_oversight, system_settings)
+- API key auth middleware runs on all /api/v1/* routes
+- Exempt from auth: GET /health, GET /api/v1/auth/dev-bypass, POST /api/v1/auth/register
+- Admin routes (/api/v1/admin/*) require is_admin = true; they are the ONLY routes that may query without tenant_id filter
+- api_key_hash is NEVER returned in any API response
+- rate_limit_per_minute is stored in tenants table but NOT enforced until Phase 1
+- Dev bypass: RUST_ENV=development + missing auth header → inject admin TenantContext automatically
+- Signup exempt: POST /api/v1/auth/register has no tenant auth — it creates the tenant
 
 ## LANGUAGE RULES (NEVER VIOLATE)
 - Never say "compliant", "certified", "guaranteed compliance", "X% compliant"
 - Always say "provides structured, time-bound evidence" or "supports demonstrable compliance"
 
 ## TECHNOLOGY
-- Rust (Actix-web v4), PostgreSQL, SQLx, SHA-256 hash chains
-- AES-256-GCM for Crypto Shredder encryption
-- JWT for authentication
+### Backend (Rust)
+- Rust 2021, Actix-web 4, PostgreSQL + SQLx, JWT/bcrypt, sha2 crate (SHA-256)
+- Pattern: web::Data<PgPool> — no AppState struct
+- Middleware: .wrap() — tenant auth middleware wraps all /api/v1/* routes
+- TenantContext injected via req.extensions_mut().insert(...), extracted via req.extensions().get::<TenantContext>()
+
+### Dashboard (Next.js)
+- Next.js 14 (App Router), React 18, Tailwind CSS 3.x, lucide-react, react-simple-maps
+- Port 3000; API calls via relative URLs proxied to backend (avoids CORS)
+- Theme: dark (slate-900/800/700), emerald accents, Inter + JetBrains Mono fonts
 
 ## CRITICAL TYPES
-- `EvidenceEventRow` in `src/models.rs` - immutable audit event
+- `TenantContext` in `src/tenant.rs` — tenant_id, name, mode, plan, is_admin
+- `EvidenceEventRow` in `src/models/mod.rs` — immutable audit event
 - `Decision` enum: ALLOW, BLOCK, REVIEW
 - `EventSeverity`: L1 (critical), L2 (high), L3 (medium), L4 (low)
 - Regulatory tags: GDPR, DORA, NIS2, AI_ACT
 
-## COMPLIANCE FACTORY WORKFLOW
-Follow this workflow for all compliance features:
-1. **REGULUS** - Determine applicable regulations and articles, write Regulatory Contract
-2. **ARCHON** - Design technical architecture, write Design Contract
-3. **FORGER** - Implement code following Design Contract
-4. **AUDITOR** - Review code for compliance correctness before merge
-5. **SENTINEL** - Write tests that verify regulatory compliance
+## SOURCE FILES
+### Backend (src/)
+- `main.rs` — entry point, route registration, middleware setup
+- `tenant.rs` — TenantContext, TenantRow, sha256_hex helper, load_admin_tenant
+- `middleware_tenant.rs` — API key auth middleware
+- `models/mod.rs` — all domain models
+- `evidence.rs` — Evidence Vault core logic
+- `shield.rs` — Sovereign Shield decision engine
+- `review_queue.rs` — Human Oversight logic
+- `routes_auth.rs` — POST /api/v1/auth/register (signup, rate limiting, tenant+user creation)
+- `email.rs` — SMTP welcome email via lettre (async, graceful degradation)
+- `routes_evidence.rs` — /api/v1/evidence/*
+- `routes_shield.rs` — /api/v1/shield/*, /api/v1/scc-registries/*, /api/v1/settings
+- `routes_review_queue.rs` — /api/v1/review-queue/*, /api/v1/action/*
+- `routes_admin.rs` — /api/v1/admin/* (admin only, cross-tenant)
+
+### Dashboard (dashboard/)
+- `app/utils/api.ts` — API client, all fetch functions, types
+- `app/page.tsx` — Sovereign Shield home
+- `app/transfer-log/page.tsx` — Transfer Log
+- `app/transfer-detail/[id]/page.tsx` — Transfer Detail
+- `app/review-queue/page.tsx` — Review Queue
+- `app/scc-registry/page.tsx` — SCC Registry
+- `app/adequate-countries/page.tsx` — Adequate Countries (static)
+- `app/evidence-vault/page.tsx` — Evidence Vault
+- `app/components/Sidebar.tsx` — Nav (branding: VERIDION NEXUS / Compliance Dashboard v1.0.0)
+- `app/components/SovereignMap.tsx` + `WorldMap.tsx` — transfer map
+- `app/config/countries.ts` — country classifications, getLegalBasis helpers
 
 ## MIGRATIONS
-- `./migrations/` only (001–006). Do not reference `../veridion-nexus/migrations` or any path outside this project.
-- Schema matches four pillars: users, compliance_records, human_oversight, encrypted_log_keys, evidence_events
+- `./migrations/` only, numbered 001–027+
+- Key tables: users, tenants, compliance_records, human_oversight, evidence_events, scc_registries, system_settings
+- Migration 026 adds: tenants table, tenant_id to all data tables, admin tenant seed
+- Migration 027 adds: FK constraint users.company_id → tenants.id
+- Never reference paths outside this project
 
 ## CONFIGURATION
-- `.env`: DATABASE_URL, SERVER_HOST, SERVER_PORT, ALLOWED_ORIGINS, RUST_ENV
-- Optional: JWT_SECRET, MIGRATIONS_PATH, RESET_MIGRATIONS, VERIDION_MASTER_KEY, NEXUS_SEAL_SALT
+| Variable | Required | Purpose |
+|---|---|---|
+| DATABASE_URL | Yes | PostgreSQL connection string |
+| SERVER_HOST | No | Bind host (default 0.0.0.0) |
+| SERVER_PORT | No | Bind port (default 8080) |
+| ALLOWED_ORIGINS | No | CORS origins |
+| RUST_ENV | No | development = dev-bypass enabled |
+| JWT_SECRET | No | JWT secret |
+| MIGRATIONS_PATH | No | Override migrations dir |
+| RESET_MIGRATIONS | No | Re-run all migrations (one-time) |
+| NEXUS_SEAL_SALT | No | Salt for Nexus Seal SHA-256 |
+| SMTP_HOST | No | SMTP server (e.g. smtp.resend.com) |
+| SMTP_PORT | No | SMTP port (default 587) |
+| SMTP_USER | No | SMTP username |
+| SMTP_PASSWORD | No | SMTP password or API key |
+| SMTP_FROM | No | From address (default noreply@veridion-nexus.eu) |
+
+## COMPLIANCE FACTORY WORKFLOW
+1. **REGULUS** — Determine applicable regulations and articles, write Regulatory Contract
+2. **ARCHON** — Design technical architecture, write Design Contract
+3. **FORGER** — Implement code following Design Contract
+4. **AUDITOR** — Review code for compliance correctness before merge
+5. **SENTINEL** — Write tests that verify regulatory compliance
+
+## API KEY FORMAT
+- Production: `ss_live_[32-char hex]`
+- Sandbox/test: `ss_test_[32-char hex]`
+- Only api_key_hash (SHA-256) stored in DB — raw key never persisted or returned

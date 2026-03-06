@@ -1,8 +1,9 @@
-use actix_web::{web, HttpResponse, get, post};
+use actix_web::{web, HttpRequest, HttpResponse, get, post};
 use sqlx::PgPool;
 use serde::Deserialize;
 
 use crate::evidence;
+use crate::tenant::get_tenant_context;
 
 #[derive(Deserialize)]
 pub struct ListEventsQuery {
@@ -17,9 +18,14 @@ pub struct ListEventsQuery {
 
 #[get("/api/v1/evidence/events")]
 pub async fn list_events(
+    req: HttpRequest,
     pool: web::Data<PgPool>,
     query: web::Query<ListEventsQuery>,
 ) -> HttpResponse {
+    let tenant = match get_tenant_context(&req) {
+        Ok(t) => t,
+        Err(e) => return HttpResponse::from_error(e),
+    };
     let limit = query.limit.unwrap_or(50).min(10000);
     let offset = query.offset.unwrap_or(0).max(0);
 
@@ -32,13 +38,16 @@ pub async fn list_events(
         query.source_system.as_deref(),
         limit,
         offset,
+        tenant.tenant_id,
     ).await {
         Ok((events, total)) => {
-            let merkle_roots = evidence::count_sealed_chain_roots(pool.get_ref()).await.unwrap_or(0);
+            let merkle_roots = evidence::count_sealed_chain_roots(pool.get_ref(), tenant.tenant_id).await.unwrap_or(0);
+            let total_sealed = evidence::count_total_sealed_events(pool.get_ref(), tenant.tenant_id).await.unwrap_or(0);
             HttpResponse::Ok().json(serde_json::json!({
                 "events": events,
                 "totalCount": total,
                 "merkleRoots": merkle_roots,
+                "totalSealed": total_sealed,
             }))
         }
         Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({
@@ -64,9 +73,14 @@ pub struct CreateEventBody {
 
 #[post("/api/v1/evidence/events")]
 pub async fn create_event(
+    req: HttpRequest,
     pool: web::Data<PgPool>,
     body: web::Json<CreateEventBody>,
 ) -> HttpResponse {
+    let tenant = match get_tenant_context(&req) {
+        Ok(t) => t,
+        Err(e) => return HttpResponse::from_error(e),
+    };
     let params = evidence::CreateEventParams {
         event_type: body.event_type.clone(),
         severity: body.severity.clone(),
@@ -78,6 +92,7 @@ pub async fn create_event(
         causation_id: body.causation_id.clone(),
         source_ip: body.source_ip.clone(),
         source_user_agent: body.source_user_agent.clone(),
+        tenant_id: tenant.tenant_id,
     };
 
     match evidence::create_event(pool.get_ref(), params).await {
@@ -103,12 +118,17 @@ pub struct VerifyBody {
 
 #[post("/api/v1/evidence/verify-integrity")]
 pub async fn verify_integrity(
+    req: HttpRequest,
     pool: web::Data<PgPool>,
     body: web::Json<VerifyBody>,
 ) -> HttpResponse {
+    let tenant = match get_tenant_context(&req) {
+        Ok(t) => t,
+        Err(e) => return HttpResponse::from_error(e),
+    };
     let source = body.source_system.as_deref().unwrap_or("sovereign-shield");
 
-    match evidence::verify_chain_integrity(pool.get_ref(), source).await {
+    match evidence::verify_chain_integrity(pool.get_ref(), source, tenant.tenant_id).await {
         Ok((verified, message)) => HttpResponse::Ok().json(serde_json::json!({
             "verified": verified,
             "sourceSystem": source,

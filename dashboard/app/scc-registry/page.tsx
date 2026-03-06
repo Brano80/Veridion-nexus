@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import DashboardLayout from '../components/DashboardLayout';
 import { fetchSCCRegistries, createSCCRegistry, patchSCCRegistry, revokeSCCRegistry, SCCRegistry } from '../utils/api';
@@ -31,7 +31,7 @@ const PARTNER_SUGGESTIONS = [
 
 type SCCModule = 'Module1' | 'Module2' | 'Module3' | 'Module4';
 
-export default function SCCRegistryPage() {
+function SCCRegistryPageContent() {
   const searchParams = useSearchParams();
   const [registries, setRegistries] = useState<SCCRegistry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,8 +52,10 @@ export default function SCCRegistryPage() {
   const [showPartnerSuggestions, setShowPartnerSuggestions] = useState(false);
   const [tiaConfirmingId, setTiaConfirmingId] = useState<string | null>(null);
   const [revokeConfirmingId, setRevokeConfirmingId] = useState<string | null>(null);
+  const [archiveConfirmingId, setArchiveConfirmingId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [wizardRenewRegistry, setWizardRenewRegistry] = useState<SCCRegistry | null>(null);
+  const [activeTab, setActiveTab] = useState<'active' | 'history'>('active');
 
   useEffect(() => {
     loadRegistries();
@@ -152,14 +154,23 @@ export default function SCCRegistryPage() {
   async function handleRevoke(registry: SCCRegistry) {
     const countryName = COUNTRY_NAMES[getCountryCode(registry.destinationCountry)] || registry.destinationCountry;
     setRevokeConfirmingId(null);
-    const previousRegistries = [...registries];
-    setRegistries(prev => prev.filter(r => r.id !== registry.id));
     try {
-      await revokeSCCRegistry(registry.id);
+      await revokeSCCRegistry(registry.id, { revoke: true });
       setToastMessage(`SCC revoked — transfers to ${countryName} via ${registry.partnerName} will require review`);
+      await loadRegistries();
     } catch (err) {
-      setRegistries(previousRegistries);
       setToastMessage(err instanceof Error ? err.message : 'Failed to revoke SCC');
+    }
+  }
+
+  async function handleArchive(registry: SCCRegistry) {
+    setArchiveConfirmingId(null);
+    try {
+      await revokeSCCRegistry(registry.id); // DELETE without revoke=1 sets status=archived
+      setToastMessage('SCC archived — record retained for audit compliance (GDPR Art. 30)');
+      await loadRegistries();
+    } catch (err) {
+      setToastMessage(err instanceof Error ? err.message : 'Failed to archive SCC');
     }
   }
 
@@ -188,7 +199,7 @@ export default function SCCRegistryPage() {
     
     if (daysUntilExpiry <= 0) {
       return { label: 'EXPIRED', color: 'red', daysUntilExpiry };
-    } else if (daysUntilExpiry <= 14) {
+    } else if (daysUntilExpiry <= 30) {
       return { label: 'EXPIRING', color: 'amber', daysUntilExpiry };
     } else {
       return { label: 'ACTIVE', color: 'green', daysUntilExpiry };
@@ -200,48 +211,64 @@ export default function SCCRegistryPage() {
     const status = getStatusConfig(expiryDate);
     if (status.daysUntilExpiry === null) return 'No expiry';
     if (status.daysUntilExpiry <= 0) return 'EXPIRED';
-    if (status.daysUntilExpiry <= 14) return `${status.daysUntilExpiry} days — renew urgently`;
+    if (status.daysUntilExpiry <= 30) return `${status.daysUntilExpiry} days — renew urgently`;
     return `${status.daysUntilExpiry} days remaining`;
   };
 
   const getStatusSummary = () => {
     if (!Array.isArray(registries)) {
-      return { total: 0, active: 0, expiringSoon: 0, expired: 0 };
+      return { totalActive: 0, expiringSoon: 0, expired: 0, archived: 0 };
     }
 
     const now = new Date().getTime();
-    let active = 0;
+    let totalActive = 0;
     let expiringSoon = 0;
     let expired = 0;
+    let archived = 0;
 
     registries.forEach(scc => {
-      if (!scc.expiryDate) {
-        active++;
+      const s = (scc.status || '').toLowerCase();
+
+      // ARCHIVED: status === 'archived' || status === 'revoked'
+      if (s === 'archived' || s === 'revoked') {
+        archived++;
         return;
       }
-      const expiryTime = new Date(scc.expiryDate).getTime();
-      const daysUntilExpiry = Math.ceil((expiryTime - now) / (1000 * 60 * 60 * 24));
-      
-      if (daysUntilExpiry <= 0) {
+
+      // EXPIRED: status === 'expired' or past expiry date (and not archived/revoked)
+      const isExpiredByDate = scc.expiryDate ? new Date(scc.expiryDate).getTime() < now : false;
+      if (s === 'expired' || isExpiredByDate) {
         expired++;
-      } else {
-        active++;
-        if (daysUntilExpiry <= 14) expiringSoon++;
+        return;
+      }
+
+      // TOTAL ACTIVE: status === 'active' (valid coverage, not expired)
+      if (s === 'active') {
+        totalActive++;
+        if (scc.expiryDate) {
+          const daysUntilExpiry = Math.ceil((new Date(scc.expiryDate).getTime() - now) / (1000 * 60 * 60 * 24));
+          if (daysUntilExpiry > 0 && daysUntilExpiry <= 30) {
+            expiringSoon++;
+          }
+        }
       }
     });
 
-    return { 
-      total: registries.length, 
-      active, 
-      expiringSoon, 
-      expired 
-    };
+    return { totalActive, expiringSoon, expired, archived };
   };
 
-  const filteredRegistries = Array.isArray(registries) ? registries.filter(registry => {
+  const tabFilteredRegistries = Array.isArray(registries) ? registries.filter(registry => {
+    const s = (registry.status || '').toLowerCase();
+    if (activeTab === 'active') {
+      return s !== 'archived' && s !== 'revoked';
+    }
+    return s === 'archived' || s === 'revoked';
+  }) : [];
+
+  const filteredRegistries = tabFilteredRegistries.filter(registry => {
     const matchesSearch = searchTerm === '' ||
-      registry.partnerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      registry.destinationCountry.toLowerCase().includes(searchTerm.toLowerCase());
+      (registry.partnerName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (registry.destinationCountry || '').toLowerCase().includes(searchTerm.toLowerCase());
 
     if (statusFilter === 'All Status') return matchesSearch;
     
@@ -251,7 +278,7 @@ export default function SCCRegistryPage() {
     if (statusFilter === 'EXPIRED') return matchesSearch && status.label === 'EXPIRED';
     
     return matchesSearch;
-  }) : [];
+  });
 
   const getCountryCode = (countryNameOrCode: string): string => {
     // If it's already a 2-letter code, return it
@@ -327,55 +354,60 @@ export default function SCCRegistryPage() {
         <div className="grid grid-cols-4 gap-4">
           <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
             <div className="flex items-center justify-between mb-2">
-              <div className="text-sm text-slate-400 font-medium">TOTAL SCCs</div>
-              <FileText className="w-4 h-4 text-slate-500" />
+              <div className="text-sm text-slate-400 font-medium">TOTAL ACTIVE</div>
+              <CheckCircle className={`w-4 h-4 ${statusSummary.totalActive === 0 ? 'text-slate-500' : 'text-green-500'}`} />
             </div>
-            <div className="text-2xl font-bold text-white">{statusSummary.total}</div>
-            <div className="text-xs text-slate-500 mt-1">All registries</div>
-          </div>
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-sm text-slate-400 font-medium">ACTIVE</div>
-              <CheckCircle className="w-4 h-4 text-green-500" />
-            </div>
-            <div className="text-2xl font-bold text-green-400">{statusSummary.active}</div>
-            <div className="text-xs text-slate-500 mt-1">Not yet expired</div>
+            <div className={`text-2xl font-bold ${statusSummary.totalActive === 0 ? 'text-slate-400' : 'text-green-400'}`}>{statusSummary.totalActive}</div>
+            <div className="text-xs text-slate-500 mt-1">Valid coverage, not expired</div>
           </div>
           <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
             <div className="flex items-center justify-between mb-2">
               <div className="text-sm text-slate-400 font-medium">EXPIRING SOON</div>
-              <AlertTriangle className="w-4 h-4 text-amber-500" />
+              <AlertTriangle className={`w-4 h-4 ${statusSummary.expiringSoon === 0 ? 'text-slate-500' : 'text-amber-500'}`} />
             </div>
-            <div className="text-2xl font-bold text-amber-400">{statusSummary.expiringSoon}</div>
-            <div className="text-xs text-slate-500 mt-1">≤ 14 days until expiry</div>
+            <div className={`text-2xl font-bold ${statusSummary.expiringSoon === 0 ? 'text-slate-400' : 'text-amber-400'}`}>{statusSummary.expiringSoon}</div>
+            <div className="text-xs text-slate-500 mt-1">≤ 30 days until expiry</div>
           </div>
           <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
             <div className="flex items-center justify-between mb-2">
-              <div className="text-sm text-slate-400 font-medium">EXPIRED / CRITICAL</div>
-              <AlertTriangle className="w-4 h-4 text-red-500" />
+              <div className="text-sm text-slate-400 font-medium">EXPIRED</div>
+              <AlertTriangle className={`w-4 h-4 ${statusSummary.expired === 0 ? 'text-slate-500' : 'text-red-500'}`} />
             </div>
-            <div className="text-2xl font-bold text-red-400">{statusSummary.expired}</div>
-            <div className="text-xs text-slate-500 mt-1">Expired registries</div>
+            <div className={`text-2xl font-bold ${statusSummary.expired === 0 ? 'text-slate-400' : 'text-red-400'}`}>{statusSummary.expired}</div>
+            <div className="text-xs text-slate-500 mt-1">Past expiry, not archived</div>
+          </div>
+          <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-sm text-slate-400 font-medium">ARCHIVED</div>
+              <FileText className="w-4 h-4 text-slate-500" />
+            </div>
+            <div className="text-2xl font-bold text-slate-400">{statusSummary.archived}</div>
+            <div className="text-xs text-slate-500 mt-1">Revoked or archived</div>
           </div>
         </div>
 
-        {/* SCC Registry Status Examples */}
-        <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
-          <div className="text-sm font-semibold text-white mb-3">SCC Registry Status</div>
-          <div className="space-y-2 text-sm">
-            <div className="flex items-center gap-2">
-              <span className="text-slate-300">SCC — OpenAI US</span>
-              <span className="px-2 py-0.5 bg-green-500/15 text-green-400 border border-green-500/25 rounded text-xs font-medium">Valid</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-slate-300">SCC — AWS US-East</span>
-              <span className="px-2 py-0.5 bg-red-500/15 text-red-400 border border-red-500/25 rounded text-xs font-medium">Expired</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-slate-300">SCC — Google Cloud IN</span>
-              <span className="px-2 py-0.5 bg-amber-500/15 text-amber-400 border border-amber-500/25 rounded text-xs font-medium">Review</span>
-            </div>
-          </div>
+        {/* Active / History Tabs */}
+        <div className="flex gap-2 border-b border-slate-700">
+          <button
+            onClick={() => setActiveTab('active')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'active'
+                ? 'border-blue-500 text-blue-400'
+                : 'border-transparent text-slate-400 hover:text-slate-300'
+            }`}
+          >
+            Active
+          </button>
+          <button
+            onClick={() => setActiveTab('history')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'history'
+                ? 'border-blue-500 text-blue-400'
+                : 'border-transparent text-slate-400 hover:text-slate-300'
+            }`}
+          >
+            History
+          </button>
         </div>
 
         {/* Registry Cards */}
@@ -386,35 +418,44 @@ export default function SCCRegistryPage() {
         ) : filteredRegistries.length === 0 ? (
           <div className="bg-slate-800 border border-slate-700 rounded-lg p-12 flex flex-col items-center justify-center text-center">
             <Clipboard className="w-16 h-16 text-slate-500 mb-4" />
-            <h2 className="text-xl font-semibold text-white mb-2">No SCC Registrations</h2>
+            <h2 className="text-xl font-semibold text-white mb-2">
+              {activeTab === 'history' ? 'No Archived or Revoked SCCs' : 'No SCC Registrations'}
+            </h2>
             <p className="text-slate-400 mb-6 max-w-md">
-              Transfers to SCC-required countries (US, IN, MX, SG, ZA and others) are currently in REVIEW status. Register Standard Contractual Clauses to allow these transfers under GDPR Art. 46.
+              {activeTab === 'history'
+                ? 'Revoked and archived SCCs will appear here.'
+                : 'Transfers to SCC-required countries (US, IN, MX, SG, ZA and others) are currently in REVIEW status. Register Standard Contractual Clauses to allow these transfers under GDPR Art. 46.'}
             </p>
-            <button
-              onClick={() => setWizardStep(1)}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              Register New SCC
-            </button>
+            {activeTab === 'active' && (
+              <button
+                onClick={() => setWizardStep(1)}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Register New SCC
+              </button>
+            )}
           </div>
         ) : (
           <div className="space-y-4">
             {filteredRegistries.map((registry) => {
+              const sccStatus = (registry.status || '').toLowerCase();
+              const isHistory = sccStatus === 'archived' || sccStatus === 'revoked';
               const status = getStatusConfig(registry.expiryDate);
               const countryCode = getCountryCode(registry.destinationCountry);
               const countryName = COUNTRY_NAMES[countryCode] || registry.destinationCountry;
               const daysText = getDaysUntilExpiryText(registry.expiryDate);
-              const daysColor = status.daysUntilExpiry === null || (status.daysUntilExpiry && status.daysUntilExpiry > 14)
+              const daysColor = status.daysUntilExpiry === null || (status.daysUntilExpiry && status.daysUntilExpiry > 30)
                 ? 'text-green-400'
                 : status.daysUntilExpiry && status.daysUntilExpiry > 0
                 ? 'text-amber-400'
                 : 'text-red-400';
+              const isExpired = registry.expiryDate ? new Date(registry.expiryDate) < new Date() : false;
 
               return (
                 <div
                   key={registry.id}
-                  className="bg-slate-800 border border-slate-700 rounded-lg p-5 space-y-4"
+                  className={`bg-slate-800 border border-slate-700 rounded-lg p-5 space-y-4 ${isHistory ? 'opacity-60' : ''}`}
                 >
                   {/* Top row: flag + country name + partner name + status badge */}
                   <div className="flex items-center justify-between gap-4">
@@ -432,13 +473,15 @@ export default function SCCRegistryPage() {
                       </div>
                     </div>
                     <span className={`px-2 py-1 rounded text-xs font-medium border shrink-0 ${
-                      status.color === 'red'
+                      isHistory
+                        ? 'bg-slate-500/15 text-slate-400 border-slate-500/25'
+                        : status.color === 'red'
                         ? 'bg-red-500/15 text-red-400 border-red-500/25'
                         : status.color === 'amber'
                         ? 'bg-amber-500/15 text-amber-400 border-amber-500/25'
                         : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25'
                     }`}>
-                      {status.label}
+                      {isHistory ? (sccStatus === 'archived' ? 'ARCHIVED' : 'REVOKED') : status.label}
                     </span>
                   </div>
 
@@ -464,10 +507,10 @@ export default function SCCRegistryPage() {
                     </div>
                   </div>
 
-                  {/* Bottom row: TIA status + days until expiry + Revoke / Renew */}
+                  {/* Bottom row: TIA status + days until expiry + Revoke / Remove / Renew (read-only for history) */}
                   <div className="flex items-center justify-between pt-2 border-t border-slate-700">
                     <div className="flex flex-col gap-2">
-                      {(() => {
+                      {!isHistory && (() => {
                         const effectiveTiaCompleted = registry.tiaCompleted;
                         const isConfirming = tiaConfirmingId === registry.id;
                         if (effectiveTiaCompleted) {
@@ -509,45 +552,82 @@ export default function SCCRegistryPage() {
                       })()}
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className={`text-xs font-medium ${daysColor}`}>
-                        {daysText}
-                      </span>
-                      {status.label === 'EXPIRING' && (
-                        <button
-                          onClick={() => handleRenewClick(registry)}
-                          className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-slate-600/20 hover:bg-slate-600/30 text-slate-300 border border-slate-500/25 transition-colors"
-                        >
-                          <Pencil className="w-3 h-3" />
-                          Renew
-                        </button>
+                      {!isHistory && (status.label === 'ACTIVE' || status.label === 'EXPIRING') && status.daysUntilExpiry != null && status.daysUntilExpiry > 0 && (
+                        <span className={`text-xs font-medium ${daysColor}`}>
+                          {daysText}
+                        </span>
                       )}
-                      {revokeConfirmingId === registry.id ? (
-                        <div className="flex flex-col gap-2 items-end">
-                          <p className="text-xs text-slate-300 text-right">
-                            Revoke SCC for {countryName} / {registry.partnerName}? This cannot be undone.
-                          </p>
-                          <div className="flex gap-2">
+                      {!isHistory && (
+                        <>
+                          {status.label === 'EXPIRING' && (
                             <button
-                              onClick={() => setRevokeConfirmingId(null)}
-                              className="px-2 py-1 rounded text-xs font-medium bg-slate-600/30 hover:bg-slate-600/40 text-slate-300 border border-slate-500/25 transition-colors"
+                              onClick={() => handleRenewClick(registry)}
+                              className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-slate-600/20 hover:bg-slate-600/30 text-slate-300 border border-slate-500/25 transition-colors"
                             >
-                              Cancel
+                              <Pencil className="w-3 h-3" />
+                              Renew
                             </button>
-                            <button
-                              onClick={() => handleRevoke(registry)}
-                              className="px-2 py-1 rounded text-xs font-medium bg-red-600/30 hover:bg-red-600/40 text-red-400 border border-red-500/25 transition-colors"
-                            >
-                              Confirm Revoke
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => setRevokeConfirmingId(registry.id)}
-                          className="px-2 py-1 rounded text-xs font-medium bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-500/25 transition-colors"
-                        >
-                          Revoke
-                        </button>
+                          )}
+                          {isExpired ? (
+                            archiveConfirmingId === registry.id ? (
+                              <div className="flex flex-col gap-2 items-end">
+                                <p className="text-xs text-slate-300 text-right">
+                                  Archive SCC for {countryName} / {registry.partnerName}? Record retained for audit.
+                                </p>
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => setArchiveConfirmingId(null)}
+                                    className="px-2 py-1 rounded text-xs font-medium bg-slate-600/30 hover:bg-slate-600/40 text-slate-300 border border-slate-500/25 transition-colors"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    onClick={() => handleArchive(registry)}
+                                    className="px-2 py-1 rounded text-xs font-medium bg-slate-600/30 hover:bg-slate-600/40 text-slate-400 border border-slate-500/25 transition-colors"
+                                  >
+                                    Confirm Archive
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setArchiveConfirmingId(registry.id)}
+                                className="px-2 py-1 rounded text-xs font-medium bg-slate-600/20 hover:bg-slate-600/30 text-slate-400 border border-slate-500/25 transition-colors"
+                              >
+                                Archive
+                              </button>
+                            )
+                          ) : (
+                            revokeConfirmingId === registry.id ? (
+                              <div className="flex flex-col gap-2 items-end">
+                                <p className="text-xs text-slate-300 text-right">
+                                  Revoke SCC for {countryName} / {registry.partnerName}? This cannot be undone.
+                                </p>
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => setRevokeConfirmingId(null)}
+                                    className="px-2 py-1 rounded text-xs font-medium bg-slate-600/30 hover:bg-slate-600/40 text-slate-300 border border-slate-500/25 transition-colors"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    onClick={() => handleRevoke(registry)}
+                                    className="px-2 py-1 rounded text-xs font-medium bg-red-600/30 hover:bg-red-600/40 text-red-400 border border-red-500/25 transition-colors"
+                                  >
+                                    Confirm Revoke
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setRevokeConfirmingId(registry.id)}
+                                className="px-2 py-1 rounded text-xs font-medium bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-500/25 transition-colors"
+                              >
+                                Revoke
+                              </button>
+                            )
+                          )}
+                        </>
                       )}
                     </div>
                   </div>
@@ -826,3 +906,13 @@ export default function SCCRegistryPage() {
     </DashboardLayout>
   );
 }
+
+export default function SCCRegistryPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-screen"><div className="text-slate-400">Loading...</div></div>}>
+      <SCCRegistryPageContent />
+    </Suspense>
+  );
+}
+
+export const dynamic = 'force-dynamic';

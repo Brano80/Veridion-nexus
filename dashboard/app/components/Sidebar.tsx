@@ -2,7 +2,9 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Globe, FileText, Shield, ClipboardCheck, List, MapPin } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Globe, FileText, Shield, ClipboardCheck, List, MapPin, Settings } from 'lucide-react';
+import { getCurrentUser, isAdmin, CurrentUser } from '../utils/api';
 
 const navItems = [
   { href: '/', label: 'Sovereign Shield', icon: Globe },
@@ -15,6 +17,11 @@ const navItems = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+
+  useEffect(() => {
+    getCurrentUser().then(setCurrentUser);
+  }, []);
 
   return (
     <div className="w-64 bg-slate-800 border-r border-slate-700 h-screen fixed left-0 top-0 overflow-y-auto">
@@ -45,6 +52,27 @@ export default function Sidebar() {
               </Link>
             );
           })}
+          {isAdmin(currentUser) && (
+            <>
+              <div className="border-t border-slate-700 my-2" />
+              <div className="px-3 py-1">
+                <span className="text-xs font-bold uppercase tracking-widest text-slate-500">
+                  System
+                </span>
+              </div>
+              <Link
+                href="/admin"
+                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  pathname === '/admin'
+                    ? 'bg-slate-700 text-white'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+                }`}
+              >
+                <Settings className="w-4 h-4" />
+                Admin Panel
+              </Link>
+            </>
+          )}
         </nav>
       </div>
     </div>

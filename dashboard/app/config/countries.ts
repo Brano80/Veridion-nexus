@@ -17,13 +17,29 @@ export const SCC_REQUIRED_COUNTRIES = new Set<string>([
 ]);
 
 export const BLOCKED_COUNTRIES = new Set<string>([
-  'CN', 'RU', 'KP', 'IR', 'SY', 'BY',
+  'CN', 'RU', 'KP', 'IR', 'SY', 'BY', 'VE',
 ]);
 
-/** Maps ISO code → exact name used in world-atlas TopoJSON (for map highlighting). TopoJSON uses "United States of America" not "United States". */
+/**
+ * Maps ISO code → exact name used in world-atlas TopoJSON (for map highlighting).
+ * TopoJSON uses "United States of America" not "United States".
+ * Note: Singapore (SG) may not appear at 110m resolution — it's a city-state and can be
+ * too small or omitted in the coarse TopoJSON. The mapping exists for when geometry is present.
+ */
 export const TOPOJSON_COUNTRY_NAMES: Record<string, string> = {
   US: 'United States of America',
   GB: 'United Kingdom',
+  SG: 'Singapore',
+  TR: 'Turkey',
+};
+
+/** Small countries not visible in 110m TopoJSON — rendered as dot markers */
+export const SMALL_COUNTRY_MARKERS: Record<string, { lat: number; lng: number; name: string }> = {
+  SG: { lat: 1.3521, lng: 103.8198, name: 'Singapore' },
+  LU: { lat: 49.8153, lng: 6.1296, name: 'Luxembourg' },
+  MT: { lat: 35.9375, lng: 14.3754, name: 'Malta' },
+  CY: { lat: 35.1264, lng: 33.4299, name: 'Cyprus' },
+  BH: { lat: 26.0667, lng: 50.5577, name: 'Bahrain' },
 };
 
 export const COUNTRY_NAMES: Record<string, string> = {
@@ -37,8 +53,12 @@ export const COUNTRY_NAMES: Record<string, string> = {
   LU: 'Luxembourg', LV: 'Latvia', MT: 'Malta', MX: 'Mexico', MY: 'Malaysia', NG: 'Nigeria',
   NL: 'Netherlands', NO: 'Norway', NZ: 'New Zealand', PK: 'Pakistan', PH: 'Philippines',
   PL: 'Poland', PT: 'Portugal', RO: 'Romania', RU: 'Russia', SE: 'Sweden', SG: 'Singapore',
-  SI: 'Slovenia', SK: 'Slovakia', SY: 'Syria', TH: 'Thailand', TR: 'Turkey', US: 'United States',
-  UY: 'Uruguay', VN: 'Vietnam', ZA: 'South Africa', BD: 'Bangladesh',
+  SI: 'Slovenia', SK: 'Slovakia', SO: 'Somalia', SS: 'South Sudan', SD: 'Sudan', SY: 'Syria',
+  TH: 'Thailand', TJ: 'Tajikistan', TM: 'Turkmenistan', TR: 'Turkey', US: 'United States',
+  UY: 'Uruguay', UZ: 'Uzbekistan', VE: 'Venezuela', VN: 'Vietnam', YE: 'Yemen', ZA: 'South Africa',
+  ZW: 'Zimbabwe', BD: 'Bangladesh', MM: 'Myanmar', LY: 'Libya', AF: 'Afghanistan', CG: 'Congo',
+  CD: 'DR Congo', ER: 'Eritrea', CF: 'Central African Republic', NE: 'Niger', ML: 'Mali',
+  GN: 'Guinea', HT: 'Haiti', CU: 'Cuba', AZ: 'Azerbaijan', AM: 'Armenia', GE: 'Georgia',
 };
 
 /** Country list for Adequate Countries page (EU-recognised adequate) */
@@ -64,8 +84,10 @@ export const ADEQUATE_COUNTRY_LIST = [
 export const SCC_REQUIRED_COUNTRY_LIST = [
   { name: 'United States', code: 'US', flag: '🇺🇸', badgeLabel: 'SCC Required / DPF*' },
   { name: 'India', code: 'IN', flag: '🇮🇳' },
-  { name: 'South Africa', code: 'ZA', flag: '🇿🇦' },
+  { name: 'Australia', code: 'AU', flag: '🇦🇺' },
   { name: 'Mexico', code: 'MX', flag: '🇲🇽' },
+  { name: 'Singapore', code: 'SG', flag: '🇸🇬' },
+  { name: 'South Africa', code: 'ZA', flag: '🇿🇦' },
   { name: 'Indonesia', code: 'ID', flag: '🇮🇩' },
   { name: 'Turkey', code: 'TR', flag: '🇹🇷' },
   { name: 'Philippines', code: 'PH', flag: '🇵🇭' },
@@ -76,7 +98,6 @@ export const SCC_REQUIRED_COUNTRY_LIST = [
   { name: 'Bangladesh', code: 'BD', flag: '🇧🇩' },
   { name: 'Thailand', code: 'TH', flag: '🇹🇭' },
   { name: 'Malaysia', code: 'MY', flag: '🇲🇾' },
-  { name: 'Australia', code: 'AU', flag: '🇦🇺' },
 ];
 
 /** Country list for Blocked section */
@@ -87,6 +108,7 @@ export const BLOCKED_COUNTRY_LIST = [
   { name: 'North Korea', code: 'KP', flag: '🇰🇵' },
   { name: 'Syria', code: 'SY', flag: '🇸🇾' },
   { name: 'Belarus', code: 'BY', flag: '🇧🇾' },
+  { name: 'Venezuela', code: 'VE', flag: '🇻🇪' },
 ];
 
 /** Map country name (various forms) to ISO 2-letter code */
@@ -126,8 +148,8 @@ export function getLegalBasis(countryCode: string): string {
   const code = countryCode.toUpperCase();
   if (EU_EEA_COUNTRIES.has(code)) return 'Art. 45';
   if (BLOCKED_COUNTRIES.has(code)) return 'Art. 44 Blocked';
-  if (SCC_REQUIRED_COUNTRIES.has(code)) return 'Art. 46 SCC';
   if (ADEQUATE_COUNTRIES.has(code)) return 'Art. 45';
+  if (SCC_REQUIRED_COUNTRIES.has(code)) return 'Art. 46 SCC';
   return 'Art. 46 SCC';
 }
 
@@ -137,7 +159,7 @@ export function getLegalBasisFullText(countryCode: string): string {
   const code = countryCode.toUpperCase();
   if (EU_EEA_COUNTRIES.has(code)) return 'Art. 45 — Adequacy Decision (EU/EEA)';
   if (BLOCKED_COUNTRIES.has(code)) return 'Art. 44 — Transfer Prohibited (Blocked)';
-  if (SCC_REQUIRED_COUNTRIES.has(code)) return 'Art. 46 — Standard Contractual Clauses Required';
   if (ADEQUATE_COUNTRIES.has(code)) return 'Art. 45 — Adequacy Decision';
+  if (SCC_REQUIRED_COUNTRIES.has(code)) return 'Art. 46 — Standard Contractual Clauses Required';
   return 'Art. 46 — SCC Required (third country)';
 }

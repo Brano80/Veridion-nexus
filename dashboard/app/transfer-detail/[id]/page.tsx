@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import DashboardLayout from '../../components/DashboardLayout';
 import { fetchReviewQueueItem, fetchEvidenceEvents, rejectReviewQueueItem, ReviewQueueItem, EvidenceEvent } from '../../utils/api';
 import { ArrowLeft, MapPin, Shield, AlertTriangle, FileText, CheckCircle, XCircle } from 'lucide-react';
+import { COUNTRY_NAMES, getCountryCodeFromName } from '../../config/countries';
 
 // Same severity system as Evidence Vault
 function formatEventTypeLabel(eventType: string): string {
@@ -15,29 +16,24 @@ function formatEventTypeLabel(eventType: string): string {
   if (et === 'data_transfer') return 'Transfer Evaluation';
   if (et === 'data_transfer_blocked') return 'Transfer — Blocked';
   if (et === 'data_transfer_review') return 'Transfer — Review';
-  if (et.includes('gdpr_erasure') || et === 'gdpr_erasure') return 'GDPR Erasure';
-  if (et.includes('crypto_shredder') || et === 'crypto_shredder') return 'GDPR Erasure';
   if (eventType) return eventType.replace(/_/g, ' ').toLowerCase();
   return 'Unknown';
 }
 
-function getDerivedSeverity(event: { eventType?: string; sourceSystem?: string; verificationStatus?: string; payload?: { decision?: string } }): 'CRITICAL' | 'HIGH' | 'LOW' | 'INFO' | 'ERASURE' {
+function getDerivedSeverity(event: { eventType?: string; sourceSystem?: string; verificationStatus?: string; payload?: { decision?: string } }): 'CRITICAL' | 'HIGH' | 'LOW' | 'INFO' {
   const label = formatEventTypeLabel(event.eventType || '');
-  const source = (event.sourceSystem || '').toLowerCase();
   const decision = (event.verificationStatus || event.payload?.decision || '').toUpperCase();
   if (label === 'Transfer — Blocked') return 'CRITICAL';
-  if (label === 'GDPR Erasure' || source.includes('crypto_shredder') || source.includes('crypto-shredder')) return 'ERASURE';
   if (label === 'Transfer — Review') return 'HIGH';
   if (label === 'Transfer Evaluation' && /^(ALLOW|ALLOWED|VERIFIED)$/.test(decision)) return 'LOW';
   return 'INFO';
 }
 
-function getSeverityBadgeClass(severity: 'CRITICAL' | 'HIGH' | 'LOW' | 'INFO' | 'ERASURE'): string {
+function getSeverityBadgeClass(severity: 'CRITICAL' | 'HIGH' | 'LOW' | 'INFO'): string {
   switch (severity) {
     case 'CRITICAL': return 'bg-red-500/15 text-red-400 border border-red-500/25';
     case 'HIGH': return 'bg-amber-500/15 text-amber-400 border border-amber-500/25';
     case 'LOW': return 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25';
-    case 'ERASURE': return 'bg-purple-500/15 text-purple-400 border border-purple-500/25';
     default: return 'bg-slate-500/15 text-slate-400 border border-slate-500/25';
   }
 }
@@ -121,8 +117,31 @@ export default function TransferDetailPage() {
                        reviewItem?.action?.includes('transfer_data_to');
 
   // Extract transfer details from evidence event payload (primary source) or review item context (fallback)
-  const destinationCountry = reviewItem?.context?.destination || evidenceEvent?.payload?.destination_country || 'Unknown';
-  const destinationCountryCode = reviewItem?.context?.destination_country_code || evidenceEvent?.payload?.destination_country_code || '';
+  // Resolve country code to full name
+  const destinationCountryCodeRaw = reviewItem?.context?.destination_country_code || evidenceEvent?.payload?.destination_country_code || '';
+  const destinationCountryCode = destinationCountryCodeRaw.toUpperCase();
+  
+  // Get country name from payload/context first
+  let destinationCountry = reviewItem?.context?.destination || evidenceEvent?.payload?.destination_country || '';
+  
+  // If we have a country code, resolve it to full name using COUNTRY_NAMES map
+  if (destinationCountryCode && destinationCountryCode.length === 2) {
+    const resolvedName = COUNTRY_NAMES[destinationCountryCode];
+    if (resolvedName) {
+      // Use resolved name if destinationCountry is empty, or if it's just the code
+      if (!destinationCountry || destinationCountry.toUpperCase() === destinationCountryCode) {
+        destinationCountry = resolvedName;
+      }
+    } else if (!destinationCountry || destinationCountry.toUpperCase() === destinationCountryCode) {
+      // If COUNTRY_NAMES doesn't have it and destinationCountry is empty or just the code, use code as fallback
+      destinationCountry = destinationCountryCode;
+    }
+  }
+  
+  // Final fallback
+  if (!destinationCountry || destinationCountry === 'Unknown') {
+    destinationCountry = destinationCountryCode || 'Unknown';
+  }
   
   // Partner/Service Provider identification (critical for SCC registration per GDPR Art. 46)
   const partnerName = evidenceEvent?.payload?.partner_name || reviewItem?.context?.partner_name || null;
@@ -340,8 +359,8 @@ export default function TransferDetailPage() {
                 <div>
                   <label className="text-xs text-slate-400 uppercase tracking-wider">Destination Country</label>
                   <div className="mt-1 text-white font-medium">{destinationCountry}</div>
-                  {destinationCountryCode && (
-                    <div className="text-sm text-slate-400">Country Code: {destinationCountryCode}</div>
+                  {destinationCountryCode && destinationCountryCode.length === 2 && (
+                    <div className="text-xs text-slate-400 mt-0.5">Country Code: {destinationCountryCode}</div>
                   )}
                 </div>
 

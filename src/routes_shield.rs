@@ -1,4 +1,4 @@
-use actix_web::{web, HttpResponse, get, post, patch, delete};
+use actix_web::{web, HttpRequest, HttpResponse, get, post, patch, delete};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
@@ -7,6 +7,20 @@ use uuid::Uuid;
 use crate::evidence::{self, CreateEventParams};
 use crate::shield::{Decision, TransferContext, evaluate_transfer_with_db, all_country_classifications, country_name};
 use crate::review_queue;
+use crate::tenant::get_tenant_context;
+
+/// Enforcement mode: shadow = observe only (return ALLOW, record real decision); enforce = block/review as policy.
+pub async fn get_enforcement_mode(pool: &PgPool, tenant_id: uuid::Uuid) -> Result<String, String> {
+    let row: Option<(String,)> = sqlx::query_as(
+        "SELECT value FROM system_settings WHERE tenant_id = $1 AND key = 'enforcement_mode'"
+    )
+    .bind(tenant_id)
+    .fetch_optional(pool)
+    .await
+    .map_err(|e| format!("Failed to get enforcement mode: {}", e))?;
+
+    Ok(row.map(|r| r.0).unwrap_or_else(|| "shadow".to_string()))
+}
 
 #[derive(Deserialize)]
 pub struct IngestLogEntry {
@@ -47,11 +61,145 @@ pub struct EvaluateRequest {
     pub request_path: Option<String>,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PatchSettingsRequest {
+    pub enforcement_mode: Option<String>,
+    pub confirmation_token: Option<String>,
+}
+
+#[get("/api/v1/settings")]
+pub async fn get_settings(req: HttpRequest, pool: web::Data<PgPool>) -> HttpResponse {
+    let tenant = match get_tenant_context(&req) {
+        Ok(t) => t,
+        Err(e) => return HttpResponse::from_error(e),
+    };
+    let mode = match get_enforcement_mode(pool.get_ref(), tenant.tenant_id).await {
+        Ok(m) => m,
+        Err(e) => {
+            return HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": "SETTINGS_FAILED",
+                "message": e,
+            }));
+        }
+    };
+    let row: Option<(chrono::DateTime<chrono::Utc>,)> = sqlx::query_as(
+        "SELECT updated_at FROM system_settings WHERE tenant_id = $1 AND key = 'enforcement_mode'"
+    )
+    .bind(tenant.tenant_id)
+    .fetch_optional(pool.get_ref())
+    .await
+    .ok()
+    .flatten();
+    let updated_at = row.map(|r| r.0.to_rfc3339()).unwrap_or_else(|| Utc::now().to_rfc3339());
+
+    HttpResponse::Ok().json(serde_json::json!({
+        "enforcement_mode": mode,
+        "updated_at": updated_at,
+    }))
+}
+
+#[patch("/api/v1/settings")]
+pub async fn patch_settings(
+    req: HttpRequest,
+    pool: web::Data<PgPool>,
+    body: web::Json<PatchSettingsRequest>,
+) -> HttpResponse {
+    let tenant = match get_tenant_context(&req) {
+        Ok(t) => t,
+        Err(e) => return HttpResponse::from_error(e),
+    };
+    let new_mode = match &body.enforcement_mode {
+        Some(m) if m.eq_ignore_ascii_case("shadow") => "shadow",
+        Some(m) if m.eq_ignore_ascii_case("enforce") => "enforce",
+        Some(_) => {
+            return HttpResponse::BadRequest().json(serde_json::json!({
+                "error": "INVALID_MODE",
+                "message": "enforcement_mode must be 'shadow' or 'enforce'",
+            }));
+        }
+        None => {
+            return HttpResponse::BadRequest().json(serde_json::json!({
+                "error": "MISSING_MODE",
+                "message": "enforcement_mode is required",
+            }));
+        }
+    };
+
+    let current = get_enforcement_mode(pool.get_ref(), tenant.tenant_id).await.unwrap_or_else(|_| "shadow".into());
+    let current_lower = current.to_lowercase();
+
+    // Safety gate: shadow → enforce requires confirmation token "ENABLE_ENFORCEMENT"
+    if current_lower == "shadow" && new_mode == "enforce" {
+        let token = body.confirmation_token.as_deref().unwrap_or("");
+        if token != "ENABLE_ENFORCEMENT" {
+            return HttpResponse::Forbidden().json(serde_json::json!({
+                "error": "CONFIRMATION_REQUIRED",
+                "message": "Switching to enforce mode requires confirmation: send confirmation_token 'ENABLE_ENFORCEMENT'",
+            }));
+        }
+    }
+
+    // Try UPDATE first, if no rows affected, INSERT
+    let result = sqlx::query(
+        "UPDATE system_settings SET value = $1, updated_at = NOW() WHERE tenant_id = $2 AND key = 'enforcement_mode'"
+    )
+    .bind(new_mode)
+    .bind(tenant.tenant_id)
+    .execute(pool.get_ref())
+    .await;
+
+    match result {
+        Ok(res) if res.rows_affected() > 0 => {
+            HttpResponse::Ok().json(serde_json::json!({
+                "enforcement_mode": new_mode,
+                "updated_at": Utc::now().to_rfc3339(),
+            }))
+        }
+        Ok(_) => {
+            // No existing row, INSERT instead
+            let insert_result = sqlx::query(
+                "INSERT INTO system_settings (tenant_id, key, value, updated_at) VALUES ($1, 'enforcement_mode', $2, NOW())"
+            )
+            .bind(tenant.tenant_id)
+            .bind(new_mode)
+            .execute(pool.get_ref())
+            .await;
+
+            match insert_result {
+                Ok(_) => {
+                    HttpResponse::Ok().json(serde_json::json!({
+                        "enforcement_mode": new_mode,
+                        "updated_at": Utc::now().to_rfc3339(),
+                    }))
+                }
+                Err(e) => {
+                    HttpResponse::InternalServerError().json(serde_json::json!({
+                        "error": "UPDATE_FAILED",
+                        "message": format!("Failed to update settings: {}", e),
+                    }))
+                }
+            }
+        }
+        Err(e) => {
+            HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": "UPDATE_FAILED",
+                "message": format!("Failed to update settings: {}", e),
+            }))
+        }
+    }
+}
+
 #[post("/api/v1/shield/evaluate")]
 pub async fn evaluate(
+    req: HttpRequest,
     pool: web::Data<PgPool>,
     body: web::Json<EvaluateRequest>,
 ) -> HttpResponse {
+    let tenant = match get_tenant_context(&req) {
+        Ok(t) => t,
+        Err(e) => return HttpResponse::from_error(e),
+    };
     let ctx = TransferContext {
         destination_country_code: body.destination_country_code.clone(),
         destination_country: body.destination_country.clone(),
@@ -83,7 +231,11 @@ pub async fn evaluate(
 
     let correlation_id = Uuid::new_v4().to_string();
 
-    let payload = serde_json::json!({
+    let enforcement_mode = get_enforcement_mode(pool.get_ref(), tenant.tenant_id).await.unwrap_or_else(|_| "shadow".into());
+    let is_shadow = enforcement_mode.eq_ignore_ascii_case("shadow");
+
+    // Build payload with shadow_mode flag if in shadow mode
+    let mut payload = serde_json::json!({
         "destination_country": dest_name,
         "destination_country_code": dest_code,
         "country_status": decision.country_status,
@@ -98,9 +250,24 @@ pub async fn evaluate(
         "request_path": ctx.request_path,
         "partner_name": ctx.partner_name,
     });
+    
+    if is_shadow {
+        payload["shadow_mode"] = serde_json::json!(true);
+    }
+
+    // Use real event type and decision - shadow mode only affects API response, not evidence
+    let event_type = decision.event_type.clone();
+    let create_review = decision.decision == Decision::REVIEW;
+    
+    // In shadow mode, always return ALLOW to caller; otherwise return real decision
+    let (response_decision, response_reason) = if is_shadow {
+        (Decision::ALLOW, format!("SHADOW MODE — would have been {}: {}", decision.decision.to_string(), decision.reason))
+    } else {
+        (decision.decision.clone(), decision.reason.clone())
+    };
 
     let params = CreateEventParams {
-        event_type: decision.event_type.clone(),
+        event_type: event_type.clone(),
         severity: decision.severity.clone(),
         source_system: "sovereign-shield".into(),
         regulatory_tags: vec!["GDPR".into()],
@@ -110,11 +277,12 @@ pub async fn evaluate(
         causation_id: None,
         source_ip: ctx.source_ip.clone(),
         source_user_agent: ctx.user_agent.clone(),
+        tenant_id: tenant.tenant_id,
     };
 
     let (event_id, review_id) = match evidence::create_event(pool.get_ref(), params).await {
         Ok(event_row) => {
-            let review_id = if decision.decision == Decision::REVIEW {
+            let review_id = if create_review {
                 let action = format!("transfer_data_to_{}", dest_code.to_lowercase());
                 match review_queue::create_review(
                     pool.get_ref(),
@@ -123,11 +291,14 @@ pub async fn evaluate(
                     "sovereign-shield",
                     &serde_json::json!({
                         "destination": dest_name,
+                        "destination_country": dest_name,
                         "destination_country_code": dest_code,
+                        "partner_name": ctx.partner_name.clone().unwrap_or_default(),
                         "data_categories": ctx.data_categories,
                         "reason": decision.reason,
                     }),
                     &event_row.event_id,
+                    tenant.tenant_id,
                 ).await {
                     Ok(seal_id) => Some(seal_id),
                     Err(e) => {
@@ -150,8 +321,8 @@ pub async fn evaluate(
     };
 
     HttpResponse::Ok().json(serde_json::json!({
-        "decision": decision.decision.to_string(),
-        "reason": decision.reason,
+        "decision": response_decision.to_string(),
+        "reason": response_reason,
         "severity": decision.severity,
         "articles": decision.articles,
         "country_status": decision.country_status,
@@ -163,10 +334,17 @@ pub async fn evaluate(
 
 #[post("/api/v1/shield/ingest-logs")]
 pub async fn ingest_logs(
+    req: HttpRequest,
     pool: web::Data<PgPool>,
     body: web::Json<Vec<IngestLogEntry>>,
 ) -> HttpResponse {
+    let tenant = match get_tenant_context(&req) {
+        Ok(t) => t,
+        Err(e) => return HttpResponse::from_error(e),
+    };
     let mut processed = 0u64;
+    let enforcement_mode = get_enforcement_mode(pool.get_ref(), tenant.tenant_id).await.unwrap_or_else(|_| "shadow".into());
+    let is_shadow = enforcement_mode.eq_ignore_ascii_case("shadow");
 
     for entry in body.into_inner() {
         let ctx = TransferContext {
@@ -198,7 +376,8 @@ pub async fn ingest_logs(
 
         let correlation_id = Uuid::new_v4().to_string();
 
-        let payload = serde_json::json!({
+        // Build payload with shadow_mode flag if in shadow mode
+        let mut payload = serde_json::json!({
             "destination_country": dest_name,
             "destination_country_code": dest_code,
             "country_status": decision.country_status,
@@ -213,23 +392,32 @@ pub async fn ingest_logs(
             "request_path": ctx.request_path,
             "partner_name": ctx.partner_name,
         });
+        
+        if is_shadow {
+            payload["shadow_mode"] = serde_json::json!(true);
+        }
+
+        // Use real event type and decision - shadow mode only affects API response, not evidence
+        let event_type = decision.event_type.clone();
+        let create_review = decision.decision == Decision::REVIEW;
 
         let params = CreateEventParams {
-            event_type: decision.event_type.clone(),
+            event_type,
             severity: decision.severity.clone(),
             source_system: "sovereign-shield".into(),
             regulatory_tags: vec!["GDPR".into()],
             articles: decision.articles.clone(),
-            payload: payload.clone(),
+            payload,
             correlation_id: Some(correlation_id.clone()),
             causation_id: None,
             source_ip: ctx.source_ip.clone(),
             source_user_agent: ctx.user_agent.clone(),
+            tenant_id: tenant.tenant_id,
         };
 
         match evidence::create_event(pool.get_ref(), params).await {
             Ok(event_row) => {
-                if decision.decision == Decision::REVIEW {
+                if create_review {
                     let action = format!("transfer_data_to_{}", dest_code.to_lowercase());
                     if let Err(e) = review_queue::create_review(
                         pool.get_ref(),
@@ -238,11 +426,14 @@ pub async fn ingest_logs(
                         "sovereign-shield",
                         &serde_json::json!({
                             "destination": dest_name,
+                            "destination_country": dest_name,
                             "destination_country_code": dest_code,
+                            "partner_name": ctx.partner_name.clone().unwrap_or_default(),
                             "data_categories": ctx.data_categories,
                             "reason": decision.reason,
                         }),
                         &event_row.event_id,
+                        tenant.tenant_id,
                     ).await {
                         log::error!("Failed to create review for event {}: {}", event_row.event_id, e);
                     }
@@ -262,34 +453,51 @@ pub async fn ingest_logs(
 }
 
 #[get("/api/v1/lenses/sovereign-shield/stats")]
-pub async fn shield_stats(pool: web::Data<PgPool>) -> HttpResponse {
+pub async fn shield_stats(req: HttpRequest, pool: web::Data<PgPool>) -> HttpResponse {
+    let tenant = match get_tenant_context(&req) {
+        Ok(t) => t,
+        Err(e) => return HttpResponse::from_error(e),
+    };
     let total_transfers: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM evidence_events WHERE source_system = 'sovereign-shield'"
+        "SELECT COUNT(*) FROM evidence_events WHERE tenant_id = $1 AND source_system = 'sovereign-shield'"
     )
+    .bind(tenant.tenant_id)
     .fetch_one(pool.get_ref())
     .await
     .unwrap_or(0);
 
     let blocked_today: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM evidence_events WHERE source_system = 'sovereign-shield' AND event_type = 'DATA_TRANSFER_BLOCKED' AND created_at >= CURRENT_DATE"
+        "SELECT COUNT(*) FROM evidence_events WHERE tenant_id = $1 AND source_system = 'sovereign-shield' AND event_type = 'DATA_TRANSFER_BLOCKED' AND created_at >= CURRENT_DATE"
     )
+    .bind(tenant.tenant_id)
     .fetch_one(pool.get_ref())
     .await
     .unwrap_or(0);
 
     let pending_reviews: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM human_oversight WHERE status = 'PENDING'"
+        "SELECT COUNT(*) FROM human_oversight WHERE tenant_id = $1 AND status = 'PENDING'"
     )
+    .bind(tenant.tenant_id)
     .fetch_one(pool.get_ref())
     .await
     .unwrap_or(0);
 
-    let active_agents: i64 = sqlx::query_scalar(
-        "SELECT COUNT(DISTINCT payload->>'source_ip') FROM evidence_events WHERE source_system = 'sovereign-shield' AND created_at >= NOW() - INTERVAL '24 hours'"
+    let active_agents: Option<i64> = sqlx::query_scalar(
+        r#"SELECT COUNT(DISTINCT payload->>'partner_name') 
+           FROM evidence_events 
+           WHERE tenant_id = $1
+           AND source_system = 'sovereign-shield' 
+           AND created_at >= NOW() - INTERVAL '24 hours'
+           AND payload ? 'partner_name'
+           AND payload->>'partner_name' != ''
+           AND payload->>'partner_name' != 'TestPartner'"#
     )
+    .bind(tenant.tenant_id)
     .fetch_one(pool.get_ref())
     .await
-    .unwrap_or(0);
+    .ok()
+    .flatten();
+    let active_agents = active_agents.unwrap_or(0);
 
     #[derive(sqlx::FromRow)]
     struct AttentionRow {
@@ -312,12 +520,14 @@ pub async fn shield_stats(pool: web::Data<PgPool>) -> HttpResponse {
             MIN(event_id) as event_id,
             MIN(payload->>'source_ip') as system_name
         FROM evidence_events
-        WHERE source_system = 'sovereign-shield'
+        WHERE tenant_id = $1
+          AND source_system = 'sovereign-shield'
           AND event_type IN ('DATA_TRANSFER_BLOCKED', 'DATA_TRANSFER_REVIEW')
         GROUP BY payload->>'destination_country_code', payload->>'decision'
         ORDER BY COUNT(*) DESC
         LIMIT 20"#
     )
+    .bind(tenant.tenant_id)
     .fetch_all(pool.get_ref())
     .await
     .unwrap_or_default();
@@ -357,7 +567,12 @@ pub async fn shield_stats(pool: web::Data<PgPool>) -> HttpResponse {
 }
 
 #[get("/api/v1/lenses/sovereign-shield/countries")]
-pub async fn shield_countries(pool: web::Data<PgPool>) -> HttpResponse {
+pub async fn shield_countries(req: HttpRequest, pool: web::Data<PgPool>) -> HttpResponse {
+    let tenant = match get_tenant_context(&req) {
+        Ok(t) => t,
+        Err(e) => return HttpResponse::from_error(e),
+    };
+
     let mut countries = all_country_classifications();
 
     #[derive(sqlx::FromRow)]
@@ -371,10 +586,12 @@ pub async fn shield_countries(pool: web::Data<PgPool>) -> HttpResponse {
             payload->>'destination_country_code' as country_code,
             COUNT(*) as transfer_count
         FROM evidence_events
-        WHERE source_system = 'sovereign-shield'
+        WHERE tenant_id = $1
+          AND source_system = 'sovereign-shield'
           AND payload->>'destination_country_code' IS NOT NULL
         GROUP BY payload->>'destination_country_code'"#
     )
+    .bind(tenant.tenant_id)
     .fetch_all(pool.get_ref())
     .await
     .unwrap_or_default();
@@ -395,7 +612,12 @@ pub async fn shield_countries(pool: web::Data<PgPool>) -> HttpResponse {
 }
 
 #[get("/api/v1/lenses/sovereign-shield/requires-attention")]
-pub async fn shield_requires_attention(pool: web::Data<PgPool>) -> HttpResponse {
+pub async fn shield_requires_attention(req: HttpRequest, pool: web::Data<PgPool>) -> HttpResponse {
+    let tenant = match get_tenant_context(&req) {
+        Ok(t) => t,
+        Err(e) => return HttpResponse::from_error(e),
+    };
+
     #[derive(sqlx::FromRow)]
     struct Row {
         destination_country_code: Option<String>,
@@ -417,12 +639,14 @@ pub async fn shield_requires_attention(pool: web::Data<PgPool>) -> HttpResponse 
             MIN(event_id) as event_id,
             MIN(payload->>'source_ip') as system_name
         FROM evidence_events
-        WHERE source_system = 'sovereign-shield'
+        WHERE tenant_id = $1
+          AND source_system = 'sovereign-shield'
           AND event_type IN ('DATA_TRANSFER_BLOCKED', 'DATA_TRANSFER_REVIEW')
         GROUP BY payload->>'destination_country_code', payload->>'decision'
         ORDER BY COUNT(*) DESC
         LIMIT 20"#
     )
+    .bind(tenant.tenant_id)
     .fetch_all(pool.get_ref())
     .await
     .unwrap_or_default();
@@ -529,9 +753,15 @@ pub struct SccRegistryPatchRequest {
 
 #[post("/api/v1/scc-registries")]
 pub async fn register_scc(
+    req: HttpRequest,
     pool: web::Data<PgPool>,
     body: web::Json<SccRegistryRequest>,
 ) -> HttpResponse {
+    let tenant = match get_tenant_context(&req) {
+        Ok(t) => t,
+        Err(e) => return HttpResponse::from_error(e),
+    };
+
     let expires_at = body.expires_at.as_ref().and_then(|s| {
         chrono::DateTime::parse_from_rfc3339(s)
             .ok()
@@ -539,10 +769,22 @@ pub async fn register_scc(
     });
 
     let dest_upper = body.destination_country_code.to_uppercase();
+
+    // Use transaction to ensure atomicity of SCC registration + auto-approve
+    let mut tx = match pool.begin().await {
+        Ok(tx) => tx,
+        Err(e) => {
+            return HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": "REGISTRATION_FAILED",
+                "message": format!("Failed to begin transaction: {}", e),
+            }));
+        }
+    };
+
     let row = match sqlx::query_as::<_, SccRegistryRow>(
         r#"INSERT INTO scc_registries 
-           (partner_name, destination_country_code, status, expires_at, registered_by, notes, tia_completed, dpa_id, scc_module)
-           VALUES ($1, $2, 'active', $3, 'admin', $4, $5, $6, $7)
+           (partner_name, destination_country_code, status, expires_at, registered_by, notes, tia_completed, dpa_id, scc_module, tenant_id)
+           VALUES ($1, $2, 'active', $3, 'admin', $4, $5, $6, $7, $8)
            RETURNING *"#
     )
     .bind(&body.partner_name)
@@ -552,10 +794,12 @@ pub async fn register_scc(
     .bind(body.tia_completed)
     .bind(&body.dpa_id)
     .bind(&body.scc_module)
-    .fetch_one(pool.get_ref())
+    .bind(tenant.tenant_id)
+    .fetch_one(&mut *tx)
     .await {
         Ok(r) => r,
         Err(e) => {
+            let _ = tx.rollback().await;
             return HttpResponse::BadRequest().json(serde_json::json!({
                 "error": "REGISTRATION_FAILED",
                 "message": format!("Failed to register SCC: {}", e),
@@ -564,10 +808,22 @@ pub async fn register_scc(
     };
 
     // Auto-approve pending review items whose transfer matches this SCC (destination country)
+    // Note: approve_pending_reviews_for_scc needs to be updated to accept tenant_id and use transaction
+    // For now, we'll commit the SCC registration and handle auto-approve separately
+    // TODO: Update approve_pending_reviews_for_scc to accept tenant_id and use the transaction
+    if let Err(e) = tx.commit().await {
+        return HttpResponse::InternalServerError().json(serde_json::json!({
+            "error": "REGISTRATION_FAILED",
+            "message": format!("Failed to commit transaction: {}", e),
+        }));
+    }
+
+    // Auto-approve after commit (will be fixed in next step to use transaction)
     if let Ok(n) = review_queue::approve_pending_reviews_for_scc(
         pool.get_ref(),
         &dest_upper,
         Some(body.partner_name.as_str()),
+        tenant.tenant_id,
     )
     .await
     {
@@ -595,11 +851,32 @@ pub async fn register_scc(
 
 #[get("/api/v1/scc-registries")]
 pub async fn list_scc_registries(
+    req: HttpRequest,
     pool: web::Data<PgPool>,
 ) -> HttpResponse {
-    let rows: Vec<SccRegistryRow> = match sqlx::query_as::<_, SccRegistryRow>(
-        "SELECT * FROM scc_registries ORDER BY registered_at DESC"
+    let tenant = match get_tenant_context(&req) {
+        Ok(t) => t,
+        Err(e) => return HttpResponse::from_error(e),
+    };
+    // Auto-expire SCCs past their expiry date before fetching
+    if let Err(e) = sqlx::query(
+        "UPDATE scc_registries
+         SET status = 'expired'
+         WHERE tenant_id = $1
+         AND status = 'active'
+         AND expires_at IS NOT NULL
+         AND expires_at < NOW()"
     )
+    .bind(tenant.tenant_id)
+    .execute(pool.get_ref())
+    .await {
+        log::warn!("Failed to auto-expire SCCs: {}", e);
+    }
+
+    let rows: Vec<SccRegistryRow> = match sqlx::query_as::<_, SccRegistryRow>(
+        "SELECT * FROM scc_registries WHERE tenant_id = $1 ORDER BY registered_at DESC"
+    )
+    .bind(tenant.tenant_id)
     .fetch_all(pool.get_ref())
     .await {
         Ok(r) => r,
@@ -642,10 +919,15 @@ pub struct SccRegistryPath {
 
 #[patch("/api/v1/scc-registries/{id}")]
 pub async fn patch_scc_registry(
+    req: HttpRequest,
     pool: web::Data<PgPool>,
     path: web::Path<SccRegistryPath>,
     body: web::Json<SccRegistryPatchRequest>,
 ) -> HttpResponse {
+    let tenant = match get_tenant_context(&req) {
+        Ok(t) => t,
+        Err(e) => return HttpResponse::from_error(e),
+    };
     let id = match Uuid::parse_str(&path.id) {
         Ok(u) => u,
         Err(_) => {
@@ -658,9 +940,10 @@ pub async fn patch_scc_registry(
 
     if let Some(tia_completed) = body.tia_completed {
         let result = sqlx::query(
-            "UPDATE scc_registries SET tia_completed = $1, updated_at = NOW() WHERE id = $2 AND status = 'active'"
+            "UPDATE scc_registries SET tia_completed = $1, updated_at = NOW() WHERE tenant_id = $2 AND id = $3 AND status = 'active'"
         )
         .bind(tia_completed)
+        .bind(tenant.tenant_id)
         .bind(id)
         .execute(pool.get_ref())
         .await;
@@ -696,9 +979,14 @@ pub async fn patch_scc_registry(
 
 #[delete("/api/v1/scc-registries/{id}")]
 pub async fn revoke_scc(
+    req: HttpRequest,
     pool: web::Data<PgPool>,
     path: web::Path<SccRegistryPath>,
 ) -> HttpResponse {
+    let tenant = match get_tenant_context(&req) {
+        Ok(t) => t,
+        Err(e) => return HttpResponse::from_error(e),
+    };
     let id = match Uuid::parse_str(&path.id) {
         Ok(u) => u,
         Err(_) => {
@@ -709,9 +997,16 @@ pub async fn revoke_scc(
         }
     };
 
+    // ?revoke=1 for Revoke (active) -> status = 'revoked'; otherwise Remove/Archive -> status = 'archived'
+    let revoke = req.query_string().contains("revoke=1") || req.query_string().contains("revoke=true");
+    let new_status: &str = if revoke { "revoked" } else { "archived" };
+
+    // Soft delete: set status, never actually delete. Allow for both 'active' and 'expired'
     let result = sqlx::query(
-        "UPDATE scc_registries SET status = 'revoked' WHERE id = $1 AND status = 'active'"
+        "UPDATE scc_registries SET status = $1 WHERE tenant_id = $2 AND id = $3 AND status IN ('active', 'expired')"
     )
+    .bind(new_status)
+    .bind(tenant.tenant_id)
     .bind(id)
     .execute(pool.get_ref())
     .await;
@@ -721,26 +1016,43 @@ pub async fn revoke_scc(
             HttpResponse::Ok().json(serde_json::json!({
                 "success": true,
                 "id": path.id,
-                "status": "revoked",
+                "status": new_status,
             }))
         }
         Ok(_) => {
             HttpResponse::NotFound().json(serde_json::json!({
                 "error": "NOT_FOUND",
-                "message": "SCC registry not found or already revoked",
+                "message": "SCC registry not found or already revoked/archived",
             }))
         }
         Err(e) => {
             HttpResponse::InternalServerError().json(serde_json::json!({
                 "error": "REVOKE_FAILED",
-                "message": format!("Failed to revoke SCC: {}", e),
+                "message": format!("Failed to revoke/archive SCC: {}", e),
             }))
         }
     }
 }
 
+/// Auto-expire SCCs past their expiry date. Called by background job.
+pub async fn auto_expire_sccs(pool: &PgPool) -> Result<(), String> {
+    sqlx::query(
+        "UPDATE scc_registries 
+         SET status = 'expired' 
+         WHERE status = 'active' 
+         AND expires_at IS NOT NULL
+         AND expires_at < NOW()"
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| format!("Failed to auto-expire SCCs: {}", e))?;
+    Ok(())
+}
+
 pub fn configure(cfg: &mut web::ServiceConfig) {
-    cfg.service(evaluate)
+    cfg.service(get_settings)
+       .service(patch_settings)
+       .service(evaluate)
        .service(ingest_logs)
        .service(shield_stats)
        .service(shield_countries)

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { ComposableMap, Geographies, Geography, ZoomableGroup } from 'react-simple-maps';
+import { ComposableMap, Geographies, Geography, ZoomableGroup, Marker } from 'react-simple-maps';
 
 const geoUrl = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
 
@@ -9,82 +9,78 @@ interface CountryData {
   code: string;
   name: string;
   status: 'adequate_protection' | 'scc_required' | 'blocked';
+  sccDisplay?: 'fill' | 'border'; // 'fill' = full orange, 'border' = orange border only
   transfers?: number;
   mechanisms?: number;
 }
 
 interface WorldMapProps {
   countries?: CountryData[];
+  markers?: { lat: number; lng: number; code: string; name: string; color: string }[];
   isLoading?: boolean;
   onCountryClick?: (country: CountryData) => void;
 }
 
-// Fill color: SCC Required uses grey (orange outline applied via stroke)
-const getCountryFill = (status: string, transfers: number = 0): string => {
-  if (transfers === 0) {
-    switch (status) {
-      case 'adequate_protection':
-        return '#374151';
-      case 'scc_required':
-        return '#4B5563'; // grey interior
-      case 'blocked':
-        return '#6B7280';
-      default:
-        return '#374151';
-    }
-  }
-  switch (status) {
-    case 'adequate_protection':
-      return '#10B981'; // green
-    case 'scc_required':
-      return '#4B5563'; // grey with orange outline
-    case 'blocked':
-      return '#F87171'; // red-400 (matches BLOCKED KPI card)
-    default:
-      return '#64748B'; // slate-500
-  }
+// Fill: red, orange fill, green, or default
+const getCountryFill = (countryData: CountryData | null): string => {
+  if (!countryData) return '#334155';
+  const isRed = countryData.status === 'blocked';
+  const isOrangeFill = countryData.status === 'scc_required' && countryData.sccDisplay === 'fill';
+  const isGreen = countryData.status === 'adequate_protection';
+  if (isRed) return '#ef4444';
+  if (isOrangeFill) return '#f97316';
+  if (isGreen) return '#22c55e';
+  return '#334155';
 };
 
-// Stroke for SCC Required: orange outline/glow
-const getCountryStroke = (status: string, transfers: number = 0): string => {
-  if (status === 'scc_required') return '#F97316'; // orange
-  return '#64748b'; // default slate
+// Stroke: orange for orange-border state, else default
+const getCountryStroke = (countryData: CountryData | null): string => {
+  if (!countryData) return '#64748b';
+  const isOrangeBorder = countryData.status === 'scc_required' && countryData.sccDisplay === 'border';
+  return isOrangeBorder ? '#f97316' : '#64748b';
 };
 
-const getCountryStrokeWidth = (status: string): number => {
-  return status === 'scc_required' ? 1.5 : 0.5;
+const getCountryStrokeWidth = (countryData: CountryData | null): number => {
+  if (!countryData) return 0.5;
+  const isOrangeBorder = countryData.status === 'scc_required' && countryData.sccDisplay === 'border';
+  return isOrangeBorder ? 2 : 0.5;
 };
 
-const formatStatus = (status: string): string => {
-  switch (status) {
+const formatStatus = (countryData: CountryData | null): string => {
+  if (!countryData) return 'Unknown';
+  switch (countryData.status) {
     case 'adequate_protection':
       return 'Adequate Protection';
     case 'scc_required':
-      return 'SCC Required';
+      return countryData.sccDisplay === 'fill' ? 'SCC Required (Unresolved)' : 'SCC Required (Covered)';
     case 'blocked':
-      return 'Transfer Blocked';
+      return 'Blocked (24h)';
     default:
       return 'Unknown';
   }
 };
 
-const WorldMap: React.FC<WorldMapProps> = ({ countries = [], isLoading, onCountryClick }) => {
+const WorldMap: React.FC<WorldMapProps> = ({ countries = [], markers = [], isLoading, onCountryClick }) => {
   const [tooltipContent, setTooltipContent] = useState<string | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState<{ x: number; y: number } | null>(null);
   const [countryMap, setCountryMap] = useState<Map<string, CountryData>>(new Map());
 
   useEffect(() => {
     // Build countryMap keyed by name - TopoJSON uses "name" property
+    // Use case-insensitive matching for robustness
     const map = new Map<string, CountryData>();
     countries.forEach(country => {
+      // Store both exact and lowercase versions for matching
       map.set(country.name, country);
+      map.set(country.name.toLowerCase(), country);
     });
     setCountryMap(map);
   }, [countries]);
 
   const getCountryData = (countryName: string | undefined): CountryData | null => {
     if (!countryName || typeof countryName !== 'string') return null;
-    return countryMap.get(countryName) || null;
+    // Try exact match first, then case-insensitive
+    return countryMap.get(countryName) || countryMap.get(countryName.toLowerCase()) || null;
   };
 
   const handleMouseEnter = (geo: any, event: React.MouseEvent) => {
@@ -98,7 +94,7 @@ const WorldMap: React.FC<WorldMapProps> = ({ countries = [], isLoading, onCountr
         y: rect.top - 10
       });
 
-      setTooltipContent(`${countryData.name}\nStatus: ${formatStatus(countryData.status)}\nTransfers: ${countryData.transfers || 0}\nMechanisms: ${countryData.mechanisms || 0}`);
+      setTooltipContent(`${countryData.name}\nStatus: ${formatStatus(countryData)}\nTransfers: ${countryData.transfers || 0}\nMechanisms: ${countryData.mechanisms || 0}`);
     }
   };
 
@@ -144,19 +140,17 @@ const WorldMap: React.FC<WorldMapProps> = ({ countries = [], isLoading, onCountr
                 geographies.map((geo) => {
                   const countryName = geo.properties.name;
                   const countryData = getCountryData(countryName);
-                  const status = countryData?.status;
-                  const transfers = countryData?.transfers || 0;
-                  const fillColor = countryData
-                    ? getCountryFill(status!, transfers)
-                    : '#374151';
-                  const strokeColor = countryData ? getCountryStroke(status!, transfers) : '#64748b';
-                  const strokeWidth = countryData ? getCountryStrokeWidth(status!) : 0.5;
+                  const isOrangeBorder = countryData?.status === 'scc_required' && countryData?.sccDisplay === 'border';
+                  const fillColor = getCountryFill(countryData);
+                  const strokeColor = getCountryStroke(countryData);
+                  const strokeWidth = getCountryStrokeWidth(countryData);
+                  const fill = isOrangeBorder ? 'transparent' : fillColor;
 
                   return (
                     <Geography
                       key={geo.rsmKey}
                       geography={geo}
-                      fill={fillColor}
+                      fill={fill}
                       stroke={strokeColor}
                       strokeWidth={strokeWidth}
                       onMouseEnter={(event) => handleMouseEnter(geo, event)}
@@ -172,30 +166,38 @@ const WorldMap: React.FC<WorldMapProps> = ({ countries = [], isLoading, onCountr
                 })
               }
             </Geographies>
+            {markers.map((marker) => (
+              <Marker key={marker.code} coordinates={[marker.lng, marker.lat]}>
+                <circle r={8} fill={marker.color} fillOpacity={0.3} />
+                <circle r={5} fill={marker.color} stroke="#1e293b" strokeWidth={1.5} />
+                <text textAnchor="middle" y={-12} fontSize={8} fill="#e2e8f0">
+                  {marker.name}
+                </text>
+              </Marker>
+            ))}
           </ZoomableGroup>
         </ComposableMap>
       </div>
 
       {/* Legend */}
-      <div className="mt-2 flex items-center gap-6 justify-center flex-shrink-0">
-        <div className="flex items-center gap-2">
+      <div className="mt-2 flex items-center justify-center gap-2 flex-shrink-0">
+        <div className="flex items-center gap-1.5">
           <div className="w-4 h-4 bg-green-500 rounded"></div>
           <span className="text-xs text-slate-300">Adequate Protection</span>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded bg-slate-600 border-2 border-orange-500"></div>
-          <span className="text-xs text-slate-300">SCC Required</span>
+        <div className="flex items-center gap-1.5">
+          <div className="w-4 h-4 rounded bg-orange-500"></div>
+          <span className="text-xs text-slate-300">SCC Required (Unresolved)</span>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-red-400 rounded"></div>
-          <span className="text-xs text-slate-300">Transfer Blocked</span>
+        <div className="flex items-center gap-1.5">
+          <div className="w-4 h-4 rounded border-2 border-orange-500 bg-transparent"></div>
+          <span className="text-xs text-slate-300">SCC Required (Covered)</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-4 h-4 bg-red-500 rounded"></div>
+          <span className="text-xs text-slate-300">Blocked transfers (24h)</span>
         </div>
       </div>
-
-      {/* Caption */}
-      <p className="text-xs text-slate-500 text-center mt-1 flex-shrink-0">
-        Map will show transfer destinations and routes
-      </p>
 
       {/* Tooltip */}
       {tooltipContent && tooltipPosition && (

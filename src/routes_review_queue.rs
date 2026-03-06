@@ -1,8 +1,9 @@
-use actix_web::{web, HttpResponse, get, post};
+use actix_web::{web, HttpRequest, HttpResponse, get, post};
 use serde::Deserialize;
 use sqlx::PgPool;
 
 use crate::review_queue;
+use crate::tenant::get_tenant_context;
 
 #[derive(Deserialize)]
 pub struct ListQuery {
@@ -11,10 +12,15 @@ pub struct ListQuery {
 
 #[get("/api/v1/review-queue")]
 pub async fn list_reviews(
+    req: HttpRequest,
     pool: web::Data<PgPool>,
     query: web::Query<ListQuery>,
 ) -> HttpResponse {
-    match review_queue::list_reviews(pool.get_ref(), query.status.as_deref()).await {
+    let tenant = match get_tenant_context(&req) {
+        Ok(t) => t,
+        Err(e) => return HttpResponse::from_error(e),
+    };
+    match review_queue::list_reviews(pool.get_ref(), query.status.as_deref(), tenant.tenant_id).await {
         Ok(reviews) => {
             let pending = reviews.iter().filter(|r| r.status == "PENDING").count();
             let decided = reviews.iter().filter(|r| r.status == "DECIDED").count();
@@ -36,8 +42,12 @@ pub async fn list_reviews(
 }
 
 #[get("/api/v1/human_oversight/pending")]
-pub async fn get_pending(pool: web::Data<PgPool>) -> HttpResponse {
-    match review_queue::list_reviews(pool.get_ref(), Some("PENDING")).await {
+pub async fn get_pending(req: HttpRequest, pool: web::Data<PgPool>) -> HttpResponse {
+    let tenant = match get_tenant_context(&req) {
+        Ok(t) => t,
+        Err(e) => return HttpResponse::from_error(e),
+    };
+    match review_queue::list_reviews(pool.get_ref(), Some("PENDING"), tenant.tenant_id).await {
         Ok(reviews) => HttpResponse::Ok().json(serde_json::json!({
             "reviews": reviews,
             "total": reviews.len(),
@@ -49,8 +59,12 @@ pub async fn get_pending(pool: web::Data<PgPool>) -> HttpResponse {
 }
 
 #[get("/api/v1/human_oversight/decided-evidence-ids")]
-pub async fn get_decided_evidence_ids(pool: web::Data<PgPool>) -> HttpResponse {
-    match review_queue::get_decided_evidence_event_ids(pool.get_ref()).await {
+pub async fn get_decided_evidence_ids(req: HttpRequest, pool: web::Data<PgPool>) -> HttpResponse {
+    let tenant = match get_tenant_context(&req) {
+        Ok(t) => t,
+        Err(e) => return HttpResponse::from_error(e),
+    };
+    match review_queue::get_decided_evidence_event_ids(pool.get_ref(), tenant.tenant_id).await {
         Ok(ids) => HttpResponse::Ok().json(serde_json::json!({
             "evidenceEventIds": ids,
         })),
@@ -80,9 +94,14 @@ pub struct CreateReviewBody {
 
 #[post("/api/v1/review-queue")]
 pub async fn create_review(
+    req: HttpRequest,
     pool: web::Data<PgPool>,
     body: web::Json<CreateReviewBody>,
 ) -> HttpResponse {
+    let tenant = match get_tenant_context(&req) {
+        Ok(t) => t,
+        Err(e) => return HttpResponse::from_error(e),
+    };
     let agent_id = body.agent_id.as_deref().unwrap_or("sovereign-shield");
     let module = body.module.as_deref().unwrap_or("sovereign-shield");
     
@@ -93,6 +112,7 @@ pub async fn create_review(
         module,
         &body.context,
         &body.evidence_event_id,
+        tenant.tenant_id,
     ).await {
         Ok(seal_id) => HttpResponse::Ok().json(serde_json::json!({
             "success": true,
@@ -106,14 +126,19 @@ pub async fn create_review(
 
 #[post("/api/v1/action/{seal_id}/approve")]
 pub async fn approve_action(
+    req: HttpRequest,
     pool: web::Data<PgPool>,
     path: web::Path<String>,
     body: web::Json<DecisionBody>,
 ) -> HttpResponse {
+    let tenant = match get_tenant_context(&req) {
+        Ok(t) => t,
+        Err(e) => return HttpResponse::from_error(e),
+    };
     let seal_id = path.into_inner();
     let reviewer = body.reviewer_id.as_deref().unwrap_or("admin");
 
-    match review_queue::decide_review(pool.get_ref(), &seal_id, "APPROVE", reviewer, &body.reason).await {
+    match review_queue::decide_review(pool.get_ref(), &seal_id, "APPROVE", reviewer, &body.reason, tenant.tenant_id).await {
         Ok(()) => HttpResponse::Ok().json(serde_json::json!({
             "success": true,
             "sealId": seal_id,
@@ -127,14 +152,19 @@ pub async fn approve_action(
 
 #[post("/api/v1/action/{seal_id}/reject")]
 pub async fn reject_action(
+    req: HttpRequest,
     pool: web::Data<PgPool>,
     path: web::Path<String>,
     body: web::Json<DecisionBody>,
 ) -> HttpResponse {
+    let tenant = match get_tenant_context(&req) {
+        Ok(t) => t,
+        Err(e) => return HttpResponse::from_error(e),
+    };
     let seal_id = path.into_inner();
     let reviewer = body.reviewer_id.as_deref().unwrap_or("admin");
 
-    match review_queue::decide_review(pool.get_ref(), &seal_id, "REJECT", reviewer, &body.reason).await {
+    match review_queue::decide_review(pool.get_ref(), &seal_id, "REJECT", reviewer, &body.reason, tenant.tenant_id).await {
         Ok(()) => HttpResponse::Ok().json(serde_json::json!({
             "success": true,
             "sealId": seal_id,

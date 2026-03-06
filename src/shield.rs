@@ -79,6 +79,7 @@ pub fn country_name(code: &str) -> String {
         "ZA" => "South Africa".into(),
         "CA" => "Canada".into(),
         "IL" => "Israel".into(),
+        "IN" => "India".into(),
         "NZ" => "New Zealand".into(),
         "ID" => "Indonesia".into(),
         "TR" => "Turkey".into(),
@@ -243,11 +244,11 @@ pub fn evaluate_transfer(ctx: &TransferContext) -> TransferDecision {
                 };
             }
             TransferDecision {
-                decision: Decision::REVIEW,
-                reason: format!("{} — unknown jurisdiction, requires human review", country_name(&code)),
-                severity: "L2".into(),
+                decision: Decision::BLOCK,
+                reason: "No adequacy decision or SCC framework for this country — transfer blocked per GDPR Art. 44".into(),
+                severity: "L3".into(),
                 articles: vec!["GDPR Art. 44".into()],
-                event_type: "DATA_TRANSFER_REVIEW".into(),
+                event_type: "DATA_TRANSFER_BLOCKED".into(),
                 country_status: "unknown".into(),
             }
         }
@@ -405,11 +406,11 @@ pub async fn evaluate_transfer_with_db(
                 });
             }
             Ok(TransferDecision {
-                decision: Decision::REVIEW,
-                reason: format!("{} — unknown jurisdiction, requires human review", country_name(&code)),
-                severity: "L2".into(),
+                decision: Decision::BLOCK,
+                reason: "No adequacy decision or SCC framework for this country — transfer blocked per GDPR Art. 44".into(),
+                severity: "L3".into(),
                 articles: vec!["GDPR Art. 44".into()],
-                event_type: "DATA_TRANSFER_REVIEW".into(),
+                event_type: "DATA_TRANSFER_BLOCKED".into(),
                 country_status: "unknown".into(),
             })
         }

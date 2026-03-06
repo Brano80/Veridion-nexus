@@ -3,6 +3,10 @@ name = "veridion-api"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "veridion_api"
+path = "src/lib.rs"
+
 [[bin]]
 name = "veridion-api"
 path = "src/main.rs"
@@ -23,5 +27,13 @@ bcrypt = "0.15"
 log = "0.4"
 env_logger = "0.10"
 sha2 = "0.10"
-aes-gcm = "0.10"
 rand = "0.8"
+lettre = { version = "0.11", features = ["tokio1-native-tls", "builder"] }
+futures-util = "0.3"
+
+[profile.dev]
+debug = false
+incremental = false
+
+[dev-dependencies]
+actix-web = { version = "4", features = ["compress-gzip"] }

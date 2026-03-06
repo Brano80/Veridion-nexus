@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import DashboardLayout from '../components/DashboardLayout';
 import { fetchEvidenceEventsPaginated, EvidenceEvent } from '../utils/api';
 import { FileDown, ChevronLeft, ChevronRight } from 'lucide-react';
-import { getCountryCodeFromName, getLegalBasis } from '../config/countries';
+import { getCountryCodeFromName, getLegalBasis, COUNTRY_NAMES } from '../config/countries';
 
 const ITEMS_PER_PAGE = 50;
 
@@ -16,7 +16,7 @@ export default function TransferLogPage() {
   const [events, setEvents] = useState<EvidenceEvent[]>([]);
   const [totalEvents, setTotalEvents] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'ALL' | 'ALLOWED' | 'BLOCKED' | 'PENDING'>('ALL');
+  const [filter, setFilter] = useState<'ALL' | 'ALLOW' | 'BLOCK' | 'PENDING'>('ALL');
   const [currentPage, setCurrentPage] = useState(1);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
@@ -87,7 +87,7 @@ export default function TransferLogPage() {
     }
   }, [isInitialLoad, loadEvents]);
 
-  // Apply status filter (BLOCKED/PENDING/ALLOWED)
+  // Apply status filter (BLOCK/PENDING/ALLOW)
   const filteredEvents = events.filter((event) => {
     if (filter === 'ALL') return true;
     
@@ -95,50 +95,33 @@ export default function TransferLogPage() {
     const verificationStatus = (event.verificationStatus || '').toUpperCase();
     const payloadDecision = (event.payload?.decision || '').toUpperCase();
     
-    if (filter === 'BLOCKED') {
-      return (
-        eventType === 'DATA_TRANSFER_BLOCKED' ||
-        eventType === 'TRANSFER_EVALUATION_BLOCKED' ||
-        eventType.includes('BLOCK') ||
-        verificationStatus === 'BLOCK' ||
-        payloadDecision === 'BLOCK'
-      );
+    // Determine real decision from event type (shadow mode doesn't change event type)
+    const isBlocked = (
+      eventType === 'DATA_TRANSFER_BLOCKED' ||
+      eventType === 'TRANSFER_EVALUATION_BLOCKED' ||
+      eventType.includes('BLOCK') ||
+      verificationStatus === 'BLOCK' ||
+      payloadDecision === 'BLOCK'
+    );
+    const isPending = (
+      eventType === 'DATA_TRANSFER_REVIEW' ||
+      eventType === 'TRANSFER_EVALUATION_REVIEW' ||
+      eventType.includes('REVIEW') ||
+      verificationStatus === 'REVIEW' ||
+      verificationStatus === 'PENDING' ||
+      payloadDecision === 'REVIEW'
+    );
+    
+    if (filter === 'BLOCK') {
+      return isBlocked;
     }
     if (filter === 'PENDING') {
-      return (
-        eventType === 'DATA_TRANSFER_REVIEW' ||
-        eventType === 'TRANSFER_EVALUATION_REVIEW' ||
-        eventType.includes('REVIEW') ||
-        verificationStatus === 'REVIEW' ||
-        verificationStatus === 'PENDING' ||
-        payloadDecision === 'REVIEW'
-      );
+      return isPending;
     }
-    if (filter === 'ALLOWED') {
-      const isBlocked = (
-        eventType === 'DATA_TRANSFER_BLOCKED' ||
-        eventType === 'TRANSFER_EVALUATION_BLOCKED' ||
-        eventType.includes('BLOCK') ||
-        verificationStatus === 'BLOCK' ||
-        payloadDecision === 'BLOCK'
-      );
-      const isPending = (
-        eventType === 'DATA_TRANSFER_REVIEW' ||
-        eventType === 'TRANSFER_EVALUATION_REVIEW' ||
-        eventType.includes('REVIEW') ||
-        verificationStatus === 'REVIEW' ||
-        verificationStatus === 'PENDING' ||
-        payloadDecision === 'REVIEW'
-      );
-      if (isBlocked || isPending) return false;
-      
-      return (
-        eventType === 'DATA_TRANSFER' ||
-        eventType === 'TRANSFER_EVALUATION' ||
-        verificationStatus === 'ALLOW' ||
-        verificationStatus === 'VERIFIED' ||
-        payloadDecision === 'ALLOW'
-      );
+    if (filter === 'ALLOW') {
+      // Shadow mode events always pass through, so they're considered ALLOW
+      // But also include normal ALLOW events
+      return !isBlocked && !isPending;
     }
     return true;
   });
@@ -196,13 +179,13 @@ export default function TransferLogPage() {
           const verificationStatus = (event.verificationStatus || '').toUpperCase();
           const payloadDecision = (event.payload?.decision || '').toUpperCase();
           
-          if (filter === 'BLOCKED') {
+          if (filter === 'BLOCK') {
             return eventType.includes('BLOCK') || verificationStatus === 'BLOCK' || payloadDecision === 'BLOCK';
           }
           if (filter === 'PENDING') {
             return eventType.includes('REVIEW') || verificationStatus === 'REVIEW' || payloadDecision === 'REVIEW';
           }
-          if (filter === 'ALLOWED') {
+          if (filter === 'ALLOW') {
             return !eventType.includes('BLOCK') && !eventType.includes('REVIEW') && 
                    (verificationStatus === 'ALLOW' || verificationStatus === 'VERIFIED' || payloadDecision === 'ALLOW');
           }
@@ -210,7 +193,7 @@ export default function TransferLogPage() {
         });
       }
       
-      const headers = ['Timestamp', 'Destination', 'Partner', 'Data Category', ...(showPurposeColumn ? ['Purpose'] : []), 'Legal Basis', 'Status', 'Event ID'];
+      const headers = ['Timestamp', 'Destination', 'Partner', 'Data Category', ...(showPurposeColumn ? ['Purpose'] : []), 'Legal Basis', 'Mode', 'Status', 'Event ID'];
       const rows = exportEvents.map((e) => {
       const countryName =
         e.payload?.destination_country ||
@@ -228,12 +211,14 @@ export default function TransferLogPage() {
         e.payload?.data_categories?.[0] || e.payload?.dataCategories?.[0] || '—';
       const purpose = e.payload?.purpose ?? '—';
       const legalBasis = getLegalBasis(countryCode);
-      const status =
-        e.eventType === 'DATA_TRANSFER_BLOCKED' || e.verificationStatus === 'BLOCK'
-          ? 'BLOCKED'
-          : e.eventType === 'DATA_TRANSFER_REVIEW' || e.verificationStatus === 'REVIEW'
-          ? 'PENDING REVIEW'
-          : 'ALLOWED';
+      const isShadow = e.payload?.shadow_mode === true;
+      const mode = isShadow ? 'SHADOW' : '—';
+      // Real decision from event type
+      const realStatus = e.eventType === 'DATA_TRANSFER_BLOCKED' || e.verificationStatus === 'BLOCK'
+        ? 'BLOCK'
+        : e.eventType === 'DATA_TRANSFER_REVIEW' || e.verificationStatus === 'REVIEW'
+        ? 'PENDING REVIEW'
+        : 'ALLOW';
       const ts = new Date(e.occurredAt).toLocaleString('en-US', {
         month: 'short',
         day: 'numeric',
@@ -246,7 +231,7 @@ export default function TransferLogPage() {
       const partnerName = e.payload?.partner_name || e.payload?.partnerName || '—';
       const base = [ts, countryName, partnerName, dataCategory];
       if (showPurposeColumn) base.push(purpose);
-      base.push(legalBasis, status, e.eventId || e.id);
+      base.push(legalBasis, mode, realStatus, e.eventId || e.id);
       return base.map(escapeCsv).join(',');
     });
       const csv = [headers.join(','), ...rows].join('\n');
@@ -273,7 +258,7 @@ export default function TransferLogPage() {
         {/* Filters + Export */}
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="flex gap-2">
-            {(['ALL', 'ALLOWED', 'BLOCKED', 'PENDING'] as const).map((f) => (
+            {(['ALL', 'ALLOW', 'BLOCK', 'PENDING'] as const).map((f) => (
               <button
                 key={f}
                 onClick={() => {
@@ -306,14 +291,15 @@ export default function TransferLogPage() {
           <div className="overflow-hidden">
             <table className="w-full table-fixed" style={{ tableLayout: 'fixed' }}>
               <colgroup>
-                <col style={{ width: showPurposeColumn ? '15%' : '18%' }} />
-                <col style={{ width: showPurposeColumn ? '14%' : '16%' }} />
+                <col style={{ width: showPurposeColumn ? '13%' : '15%' }} />
                 <col style={{ width: showPurposeColumn ? '12%' : '14%' }} />
-                <col style={{ width: showPurposeColumn ? '10%' : '12%' }} />
-                <col style={{ width: showPurposeColumn ? '10%' : '12%' }} />
-                {showPurposeColumn && <col style={{ width: '8%' }} />}
-                <col style={{ width: showPurposeColumn ? '12%' : '14%' }} />
-                <col style={{ width: '12%' }} />
+                <col style={{ width: showPurposeColumn ? '11%' : '13%' }} />
+                <col style={{ width: showPurposeColumn ? '9%' : '11%' }} />
+                <col style={{ width: showPurposeColumn ? '9%' : '11%' }} />
+                {showPurposeColumn && <col style={{ width: '7%' }} />}
+                <col style={{ width: showPurposeColumn ? '11%' : '13%' }} />
+                <col style={{ width: '8%' }} />
+                <col style={{ width: '10%' }} />
               </colgroup>
               <thead className="bg-slate-700/50">
                 <tr>
@@ -341,6 +327,9 @@ export default function TransferLogPage() {
                     Legal Basis
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider whitespace-nowrap">
+                    Mode
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider whitespace-nowrap">
                     Status
                   </th>
                 </tr>
@@ -348,26 +337,33 @@ export default function TransferLogPage() {
               <tbody className="divide-y divide-slate-700">
                 {loading ? (
                   <tr>
-                    <td colSpan={showPurposeColumn ? 8 : 7} className="px-4 py-8 text-center text-slate-400">Loading...</td>
+                    <td colSpan={showPurposeColumn ? 9 : 8} className="px-4 py-8 text-center text-slate-400">Loading...</td>
                   </tr>
                 ) : filteredEvents.length === 0 ? (
                   <tr>
-                    <td colSpan={showPurposeColumn ? 8 : 7} className="px-4 py-8 text-center text-slate-400">No transfers found</td>
+                    <td colSpan={showPurposeColumn ? 9 : 8} className="px-4 py-8 text-center text-slate-400">No transfers found</td>
                   </tr>
                 ) : (
                   filteredEvents.map((event) => {
-                    const countryName =
+                    // Get raw destination (could be code or name)
+                    const rawDestination = 
                       event.payload?.destination_country ||
                       event.payload?.destinationCountry ||
                       event.payload?.destination_country_code ||
                       event.payload?.destinationCountryCode ||
                       'Unknown';
+                    
+                    // If it's a 2-letter code, resolve to full name using COUNTRY_NAMES
+                    const destination = (rawDestination.length === 2 && COUNTRY_NAMES[rawDestination.toUpperCase()]) 
+                      ? COUNTRY_NAMES[rawDestination.toUpperCase()] 
+                      : rawDestination;
+                    
                     let countryCode =
                       event.payload?.destination_country_code ||
                       event.payload?.destinationCountryCode ||
                       event.payload?.context?.destination_country_code ||
                       '';
-                    if (!countryCode && countryName !== 'Unknown') countryCode = getCountryCodeFromName(countryName);
+                    if (!countryCode && destination !== 'Unknown') countryCode = getCountryCodeFromName(destination);
                     const partnerName = event.payload?.partner_name || event.payload?.partnerName || '—';
                     const dataCategory =
                       event.payload?.data_categories?.[0] || event.payload?.dataCategories?.[0];
@@ -407,11 +403,11 @@ export default function TransferLogPage() {
                                 src={`https://flagcdn.com/16x12/${countryCode.toLowerCase()}.png`}
                                 width={16}
                                 height={12}
-                                alt={countryName}
+                                alt={destination}
                                 className="shrink-0"
                               />
                             ) : null}
-                            <span className="min-w-0 truncate">{countryName}</span>
+                            <span className="min-w-0 truncate">{destination}</span>
                           </div>
                         </td>
                         <td className="px-4 py-3 text-sm text-slate-300 whitespace-nowrap overflow-hidden text-ellipsis">
@@ -434,21 +430,31 @@ export default function TransferLogPage() {
                         )}
                         <td className="px-4 py-3 text-xs font-mono text-slate-400 whitespace-nowrap overflow-hidden text-ellipsis">{legalBasis}</td>
                         <td className="px-4 py-3 whitespace-nowrap overflow-hidden text-ellipsis">
-                          <span
-                            className={`inline-block px-2 py-1 rounded text-xs font-medium border truncate max-w-full ${
-                              event.eventType === 'DATA_TRANSFER_BLOCKED' || event.eventType === 'TRANSFER_EVALUATION_BLOCKED' || event.verificationStatus === 'BLOCK'
-                                ? 'bg-red-500/15 text-red-400 border-red-500/25'
-                                : event.eventType === 'DATA_TRANSFER_REVIEW' || event.eventType === 'TRANSFER_EVALUATION_REVIEW' || event.verificationStatus === 'REVIEW'
-                                ? 'bg-amber-500/15 text-amber-400 border-amber-500/25'
-                                : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25'
-                            }`}
-                          >
-                            {event.eventType === 'DATA_TRANSFER_BLOCKED' || event.eventType === 'TRANSFER_EVALUATION_BLOCKED' || event.verificationStatus === 'BLOCK'
-                              ? 'BLOCKED'
-                              : event.eventType === 'DATA_TRANSFER_REVIEW' || event.eventType === 'TRANSFER_EVALUATION_REVIEW' || event.verificationStatus === 'REVIEW'
-                              ? 'REVIEW'
-                              : 'ALLOWED'}
-                          </span>
+                          {event.payload?.shadow_mode === true ? (
+                            <span className="px-1.5 py-0.5 bg-amber-500/15 text-amber-400 border border-amber-500/25 rounded text-[10px] font-medium whitespace-nowrap">
+                              SHADOW
+                            </span>
+                          ) : (
+                            <span className="text-slate-500 text-xs">—</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap overflow-hidden text-ellipsis">
+                          {(() => {
+                            const isBlocked = event.eventType === 'DATA_TRANSFER_BLOCKED' || event.eventType === 'TRANSFER_EVALUATION_BLOCKED' || event.verificationStatus === 'BLOCK';
+                            const isReview = event.eventType === 'DATA_TRANSFER_REVIEW' || event.eventType === 'TRANSFER_EVALUATION_REVIEW' || event.verificationStatus === 'REVIEW';
+                            const realDecision = isBlocked ? 'BLOCK' : isReview ? 'REVIEW' : 'ALLOW';
+                            return (
+                              <span
+                                className={`inline-block px-2 py-1 rounded text-xs font-medium border whitespace-nowrap ${
+                                  isBlocked ? 'bg-red-500/15 text-red-400 border-red-500/25'
+                                    : isReview ? 'bg-amber-500/15 text-amber-400 border-amber-500/25'
+                                    : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25'
+                                }`}
+                              >
+                                {realDecision}
+                              </span>
+                            );
+                          })()}
                         </td>
                       </tr>
                     );
@@ -527,3 +533,5 @@ export default function TransferLogPage() {
     </DashboardLayout>
   );
 }
+
+export const dynamic = 'force-dynamic';

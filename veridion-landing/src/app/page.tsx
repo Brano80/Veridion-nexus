@@ -19,7 +19,7 @@ export default function Home() {
   const [chartLoaded, setChartLoaded] = useState(false);
   const [selectedTier, setSelectedTier] = useState("L1");
   const [enforcementMode, setEnforcementMode] = useState(true);
-  const [selectedPlan, setSelectedPlan] = useState("Growth");
+  const [selectedPlan, setSelectedPlan] = useState("Pro");
   const [decisions, setDecisions] = useState<Array<{ time: string; action: string; reg: string; isBlock: boolean }>>([]);
 
   const actions = ["data_transfer", "cross_border_sync", "pii_export", "llm_api_call", "s3_upload", "db_export"];
@@ -28,33 +28,33 @@ export default function Home() {
   const tierData = {
     L1: {
       title: "Synchronous Sealing",
-      desc: "Every Sovereign Shield decision — ALLOW, BLOCK, REVIEW — is immediately sealed with a SHA-256 hash appended to a local hash chain in the request path. Adds under 5ms to transfer evaluation latency.",
-      latency: "< 5ms",
+      desc: "Every Sovereign Shield decision — ALLOW, BLOCK, REVIEW — is immediately sealed with a SHA-256 hash appended to a local hash chain in the request path. Adds under 10ms to transfer evaluation latency.",
+      latency: "< 10ms",
       legal: "Technical Audit Trail",
       color: "bg-sky-500",
       textColor: "text-sky-400",
     },
     L2: {
       title: "Merkle Root Anchoring",
-      desc: "Every 10 minutes, all sealed transfer decisions are aggregated into a Merkle tree. The root hash is anchored to a public ledger. Proves that no decision in your evidence chain has been altered since that timestamp.",
+      desc: "Every 10 minutes, all sealed transfer decisions are aggregated into a Merkle tree. The root hash is anchored to a tamper-evident database seal. Provides grouped integrity verification across all decisions in the window.",
       latency: "Background (No Overhead)",
       legal: "Audit Readiness",
       color: "bg-indigo-500",
       textColor: "text-indigo-400",
     },
     L3: {
-      title: "Provenance Sealing (TEE)",
-      desc: "Transfer enforcement logic runs inside a hardware-sealed Trusted Execution Environment. Even system administrators cannot modify the evaluation logic or tamper with sealed evidence. Produces a cryptographic attestation with every decision.",
-      latency: "~ 10ms",
-      legal: "Admin-Proof",
+      title: "Human Oversight Sealing",
+      desc: "Every REVIEW decision triggers a human oversight record. Approve or reject decisions are sealed into the evidence chain with reviewer identity, timestamp, and GDPR Art. 22 citation. Creates an auditable human decision trail alongside automated enforcement.",
+      latency: "Async (Human Review)",
+      legal: "Audit Trail",
       color: "bg-violet-500",
       textColor: "text-violet-400",
     },
     L4: {
-      title: "Signicat QES Sealing",
-      desc: "Each transfer decision is signed with an eIDAS-compliant Qualified Electronic Signature via Signicat. Equivalent legal weight to a handwritten signature under EU law. The strongest possible evidence for regulatory defense or litigation.",
-      latency: "Async (Seconds)",
-      legal: "Forensic / Courtroom",
+      title: "Audit Export Sealing",
+      desc: "The complete evidence chain can be exported as a cryptographically verified PDF report. Includes chain integrity verification, Merkle roots, and full decision log. Accepted by DPOs as demonstrable compliance under GDPR Art. 5(2) and Art. 30.",
+      latency: "On-demand",
+      legal: "GDPR Art. 30",
       color: "bg-rose-500",
       textColor: "text-rose-400",
     },
@@ -297,7 +297,7 @@ export default function Home() {
             <div className="relative z-10">
               <h2 className="text-2xl font-extrabold mb-2 text-sky-400">THE EVIDENCE GRAPH</h2>
               <p className="text-sm text-slate-400 leading-relaxed mb-8">
-                Every transfer decision — ALLOW, BLOCK, or REVIEW — is sealed into an <strong>append-only cryptographic chain</strong>. Tamper-evident. Timestamped. Linked to the exact GDPR article that determined the outcome. Four sealing tiers, from technical audit trail to courtroom-grade QES signatures.
+                Every transfer decision — ALLOW, BLOCK, or REVIEW — is sealed into an <strong>append-only cryptographic chain</strong>. Tamper-evident. Timestamped. Linked to the exact GDPR article that determined the outcome. Four sealing tiers, from synchronous decision sealing to human oversight trails and audit-ready PDF exports.
               </p>
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
@@ -312,7 +312,7 @@ export default function Home() {
                     >
                       <div className={`${isActive ? tierInfo.textColor : "text-slate-400"} font-black text-2xl mb-1`}>{tier}</div>
                       <div className="text-xs font-bold text-white uppercase tracking-widest mb-2">
-                        {tier === "L1" ? "Synchronous" : tier === "L2" ? "Merkle Root" : tier === "L3" ? "Provenance" : "QES Forensic"}
+                        {tier === "L1" ? "Synchronous" : tier === "L2" ? "Merkle Root" : tier === "L3" ? "Audit Trail" : "Audit Export"}
                       </div>
                       <span className="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 text-[9px] font-bold rounded uppercase">Live</span>
                     </button>
@@ -429,7 +429,7 @@ export default function Home() {
                   ))}
                 </div>
                 <div className="p-4 bg-slate-900/50 text-center text-[10px] text-slate-500 italic">
-                  All decisions sealed in Evidence Graph — SHA-256 hash chain → Merkle Root → TEE Attestation → Signicat QES
+                  All decisions sealed in Evidence Graph — SHA-256 hash chain → Merkle Root → TEE Attestation → Cryptographic Nexus Seal
                 </div>
               </div>
             </div>
@@ -471,40 +471,57 @@ export default function Home() {
         <section id="pricing" className="py-12 bg-sky-50 border-t border-sky-100">
           <div className="max-w-6xl mx-auto px-6">
             <div className="text-center mb-10">
-              <h2 className="text-3xl font-extrabold text-slate-900 mb-3 uppercase">Simple, Usage-Based Pricing</h2>
-              <p className="text-slate-600 max-w-2xl mx-auto">Start free. Scale as your AI agents grow. No compliance headcount needed.</p>
+              <h2 className="text-3xl font-extrabold text-slate-900 mb-3 uppercase">Simple, Transparent Pricing</h2>
+              <p className="text-slate-600 max-w-2xl mx-auto">Start free in Shadow Mode. Upgrade when you're ready to enforce.</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {[
                 {
-                  name: "Developer",
+                  name: "Free Trial",
                   price: "€0",
-                  sub: "free",
-                  cta: "Get API Key",
-                  features: ["3,000 evaluations/month", "Sovereign Shield (ALLOW/BLOCK)", "L1 Evidence Vault", "Community support"],
-                },
-                {
-                  name: "Startup",
-                  price: "€99",
-                  sub: "per month",
+                  sub: "30 days • No credit card required",
                   cta: "Start Free Trial",
-                  features: ["50,000 evaluations/month", "SCC Registry checks", "L1 + L2 Evidence Vault", "Human review queue", "Email support"],
+                  badge: "Start Free",
+                  note: "Starts in Shadow Mode — transfers pass through, decisions are observed",
+                  features: [
+                    "Full product access in Shadow Mode",
+                    "Unlimited evaluations during trial",
+                    "SCC Registry & human review queue",
+                    "Evidence Vault with PDF export",
+                    "See exactly what would be blocked"
+                  ],
                 },
                 {
-                  name: "Growth",
-                  price: "€299",
-                  sub: "per month",
-                  cta: "Get Started",
+                  name: "Pro",
+                  price: "€199",
+                  sub: "or €1,990/year (save 2 months)",
+                  cta: "Start Free Trial",
                   badge: "Most Popular",
-                  features: ["500,000 evaluations/month", "Full L1–L3 Evidence Vault", "Human Review Queue", "TEE Provenance Sealing", "Priority support"],
+                  features: [
+                    "Everything in Free Trial",
+                    "Enforcement Mode — real blocking enabled",
+                    "500,000 evaluations/month",
+                    "SCC Registry with full history",
+                    "GDPR Art. 30 audit exports",
+                    "Email support (48h response)"
+                  ],
                 },
                 {
                   name: "Enterprise",
                   price: "Custom",
-                  sub: "annual contract",
+                  sub: "Annual contract",
                   cta: "Contact Sales",
-                  features: ["Unlimited evaluations", "Full L1–L4 + Signicat QES", "On-premise deployment", "SLA + dedicated support", "Custom SCC registry"],
+                  badge: "Enterprise",
+                  isSecondary: true,
+                  features: [
+                    "Everything in Pro",
+                    "Unlimited evaluations",
+                    "Dedicated instance (data residency)",
+                    "Custom SCC registry",
+                    "SLA + dedicated support",
+                    "Procurement & security review"
+                  ],
                 },
               ].map((plan) => {
                 const isSelected = selectedPlan === plan.name;
@@ -519,7 +536,9 @@ export default function Home() {
                     }`}
                   >
                     {plan.badge && (
-                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-sky-500 text-white text-[10px] font-black uppercase rounded-full">{plan.badge}</div>
+                      <div className={`absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 text-white text-[10px] font-black uppercase rounded-full ${
+                        plan.badge === "Most Popular" ? "bg-sky-500" : plan.badge === "Enterprise" ? "bg-slate-600" : "bg-emerald-500"
+                      }`}>{plan.badge}</div>
                     )}
                     <div className={`text-xs font-bold uppercase tracking-widest mb-3 ${isSelected ? "text-sky-400" : "text-slate-400"}`}>{plan.name}</div>
                     <div className={`text-4xl font-black mb-1 ${isSelected ? "text-white" : "text-slate-900"}`}>{plan.price}</div>
@@ -533,9 +552,16 @@ export default function Home() {
                     </ul>
                     <div className={`mt-6 text-center text-xs font-bold uppercase rounded-lg py-2 ${
                       isSelected
-                        ? "bg-sky-500 text-white"
-                        : "border border-slate-200 text-slate-400"
+                        ? plan.isSecondary
+                          ? "bg-transparent border-2 border-sky-500 text-sky-400"
+                          : "bg-sky-500 text-white"
+                        : plan.isSecondary
+                          ? "border-2 border-slate-300 text-slate-500"
+                          : "border border-slate-200 text-slate-400"
                     }`}>{plan.cta}</div>
+                    {plan.note && (
+                      <div className="mt-3 text-center text-[10px] text-slate-500 italic">{plan.note}</div>
+                    )}
                   </div>
                 );
               })}
