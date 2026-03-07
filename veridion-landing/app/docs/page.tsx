@@ -959,7 +959,7 @@ async function callOpenAI(userData) {
             >
               <h2 className="text-3xl font-bold text-slate-900 mb-4">MCP Server</h2>
               <p className="text-slate-700 mb-6">
-                Sovereign Shield is available as an MCP (Model Context Protocol) server. This allows AI agents — including Claude, Cursor, and any MCP-compatible assistant — to enforce GDPR compliance automatically, without manual API integration.
+                Sovereign Shield is available as an MCP (Model Context Protocol) server. This makes GDPR transfer evaluation available as a tool in Claude and Cursor workflows, without manual API integration.
               </p>
 
               <div className="grid md:grid-cols-2 gap-6 mb-8">
@@ -975,10 +975,10 @@ async function callOpenAI(userData) {
                 <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-6">
                   <h3 className="text-lg font-semibold text-slate-900 mb-3">MCP Server</h3>
                   <ul className="space-y-2 text-slate-700 text-sm">
-                    <li>• Zero-code integration (~5 minutes)</li>
-                    <li>• AI agent calls <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">evaluate_transfer</code> automatically</li>
-                    <li>• Agent handles decisions autonomously</li>
-                    <li>• Best for: AI-native applications</li>
+                    <li>• 5-minute setup — JSON config only</li>
+                    <li>• Claude and Cursor can call <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">evaluate_transfer</code> as part of their workflow</li>
+                    <li>• No code changes to your application</li>
+                    <li>• Best for: AI-native applications and agentic workflows</li>
                   </ul>
                 </div>
               </div>
