@@ -1,7 +1,7 @@
 # Project Reference — Veridion API / Sovereign Shield
 
-**Version:** 1.5  
-**Last updated:** 2026-03-06
+**Version:** 1.6  
+**Last updated:** 2026-03-07
 
 This is the **single project reference** for Veridion API: vision, scope, tech stack, configuration, and current behaviour (dashboard and API). Use it to onboard, scope work, and keep the codebase and docs aligned.
 
@@ -94,7 +94,7 @@ veridion-api/
 └── …
 ```
 
-**Migrations:** 27 (001–027). Key tables: `users`, `tenants`, `compliance_records`, `human_oversight`, `evidence_events`, `scc_registries`, `system_settings`. Migration **022** adds `evidence_event_id` to `compliance_records`. **023** adds `tia_completed` (Transfer Impact Assessment) to `scc_registries`. **024** adds `dpa_id` and `scc_module` to `scc_registries`. **025** creates `system_settings` (key/value) and seeds `enforcement_mode = 'shadow'`. **026** creates `tenants` table and adds `tenant_id` columns to all data tables for multi-tenancy. **027** adds FK constraint `users.company_id → tenants.id`. Full list in `migrations/`.
+**Migrations:** 29 (001–029). Key tables: `users`, `tenants`, `compliance_records`, `human_oversight`, `evidence_events`, `scc_registries`, `system_settings`. Migration **022** adds `evidence_event_id` to `compliance_records`. **023** adds `tia_completed` (Transfer Impact Assessment) to `scc_registries`. **024** adds `dpa_id` and `scc_module` to `scc_registries`. **025** creates `system_settings` (key/value) with PRIMARY KEY on `key`. **026** creates `tenants` table and adds `tenant_id` columns to all data tables for multi-tenancy; updates `system_settings` to drop old PRIMARY KEY and add UNIQUE constraint on `(key, tenant_id)` for multi-tenant support. **027** adds FK constraint `users.company_id → tenants.id`. **028** links admin user to admin tenant. **029** seeds `system_settings` for admin tenant with `enforcement_mode='shadow'` using `ON CONFLICT (key, tenant_id)`. Full list in `migrations/`.
 
 ### 5.2 Configuration
 
@@ -437,6 +437,36 @@ Pages using `useSearchParams()` are wrapped in Suspense boundaries to satisfy Ne
 - **Backend**: Returns `402 Payment Required` when tenant trial has expired (middleware checks `trial_expires_at`).
 - **Frontend**: Global 402 detection in `api.ts` triggers `TrialExpiredModal` via callback system.
 - **Modal**: Non-dismissable full-screen overlay with upgrade CTA. Admin tenant never expires (no modal shown).
+
+### 16.3 Production deployment
+
+**Location**: `/opt/veridion-nexus` on Hetzner Ubuntu 24.04 server
+
+**Files**:
+- `deploy.sh` — Idempotent deployment script with error handling (`set -e`)
+- `Dockerfile` — Multi-stage Rust API build (rust:1.88 builder → debian:bookworm-slim runtime)
+- `Dockerfile.dashboard` — Next.js dashboard build (node:20-alpine)
+- `docker-compose.prod.yml` — Production compose with postgres, api, dashboard services
+
+**Services**:
+- **postgres**: postgres:16-alpine, named volume `veridion_api_data`
+- **api**: Built from `Dockerfile`, env: `DATABASE_URL`, `JWT_SECRET`, `RUST_ENV=production`, `SERVER_HOST=0.0.0.0`, `SERVER_PORT=8080`
+- **dashboard**: Built from `Dockerfile.dashboard`, env: `NEXT_PUBLIC_API_URL=https://api.veridion-nexus.eu`
+
+**Deployment**:
+```bash
+cd /opt/veridion-nexus
+chmod +x deploy.sh
+./deploy.sh
+```
+
+The script verifies Docker, checks required files, builds images, and starts services. Idempotent — safe to run multiple times.
+
+**Migration Notes**:
+- Migration **026** fixes `system_settings` constraint: drops old PRIMARY KEY on `key`, adds UNIQUE constraint on `(key, tenant_id)` to support `ON CONFLICT (key, tenant_id)` in migration **029**.
+- All migrations run automatically on API startup via `sqlx::migrate`.
+
+**Documentation**: See `DEPLOYMENT.md` for detailed setup, Nginx reverse proxy, SSL/TLS, backup procedures.
 
 ---
 
