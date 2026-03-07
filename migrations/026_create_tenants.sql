@@ -42,6 +42,11 @@ CREATE INDEX IF NOT EXISTS idx_scc_registries_tenant_id ON scc_registries(tenant
 CREATE INDEX IF NOT EXISTS idx_compliance_records_tenant_id ON compliance_records(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_human_oversight_tenant_id ON human_oversight(tenant_id);
 
+-- Update system_settings to support multi-tenancy: drop old PRIMARY KEY on key alone,
+-- add UNIQUE constraint on (key, tenant_id) for ON CONFLICT to work in migration 029
+ALTER TABLE system_settings DROP CONSTRAINT IF EXISTS system_settings_pkey;
+ALTER TABLE system_settings ADD CONSTRAINT system_settings_key_tenant_unique UNIQUE (key, tenant_id);
+
 -- Seed admin tenant with SHA-256 of 'ss_test_adminkey_dev_only_change_in_prod'
 INSERT INTO tenants (name, plan, mode, api_key_hash, api_key_prefix, is_admin, trial_expires_at, rate_limit_per_minute)
 VALUES (
