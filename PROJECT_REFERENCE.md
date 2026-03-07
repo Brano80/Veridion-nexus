@@ -28,7 +28,7 @@ The vision is a **single, deployable API** that owns its schema and can grow fro
 |--------|-------------|
 | **Product** | Standalone REST API plus Sovereign Shield dashboard (Next.js). Own PostgreSQL database. Own migrations. |
 | **Boundary** | No shared migrations, shared DB, or shared Rust crates with veridion-nexus or other repos. |
-| **Current scope** | Health, dev auth (JWT), CORS; Evidence Vault (events, verify-integrity, PDF export); Sovereign Shield (ingest/evaluate, evidence + review queue); SCC registries (CRUD, PATCH tia_completed, dpa_id, scc_module; auto-approve on register); Human Oversight (review queue, pending/decided, approve/reject, decided-evidence-ids); Self-serve signup (POST /api/v1/auth/register, input validation, rate limiting 5/IP/hour, bcrypt password, async welcome email via SMTP). Migrations 001–027. |
+| **Current scope** | Health, dev auth (JWT), CORS; Evidence Vault (events, verify-integrity, PDF export); Sovereign Shield (ingest/evaluate, evidence + review queue); SCC registries (CRUD, PATCH tia_completed, dpa_id, scc_module; auto-approve on register); Human Oversight (review queue, pending/decided, approve/reject, decided-evidence-ids); Self-serve signup (POST /api/v1/auth/register, input validation, rate limiting 5/IP/hour, bcrypt password, async welcome email via SMTP). Migrations 001–029. |
 | **Planned scope** | Further dashboard features, production auth. |
 
 **What it is not:** Not a fork or subset of veridion-nexus. Not a monorepo member that shares `migrations/` or `src/` with another project.
