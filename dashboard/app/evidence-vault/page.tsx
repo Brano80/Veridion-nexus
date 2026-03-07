@@ -43,6 +43,51 @@ function formatRetentionDate(createdAt: string): string {
   return d.toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'short' });
 }
 
+function getHumanOversightLegalBasis(eventType: string, articles?: string[]): string {
+  // Prefer articles from API if available, but filter out invalid "GDPR Art. 22"
+  const hasValidArticles = articles && articles.length > 0 && !articles.some(a => a && a.includes('Art. 22'));
+  if (hasValidArticles) {
+    return articles.filter(a => a && !a.includes('Art. 22')).join(', ');
+  }
+  
+  // Otherwise use mapping based on event type
+  const et = (eventType || '').toUpperCase();
+  if (et.includes('HUMAN_OVERSIGHT_APPROVED')) {
+    return 'Art. 44, Art. 46(2)(c), Art. 5(2)';
+  }
+  if (et.includes('HUMAN_OVERSIGHT_REJECTED') || et.includes('HUMAN_OVERSIGHT_BLOCKED') || et.includes('HUMAN_OVERSIGHT')) {
+    return 'Art. 44, Art. 5(2)';
+  }
+  return '';
+}
+
+function getHumanOversightLegalBasisFull(eventType: string, articles?: string[]): string {
+  // Prefer articles from API if available, but filter out invalid "GDPR Art. 22"
+  const hasValidArticles = articles && articles.length > 0 && !articles.some(a => a && a.includes('Art. 22'));
+  if (hasValidArticles) {
+    const filteredArticles = articles.filter(a => a && !a.includes('Art. 22'));
+    const articlesText = filteredArticles.join(', ');
+    const et = (eventType || '').toUpperCase();
+    if (et.includes('HUMAN_OVERSIGHT_APPROVED')) {
+      return `${articlesText} — International transfer — appropriate safeguards`;
+    }
+    if (et.includes('HUMAN_OVERSIGHT_REJECTED') || et.includes('HUMAN_OVERSIGHT_BLOCKED') || et.includes('HUMAN_OVERSIGHT')) {
+      return `${articlesText} — International transfer — accountability`;
+    }
+    return articlesText;
+  }
+  
+  // Otherwise use mapping based on event type
+  const et = (eventType || '').toUpperCase();
+  if (et.includes('HUMAN_OVERSIGHT_APPROVED')) {
+    return 'Art. 44, Art. 46(2)(c), Art. 5(2) — International transfer — appropriate safeguards';
+  }
+  if (et.includes('HUMAN_OVERSIGHT_REJECTED') || et.includes('HUMAN_OVERSIGHT_BLOCKED') || et.includes('HUMAN_OVERSIGHT')) {
+    return 'Art. 44, Art. 5(2) — International transfer — accountability';
+  }
+  return '';
+}
+
 function EvidenceVaultPageContent() {
   const searchParams = useSearchParams();
   const highlightedEventId = searchParams.get('eventId');
@@ -285,11 +330,15 @@ function EvidenceVaultPageContent() {
         if (!countryCode) countryCode = getCountryCodeFromName(String(raw));
         const source = (e.sourceSystem || '').toLowerCase();
         const et = (e.eventType || '').toUpperCase();
-        const gdprBasis = source === 'human-oversight' || et.includes('HUMAN_OVERSIGHT')
-          ? 'Art. 22'
+        const isHumanOversight = source === 'human-oversight' || et.includes('HUMAN_OVERSIGHT');
+        const hasValidArticles = e.articles && e.articles.length > 0 && !e.articles.some((a: string) => a && a.includes('Art. 22'));
+        const gdprBasis = isHumanOversight
+          ? getHumanOversightLegalBasis(e.eventType || '', e.articles)
           : (e.payload?.decision === 'BLOCK' && e.payload?.country_status === 'unknown'
             ? 'Art. 44 Blocked'
-            : e.payload?.articles?.[0] || getLegalBasis(countryCode) || '—');
+            : hasValidArticles
+              ? e.articles.filter((a: string) => a && !a.includes('Art. 22'))[0]
+              : e.payload?.articles?.[0] || getLegalBasis(countryCode) || '—');
         const dataCat = e.payload?.data_categories?.[0] || e.payload?.dataCategories?.[0] || e.payload?.data_category || '—';
         const verification = e.verificationStatus || e.payload?.decision || '—';
         return [
@@ -690,11 +739,17 @@ function EvidenceVaultPageContent() {
                           {(() => {
                             const source = (event.sourceSystem || '').toLowerCase();
                             const et = (event.eventType || '').toUpperCase();
-                            if (source === 'human-oversight' || et.includes('HUMAN_OVERSIGHT')) return 'Art. 22';
+                            const isHumanOversight = source === 'human-oversight' || et.includes('HUMAN_OVERSIGHT');
+                            if (isHumanOversight) {
+                              return getHumanOversightLegalBasis(event.eventType || '', event.articles) || '—';
+                            }
                             const countryName = event.payload?.destination_country || event.payload?.destinationCountry || event.payload?.destination || '';
                             let countryCode = event.payload?.destination_country_code || event.payload?.destinationCountryCode || '';
                             if (!countryCode && countryName) countryCode = getCountryCodeFromName(countryName);
-                            return getLegalBasis(countryCode) || '—';
+                            const hasValidArticles = event.articles && event.articles.length > 0 && !event.articles.some((a: string) => a && a.includes('Art. 22'));
+                            return hasValidArticles
+                              ? event.articles.filter((a: string) => a && !a.includes('Art. 22'))[0]
+                              : getLegalBasis(countryCode) || '—';
                           })()}
                         </td>
                         <td className="px-4 py-3">
@@ -792,9 +847,13 @@ function EvidenceVaultPageContent() {
                 if (!countryCode && countryName) countryCode = getCountryCodeFromName(countryName);
                 const source = (e.sourceSystem || '').toLowerCase();
                 const et = (e.eventType || '').toUpperCase();
-                const gdprBasisFull = source === 'human-oversight' || et.includes('HUMAN_OVERSIGHT')
-                  ? 'Art. 22 — Right not to be subject to automated decision-making'
-                  : getLegalBasisFullText(countryCode);
+                const isHumanOversight = source === 'human-oversight' || et.includes('HUMAN_OVERSIGHT');
+                const hasValidArticles = e.articles && e.articles.length > 0 && !e.articles.some((a: string) => a && a.includes('Art. 22'));
+                const gdprBasisFull = isHumanOversight
+                  ? getHumanOversightLegalBasisFull(e.eventType || '', e.articles)
+                  : (hasValidArticles
+                      ? e.articles.filter((a: string) => a && !a.includes('Art. 22')).join(', ')
+                      : getLegalBasisFullText(countryCode));
                 const CopyRow = ({ label, value }: { label: string; value: string }) => (
                   <div className="flex items-start justify-between gap-2 py-1.5">
                     <div className="min-w-0 flex-1">
@@ -948,22 +1007,48 @@ function EvidenceVaultPageContent() {
                         }
                         const destCountry = (e.payload?.destination_country ?? e.payload?.destinationCountry ?? e.payload?.destination ?? '').trim();
                         const hasDestCountry = destCountry && destCountry !== 'N/A';
+                        const isHumanDecision = et.includes('HUMAN_OVERSIGHT_REJECTED') || et.includes('HUMAN_OVERSIGHT_APPROVED');
+                        const hasDecisionFields = e.payload?.reason || e.payload?.decided_by || e.payload?.final_decision;
 
-                        if (hasDestCountry) {
+                        if (hasDestCountry || isHumanDecision || hasDecisionFields) {
                           return (
                             <section>
                               <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">Transfer Details</h3>
                               <div className="space-y-2 text-sm">
-                                <div className="flex items-center gap-2">
-                                  {countryCode && (
-                                    <img src={`https://flagcdn.com/16x12/${countryCode.toLowerCase()}.png`} width={16} height={12} alt="" className="shrink-0" />
-                                  )}
-                                  <span className="text-white">{countryName || '—'}</span>
-                                </div>
-                                <div><span className="text-slate-400">GDPR Legal Basis:</span> <span className="text-white">{gdprBasisFull}</span></div>
-                                <div><span className="text-slate-400">Data Category:</span> <span className="text-white">{e.payload?.data_categories?.[0] || e.payload?.dataCategories?.[0] || (e.payload?.data_category ?? '—')}</span></div>
+                                {hasDestCountry && (
+                                  <>
+                                    <div className="flex items-center gap-2">
+                                      {countryCode && (
+                                        <img src={`https://flagcdn.com/16x12/${countryCode.toLowerCase()}.png`} width={16} height={12} alt="" className="shrink-0" />
+                                      )}
+                                      <span className="text-white">{countryName || '—'}</span>
+                                    </div>
+                                    <div><span className="text-slate-400">GDPR Legal Basis:</span> <span className="text-white">{gdprBasisFull}</span></div>
+                                    <div><span className="text-slate-400">Data Category:</span> <span className="text-white">{e.payload?.data_categories?.[0] || e.payload?.dataCategories?.[0] || (e.payload?.data_category ?? '—')}</span></div>
+                                  </>
+                                )}
                                 <div><span className="text-slate-400">Source System:</span> <span className="text-white">{e.sourceSystem || '—'}</span></div>
-                                <div><span className="text-slate-400">Purpose:</span> <span className="text-white">{e.payload?.purpose || '—'}</span></div>
+                                {e.payload?.reason && typeof e.payload.reason === 'string' && e.payload.reason.trim() && (
+                                  <div suppressHydrationWarning><span className="text-slate-400">Decision Reason:</span> <span className="text-white">{e.payload.reason}</span></div>
+                                )}
+                                {e.payload?.decided_by && typeof e.payload.decided_by === 'string' && e.payload.decided_by.trim() && (
+                                  <div suppressHydrationWarning><span className="text-slate-400">Decided By:</span> <span className="text-white">{e.payload.decided_by}</span></div>
+                                )}
+                                {e.payload?.final_decision && typeof e.payload.final_decision === 'string' && e.payload.final_decision.trim() && (
+                                  <div className="flex items-center gap-2" suppressHydrationWarning>
+                                    <span className="text-slate-400">Final Decision:</span>
+                                    <span className={`px-2 py-0.5 rounded text-xs font-medium border ${
+                                      String(e.payload.final_decision).toUpperCase() === 'APPROVED' 
+                                        ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25'
+                                        : 'bg-red-500/15 text-red-400 border-red-500/25'
+                                    }`}>
+                                      {e.payload.final_decision}
+                                    </span>
+                                  </div>
+                                )}
+                                {hasDestCountry && (
+                                  <div><span className="text-slate-400">Purpose:</span> <span className="text-white">{e.payload?.purpose || '—'}</span></div>
+                                )}
                               </div>
                             </section>
                           );
@@ -1033,6 +1118,14 @@ function EvidenceVaultPageContent() {
                             : raw;
                           let countryCode = e.payload?.destination_country_code || e.payload?.destinationCountryCode || '';
                           if (!countryCode && countryName) countryCode = getCountryCodeFromName(countryName);
+                          const sourceForPdf = (e.sourceSystem || '').toLowerCase();
+                          const etForPdf = (e.eventType || '').toUpperCase();
+                          const isHumanOversightForPdf = sourceForPdf === 'human-oversight' || etForPdf.includes('HUMAN_OVERSIGHT');
+                          const gdprBasisForPdf = isHumanOversightForPdf
+                            ? getHumanOversightLegalBasisFull(e.eventType || '', e.articles)
+                            : (e.articles && e.articles.length > 0
+                                ? e.articles.join(', ')
+                                : getLegalBasisFullText(countryCode));
                           const html = `<html><head><title>Evidence - ${e.eventId || e.id}</title>
 <style>body{font-family:system-ui,sans-serif;color:#1e293b;padding:2rem;max-width:600px}
 h3{font-size:0.7rem;text-transform:uppercase;letter-spacing:0.1em;color:#64748b;margin:1.5rem 0 0.5rem}
@@ -1040,7 +1133,7 @@ p{margin:0.2rem 0;font-size:0.875rem}
 code{font-family:monospace;font-size:0.75rem;color:#059669;word-break:break-all}
 </style></head><body>
 <h2>Evidence Vault — Event Detail</h2>
-<h3>Transfer Details</h3><p>Destination: ${countryName || '—'}</p><p>GDPR Basis: ${getLegalBasisFullText(countryCode)}</p>
+<h3>Transfer Details</h3><p>Destination: ${countryName || '—'}</p><p>GDPR Basis: ${gdprBasisForPdf}</p>
 <h3>Cryptographic Evidence</h3><p>Event ID: <code>${e.eventId || e.id}</code></p><p>Seal ID: <code>${e.nexusSeal || '—'}</code></p>
 <h3>Timestamps</h3><p>Occurred: ${e.occurredAt || '—'}</p><p>Retention: ${getRetentionYear(e.createdAt)}</p>
 </body></html>`;

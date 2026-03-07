@@ -360,12 +360,20 @@ pub async fn decide_review(
         }
     }
 
+    // Set regulatory tags and articles based on decision type
+    let regulatory_tags = vec!["GDPR".into(), "Art. 44".into(), "Art. 5(2)".into()];
+    let articles = if ho_status == "APPROVED" {
+        vec!["GDPR Art. 44".into(), "GDPR Art. 46(2)(c)".into(), "GDPR Art. 5(2)".into()]
+    } else {
+        vec!["GDPR Art. 44".into(), "GDPR Art. 5(2)".into()]
+    };
+
     let params = CreateEventParams {
         event_type: format!("HUMAN_OVERSIGHT_{}", ho_status),
         severity: "L2".into(),
         source_system: "human-oversight".into(),
-        regulatory_tags: vec!["GDPR".into()],
-        articles: vec!["GDPR Art. 22".into()],
+        regulatory_tags,
+        articles,
         payload,
         correlation_id: Some(seal_id.to_string()),
         causation_id: evidence_event_id.clone(),
@@ -505,8 +513,8 @@ pub async fn process_sla_timeouts(pool: &PgPool) -> Result<(), String> {
             event_type: "HUMAN_OVERSIGHT_REJECTED".into(),
             severity: "CRITICAL".into(),
             source_system: "human-oversight".into(),
-            regulatory_tags: vec!["GDPR".into()],
-            articles: vec!["GDPR Art. 22".into()],
+            regulatory_tags: vec!["GDPR".into(), "Art. 44".into(), "Art. 5(2)".into()],
+            articles: vec!["GDPR Art. 44".into(), "GDPR Art. 5(2)".into()],
             payload,
             correlation_id: Some(seal_id.to_string()),
             causation_id: evidence_event_id.map(String::from),

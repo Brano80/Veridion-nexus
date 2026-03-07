@@ -6,6 +6,7 @@ import Link from 'next/link';
 
 const sections = [
   { id: 'quick-start', label: 'Quick Start' },
+  { id: 'integration-patterns', label: 'Integration Patterns' },
   { id: 'authentication', label: 'Authentication' },
   { id: 'evaluate-transfer', label: 'Evaluate Transfer' },
   { id: 'response-reference', label: 'Response Reference' },
@@ -219,6 +220,133 @@ if (decision === 'REVIEW') {
 // decision === 'ALLOW' — proceed with transfer`}
                   />
                 </div>
+              </div>
+            </section>
+
+            {/* Integration Patterns */}
+            <section
+              id="integration-patterns"
+              ref={(el) => { sectionRefs.current['integration-patterns'] = el; }}
+              className="mb-16"
+            >
+              <h2 className="text-3xl font-bold text-slate-900 mb-4">Integration Patterns</h2>
+              
+              <h3 className="text-xl font-semibold text-slate-800 mb-4">Where does evaluate() fit?</h3>
+              <p className="text-slate-700 mb-6">
+                Sovereign Shield works at your application's outbound layer — the point where your code calls an external API. You don't need to add it to every line of code. Add it once, to the wrapper function that calls your AI provider.
+              </p>
+
+              {/* Flow Diagram */}
+              <div className="bg-white border border-slate-200 rounded-lg p-6 mb-8">
+                <div className="space-y-2 text-sm font-mono text-slate-700 text-center">
+                  <div>Your Application</div>
+                  <div className="text-slate-400">↓</div>
+                  <div>Middleware / Wrapper Function</div>
+                  <div className="text-slate-400">↓ evaluate_transfer()</div>
+                  <div className="flex items-center justify-center gap-4">
+                    <span>Sovereign Shield</span>
+                    <span className="text-slate-400">←→</span>
+                    <span>Evidence Vault</span>
+                  </div>
+                  <div className="text-slate-400">↓ ALLOW / BLOCK / REVIEW</div>
+                  <div>OpenAI / Anthropic / AWS</div>
+                  <div className="text-slate-400">↓</div>
+                  <div>Response</div>
+                </div>
+              </div>
+
+              {/* Pattern Cards */}
+              <div className="space-y-6">
+                {/* Pattern 1 */}
+                <div className="bg-white border border-slate-200 rounded-lg p-6">
+                  <h4 className="text-lg font-semibold text-slate-900 mb-2">Pattern 1 — Direct wrapper (simplest)</h4>
+                  <p className="text-slate-700 mb-4 text-sm">
+                    Wrap your AI provider call. One function, one evaluate() call.
+                  </p>
+                  <CodeBlock
+                    id="pattern-1"
+                    language="python"
+                    code={`def call_openai(messages, user_data):
+    # Evaluate before every external AI call
+    shield = evaluate_transfer(
+        destination_country_code="US",
+        data_categories=["email", "name"],
+        partner_name="OpenAI"
+    )
+    if shield["decision"] == "BLOCK":
+        raise Exception("Transfer blocked")
+    if shield["decision"] == "REVIEW":
+        queue_for_review(shield["seal_id"])
+        return None
+    
+    return openai.chat.completions.create(
+        messages=messages
+    )`}
+                  />
+                </div>
+
+                {/* Pattern 2 */}
+                <div className="bg-white border border-slate-200 rounded-lg p-6">
+                  <h4 className="text-lg font-semibold text-slate-900 mb-2">Pattern 2 — LangChain middleware</h4>
+                  <p className="text-slate-700 mb-4 text-sm">
+                    Add as a LangChain callback or middleware. Evaluates automatically before every LLM call.
+                  </p>
+                  <CodeBlock
+                    id="pattern-2"
+                    language="python"
+                    code={`from langchain_core.callbacks import BaseCallbackHandler
+
+class SovereignShieldCallback(BaseCallbackHandler):
+    def on_llm_start(self, serialized, prompts, **kwargs):
+        result = evaluate_transfer(
+            destination_country_code="US",
+            data_categories=["email"],
+            partner_name="OpenAI"
+        )
+        if result["decision"] == "BLOCK":
+            raise BlockedTransferError(result["reason"])
+
+# Add to your LLM
+llm = ChatOpenAI(callbacks=[SovereignShieldCallback()])`}
+                  />
+                </div>
+
+                {/* Pattern 3 */}
+                <div className="bg-white border border-slate-200 rounded-lg p-6">
+                  <h4 className="text-lg font-semibold text-slate-900 mb-2">Pattern 3 — Express middleware (Node.js)</h4>
+                  <p className="text-slate-700 mb-4 text-sm">
+                    Add as Express middleware to evaluate all outbound requests automatically.
+                  </p>
+                  <CodeBlock
+                    id="pattern-3"
+                    language="javascript"
+                    code={`const shieldMiddleware = async (req, res, next) => {
+    const result = await shield.evaluate({
+        destinationCountryCode: 'US',
+        dataCategories: req.body.dataCategories || [],
+        partnerName: req.body.partnerName
+    });
+    
+    if (result.decision === 'BLOCK') {
+        return res.status(403).json({ 
+            error: 'Transfer blocked', 
+            reason: result.reason 
+        });
+    }
+    
+    req.shieldDecision = result;
+    next();
+};
+
+app.use('/api/ai', shieldMiddleware);`}
+                  />
+                </div>
+              </div>
+
+              <div className="mt-6 p-4 bg-slate-50 border border-slate-200 rounded-lg">
+                <p className="text-slate-700 text-sm">
+                  <strong>Not using a framework?</strong> The Direct Wrapper pattern works for any language. See <button onClick={() => scrollToSection('code-examples')} className="text-emerald-600 hover:text-emerald-700 underline">Code Examples</button> for curl, Python, and Node.js implementations.
+                </p>
               </div>
             </section>
 

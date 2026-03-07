@@ -37,7 +37,7 @@ let currentUserCache: CurrentUser | null = null;
 export function getAuthHeaders(): Record<string, string> {
   if (typeof window === 'undefined') return { 'Content-Type': 'application/json' };
   const token = localStorage.getItem('ss_token');
-  const headers = token
+  const headers: Record<string, string> = token
     ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
     : { 'Content-Type': 'application/json' };
   console.log('[getAuthHeaders] Token present:', !!token, 'Headers:', headers);
