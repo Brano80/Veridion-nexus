@@ -53,4 +53,4 @@ VALUES (
     true,
     NULL,
     10000
-) ON CONFLICT DO NOTHING;
+) ON CONFLICT (api_key_hash) DO NOTHING;
