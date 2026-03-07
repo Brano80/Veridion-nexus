@@ -1,0 +1,20 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Copy package files
+COPY dashboard/package*.json ./
+
+# Install dependencies
+RUN npm ci --only=production=false
+
+# Copy dashboard source code
+COPY dashboard .
+
+# Build the Next.js application
+RUN npm run build
+
+EXPOSE 3000
+
+# Start the production server
+CMD ["npm", "start"]

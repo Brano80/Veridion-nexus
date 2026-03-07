@@ -1,0 +1,49 @@
+﻿version: '3.8'
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: veridion-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 
+      POSTGRES_DB: veridion_api
+    volumes:
+      - veridion_api_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: veridion-api
+    environment:
+      DATABASE_URL: postgres://postgres:@postgres:5432/veridion_api
+      JWT_SECRET: 
+      RUST_ENV: production
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: 8080
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.dashboard
+    container_name: veridion-dashboard
+    environment:
+      NEXT_PUBLIC_API_URL: https://api.veridion-nexus.eu
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+volumes:
+  veridion_api_data:
