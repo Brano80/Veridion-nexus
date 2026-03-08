@@ -162,9 +162,7 @@ export default function SignupPage() {
               <a
                 href={process.env.NEXT_PUBLIC_DASHBOARD_URL && !process.env.NEXT_PUBLIC_DASHBOARD_URL.includes('localhost') 
                   ? `${process.env.NEXT_PUBLIC_DASHBOARD_URL}/login` 
-                  : process.env.NEXT_PUBLIC_DASHBOARD_URL?.includes('localhost') 
-                    ? 'https://app.veridion-nexus.eu/login'
-                    : '/login'}
+                  : 'https://app.veridion-nexus.eu/login'}
                 className="flex items-center justify-center gap-2 w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg transition-colors"
               >
                 Sign In to Dashboard
@@ -291,9 +289,7 @@ export default function SignupPage() {
               <a
                 href={process.env.NEXT_PUBLIC_DASHBOARD_URL && !process.env.NEXT_PUBLIC_DASHBOARD_URL.includes('localhost') 
                   ? `${process.env.NEXT_PUBLIC_DASHBOARD_URL}/login` 
-                  : process.env.NEXT_PUBLIC_DASHBOARD_URL?.includes('localhost') 
-                    ? 'https://app.veridion-nexus.eu/login'
-                    : '/login'}
+                  : 'https://app.veridion-nexus.eu/login'}
                 className="text-emerald-400 hover:text-emerald-300 transition-colors"
               >
                 Sign in

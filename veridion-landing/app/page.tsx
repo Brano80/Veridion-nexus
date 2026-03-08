@@ -34,9 +34,7 @@ export default function LandingPage() {
               <a 
                 href={process.env.NEXT_PUBLIC_DASHBOARD_URL && !process.env.NEXT_PUBLIC_DASHBOARD_URL.includes('localhost') 
                   ? `${process.env.NEXT_PUBLIC_DASHBOARD_URL}/login` 
-                  : process.env.NEXT_PUBLIC_DASHBOARD_URL?.includes('localhost') 
-                    ? 'https://app.veridion-nexus.eu/login'
-                    : '/login'}
+                  : 'https://app.veridion-nexus.eu/login'}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-slate-300 hover:text-white transition-colors text-sm"
@@ -63,9 +61,7 @@ export default function LandingPage() {
               <a 
                 href={process.env.NEXT_PUBLIC_DASHBOARD_URL && !process.env.NEXT_PUBLIC_DASHBOARD_URL.includes('localhost') 
                   ? `${process.env.NEXT_PUBLIC_DASHBOARD_URL}/login` 
-                  : process.env.NEXT_PUBLIC_DASHBOARD_URL?.includes('localhost') 
-                    ? 'https://app.veridion-nexus.eu/login'
-                    : '/login'}
+                  : 'https://app.veridion-nexus.eu/login'}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="block text-slate-300 hover:text-white transition-colors text-sm"
@@ -479,9 +475,7 @@ export default function LandingPage() {
               <a
                 href={process.env.NEXT_PUBLIC_DASHBOARD_URL && !process.env.NEXT_PUBLIC_DASHBOARD_URL.includes('localhost') 
                   ? `${process.env.NEXT_PUBLIC_DASHBOARD_URL}/login` 
-                  : process.env.NEXT_PUBLIC_DASHBOARD_URL?.includes('localhost') 
-                    ? 'https://app.veridion-nexus.eu/login'
-                    : '/login'}
+                  : 'https://app.veridion-nexus.eu/login'}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="block text-slate-400 hover:text-sky-400 transition-colors text-sm"
@@ -497,9 +491,7 @@ export default function LandingPage() {
               <a
                 href={process.env.NEXT_PUBLIC_DASHBOARD_URL && !process.env.NEXT_PUBLIC_DASHBOARD_URL.includes('localhost') 
                   ? `${process.env.NEXT_PUBLIC_DASHBOARD_URL}/adequate-countries` 
-                  : process.env.NEXT_PUBLIC_DASHBOARD_URL?.includes('localhost') 
-                    ? 'https://app.veridion-nexus.eu/adequate-countries'
-                    : '/adequate-countries'}
+                  : 'https://app.veridion-nexus.eu/adequate-countries'}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="block text-slate-400 hover:text-sky-400 transition-colors text-sm"
