@@ -737,7 +737,7 @@ export default function SovereignShieldPage() {
                     });
 
                     return requiresAttention.length === 0 ? (
-                      <div className="text-center py-8">
+                      <div className="text-center py-4">
                         <CheckCircle className="w-12 h-12 mx-auto mb-3 text-green-500 opacity-50" />
                         <p className="text-sm text-slate-300 font-medium mb-1">No items require immediate attention</p>
                         <p className="text-xs text-slate-500">No action required</p>
