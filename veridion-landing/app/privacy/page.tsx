@@ -76,6 +76,9 @@ export default function PrivacyPage() {
           <div className="mb-12">
             <h1 className="text-4xl md:text-5xl font-black text-slate-900 mb-3">Privacy Policy</h1>
             <p className="text-slate-600 text-lg">Last updated: 8 March 2026</p>
+            <p className="text-slate-500 text-sm mt-2 italic">
+              This privacy policy fulfills our obligations under GDPR Art. 13 (information to be provided when personal data are collected from the data subject).
+            </p>
           </div>
 
           {/* Section 1 — Who We Are */}
@@ -170,27 +173,27 @@ export default function PrivacyPage() {
             </p>
             <ul className="space-y-3 text-slate-700 leading-relaxed">
               <li className="flex items-start">
-                <span className="font-semibold mr-2">Access</span>
+                <span className="font-semibold mr-2">Access (Art. 15)</span>
                 <span>— Request a copy of all personal data we hold about you</span>
               </li>
               <li className="flex items-start">
-                <span className="font-semibold mr-2">Rectification</span>
+                <span className="font-semibold mr-2">Rectification (Art. 16)</span>
                 <span>— Request correction of inaccurate or incomplete data</span>
               </li>
               <li className="flex items-start">
-                <span className="font-semibold mr-2">Erasure</span>
+                <span className="font-semibold mr-2">Erasure (Art. 17)</span>
                 <span>— Request deletion of your data (subject to legal retention requirements)</span>
               </li>
               <li className="flex items-start">
-                <span className="font-semibold mr-2">Portability</span>
+                <span className="font-semibold mr-2">Portability (Art. 20)</span>
                 <span>— Receive your data in a structured, machine-readable format</span>
               </li>
               <li className="flex items-start">
-                <span className="font-semibold mr-2">Restriction</span>
+                <span className="font-semibold mr-2">Restriction (Art. 18)</span>
                 <span>— Request limitation of processing in certain circumstances</span>
               </li>
               <li className="flex items-start">
-                <span className="font-semibold mr-2">Object</span>
+                <span className="font-semibold mr-2">Object (Art. 21)</span>
                 <span>— Object to processing based on legitimate interests</span>
               </li>
             </ul>
@@ -199,7 +202,7 @@ export default function PrivacyPage() {
               <a href="mailto:privacy@veridion-nexus.eu" className="text-emerald-600 hover:text-emerald-700 underline">
                 privacy@veridion-nexus.eu
               </a>
-              . We will respond within 30 days.
+              . We will respond within one month (30 days) as required by GDPR Art. 12(3).
             </p>
           </section>
 
