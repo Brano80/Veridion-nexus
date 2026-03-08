@@ -34,7 +34,7 @@ export default function DashboardLayout({
   return (
     <div className="flex min-h-screen bg-slate-900">
       <Sidebar />
-      <main className="flex-1 ml-64 p-8">{children}</main>
+      <main className="flex-1 ml-56 p-4">{children}</main>
       {trialExpired && <TrialExpiredModal />}
     </div>
   );

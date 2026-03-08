@@ -466,10 +466,10 @@ export default function SovereignShieldPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* Enforcement Mode Banner */}
         {enforcementMode === 'shadow' ? (
-          <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4 flex items-center justify-between">
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
               <div>
@@ -485,7 +485,7 @@ export default function SovereignShieldPage() {
             </button>
           </div>
         ) : (
-          <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-4 flex items-center justify-between">
+          <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Shield className="w-5 h-5 text-emerald-400 shrink-0" />
               <div>
@@ -506,12 +506,12 @@ export default function SovereignShieldPage() {
         {/* Enable Enforcement Confirmation Modal */}
         {showEnforceModal && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-            <div className="bg-slate-800 border border-slate-600 rounded-xl p-6 max-w-md w-full shadow-xl">
-              <h3 className="text-lg font-semibold text-white mb-3">Enable Enforcement</h3>
-              <p className="text-slate-300 text-sm mb-4">
+            <div className="bg-slate-800 border border-slate-600 rounded-xl p-4 max-w-md w-full shadow-xl">
+              <h3 className="text-sm font-semibold text-white mb-2">Enable Enforcement</h3>
+              <p className="text-slate-300 text-xs mb-3">
                 You are about to enable enforcement. Transfers to blocked countries will be rejected. SCC-required transfers without valid SCC will be sent to Review Queue. This affects live traffic.
               </p>
-              <p className="text-slate-400 text-sm mb-2">Type ENABLE_ENFORCEMENT to proceed:</p>
+              <p className="text-slate-400 text-xs mb-2">Type ENABLE_ENFORCEMENT to proceed:</p>
               <input
                 type="text"
                 value={enforceConfirmText}
@@ -539,25 +539,25 @@ export default function SovereignShieldPage() {
         )}
 
         {/* Header */}
-        <div className="flex justify-between items-start">
+        <div className="flex justify-between items-start mb-3">
           <div>
-            <h1 className="text-2xl font-bold text-white mb-1">SOVEREIGN SHIELD</h1>
-            <p className="text-sm text-slate-400">GDPR Chapter V (Art. 44-49) • International Data Transfers</p>
+            <h1 className="text-xl font-bold text-white mb-0.5">SOVEREIGN SHIELD</h1>
+            <p className="text-xs text-slate-400">GDPR Chapter V (Art. 44-49) • International Data Transfers</p>
           </div>
           <div className="flex gap-2">
             <button
               onClick={handleRefresh}
               disabled={refreshing}
-              className="px-4 py-2 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+              className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 text-white rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5"
             >
-              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
               Refresh
             </button>
           </div>
         </div>
 
         {/* Status Header Bar */}
-        <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
+        <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               {status === 'ACTIVE' ? (
@@ -581,90 +581,90 @@ export default function SovereignShieldPage() {
         </div>
 
         {/* Stats Grid - Row 1 */}
-        <div className="grid grid-cols-4 gap-4">
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-sm text-slate-400 font-medium">TRANSFERS (24H)</div>
-              <Shield className={`w-4 h-4 ${activeAgents === 0 ? 'text-slate-500' : 'text-green-500'}`} />
+        <div className="grid grid-cols-4 gap-3 mb-3">
+          <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
+            <div className="flex items-center justify-between mb-1.5">
+              <div className="text-xs text-slate-400 font-medium">TRANSFERS (24H)</div>
+              <Shield className={`w-3.5 h-3.5 ${activeAgents === 0 ? 'text-slate-500' : 'text-green-500'}`} />
             </div>
-            <div className={`text-2xl font-bold ${total === 0 ? 'text-slate-400' : 'text-white'}`}>{total}</div>
-            <div className="text-xs text-slate-500 mt-1">Last 24 hours</div>
+            <div className={`text-xl font-bold ${total === 0 ? 'text-slate-400' : 'text-white'}`}>{total}</div>
+            <div className="text-[10px] text-slate-500 mt-0.5">Last 24 hours</div>
           </div>
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-sm text-slate-400 font-medium">ADEQUATE COUNTRIES (24H)</div>
-              <CheckCircle className={`w-4 h-4 ${adequateCountriesCount === 0 ? 'text-slate-500' : 'text-green-500'}`} />
+          <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
+            <div className="flex items-center justify-between mb-1.5">
+              <div className="text-xs text-slate-400 font-medium">ADEQUATE COUNTRIES (24H)</div>
+              <CheckCircle className={`w-3.5 h-3.5 ${adequateCountriesCount === 0 ? 'text-slate-500' : 'text-green-500'}`} />
             </div>
-            <div className={`text-2xl font-bold ${adequateCountriesCount === 0 ? 'text-slate-400' : 'text-green-400'}`}>{adequateCountriesCount}</div>
-            <div className="text-xs text-slate-500 mt-1">Distinct adequate countries today</div>
+            <div className={`text-xl font-bold ${adequateCountriesCount === 0 ? 'text-slate-400' : 'text-green-400'}`}>{adequateCountriesCount}</div>
+            <div className="text-[10px] text-slate-500 mt-0.5">Distinct adequate countries today</div>
           </div>
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-sm text-slate-400 font-medium">HIGH RISK DESTINATIONS (24H)</div>
-              <AlertTriangle className={`w-4 h-4 ${highRiskDestinations === 0 ? 'text-slate-500' : 'text-red-500'}`} />
+          <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
+            <div className="flex items-center justify-between mb-1.5">
+              <div className="text-xs text-slate-400 font-medium">HIGH RISK DESTINATIONS (24H)</div>
+              <AlertTriangle className={`w-3.5 h-3.5 ${highRiskDestinations === 0 ? 'text-slate-500' : 'text-red-500'}`} />
             </div>
-            <div className={`text-2xl font-bold ${highRiskDestinations === 0 ? 'text-slate-400' : 'text-red-400'}`}>{highRiskDestinations}</div>
-            <div className="text-xs text-slate-500 mt-1">Blocked countries (no legal basis)</div>
-            <div className="mt-2 h-1 bg-slate-700 rounded-full overflow-hidden">
+            <div className={`text-xl font-bold ${highRiskDestinations === 0 ? 'text-slate-400' : 'text-red-400'}`}>{highRiskDestinations}</div>
+            <div className="text-[10px] text-slate-500 mt-0.5">Blocked countries (no legal basis)</div>
+            <div className="mt-1.5 h-0.5 bg-slate-700 rounded-full overflow-hidden">
               <div className="h-full bg-red-500" style={{ width: '0%' }}></div>
             </div>
           </div>
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-sm text-slate-400 font-medium">BLOCK (24H)</div>
-              <Shield className={`w-4 h-4 ${blocked === 0 ? 'text-slate-500' : 'text-red-500'}`} />
+          <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
+            <div className="flex items-center justify-between mb-1.5">
+              <div className="text-xs text-slate-400 font-medium">BLOCK (24H)</div>
+              <Shield className={`w-3.5 h-3.5 ${blocked === 0 ? 'text-slate-500' : 'text-red-500'}`} />
             </div>
-            <div className={`text-2xl font-bold ${blocked === 0 ? 'text-slate-400' : 'text-red-400'}`}>{blocked}</div>
-            <div className="text-xs text-slate-500 mt-1">Transfers prevented in last 24 hours</div>
+            <div className={`text-xl font-bold ${blocked === 0 ? 'text-slate-400' : 'text-red-400'}`}>{blocked}</div>
+            <div className="text-[10px] text-slate-500 mt-0.5">Transfers prevented in last 24 hours</div>
           </div>
         </div>
 
         {/* Stats Grid - Row 2 */}
-        <div className="grid grid-cols-4 gap-4">
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-sm text-slate-400 font-medium">SCC COVERAGE</div>
-              <CheckCircle className="w-4 h-4 text-yellow-500" />
+        <div className="grid grid-cols-4 gap-3 mb-3">
+          <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
+            <div className="flex items-center justify-between mb-1.5">
+              <div className="text-xs text-slate-400 font-medium">SCC COVERAGE</div>
+              <CheckCircle className="w-3.5 h-3.5 text-yellow-500" />
             </div>
-            <div className="text-2xl font-bold text-yellow-400">{sccCoveragePct}%</div>
-            <div className="text-xs text-slate-500 mt-1">
+            <div className="text-xl font-bold text-yellow-400">{sccCoveragePct}%</div>
+            <div className="text-[10px] text-slate-500 mt-0.5">
               {sccCoverageTotal === 0 ? 'No SCC-required transfers yet' : `${sccCoverageCovered} of ${sccCoverageTotal} destinations covered`}
             </div>
           </div>
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-sm text-slate-400 font-medium">EXPIRING SCCs</div>
-              <AlertTriangle className={`w-4 h-4 ${expiringSccsCount === 0 ? 'text-slate-500' : 'text-yellow-500'}`} />
+          <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
+            <div className="flex items-center justify-between mb-1.5">
+              <div className="text-xs text-slate-400 font-medium">EXPIRING SCCs</div>
+              <AlertTriangle className={`w-3.5 h-3.5 ${expiringSccsCount === 0 ? 'text-slate-500' : 'text-yellow-500'}`} />
             </div>
-            <div className={`text-2xl font-bold ${expiringSccsCount === 0 ? 'text-slate-400' : 'text-yellow-400'}`}>{expiringSccsCount}</div>
-            <div className="text-xs text-slate-500 mt-1">within 30 days</div>
+            <div className={`text-xl font-bold ${expiringSccsCount === 0 ? 'text-slate-400' : 'text-yellow-400'}`}>{expiringSccsCount}</div>
+            <div className="text-[10px] text-slate-500 mt-0.5">within 30 days</div>
           </div>
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-sm text-slate-400 font-medium">PENDING APPROVALS</div>
-              <AlertTriangle className={`w-4 h-4 ${actualPending === 0 ? 'text-slate-500' : 'text-yellow-500'}`} />
+          <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
+            <div className="flex items-center justify-between mb-1.5">
+              <div className="text-xs text-slate-400 font-medium">PENDING APPROVALS</div>
+              <AlertTriangle className={`w-3.5 h-3.5 ${actualPending === 0 ? 'text-slate-500' : 'text-yellow-500'}`} />
             </div>
-            <div className={`text-2xl font-bold ${actualPending === 0 ? 'text-slate-400' : 'text-yellow-400'}`}>{actualPending}</div>
-            <div className="text-xs text-slate-500 mt-1">SCC-required transfers awaiting SCC registration</div>
+            <div className={`text-xl font-bold ${actualPending === 0 ? 'text-slate-400' : 'text-yellow-400'}`}>{actualPending}</div>
+            <div className="text-[10px] text-slate-500 mt-0.5">SCC-required transfers awaiting SCC registration</div>
           </div>
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-sm text-slate-400 font-medium">ACTIVE AGENTS</div>
-              <Shield className={`w-4 h-4 ${activeAgents === 0 ? 'text-slate-500' : 'text-green-500'}`} />
+          <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
+            <div className="flex items-center justify-between mb-1.5">
+              <div className="text-xs text-slate-400 font-medium">ACTIVE AGENTS</div>
+              <Shield className={`w-3.5 h-3.5 ${activeAgents === 0 ? 'text-slate-500' : 'text-green-500'}`} />
             </div>
-            <div className={`text-2xl font-bold ${activeAgents === 0 ? 'text-slate-400' : 'text-white'}`}>{activeAgents}</div>
-            <div className="text-xs text-slate-500 mt-1">Distinct data processors (24h)</div>
+            <div className={`text-xl font-bold ${activeAgents === 0 ? 'text-slate-400' : 'text-white'}`}>{activeAgents}</div>
+            <div className="text-[10px] text-slate-500 mt-0.5">Distinct data processors (24h)</div>
           </div>
         </div>
 
         {/* Thin line separator */}
         <div className="border-b border-slate-700" />
 
-        <div className="space-y-6">
+        <div className="space-y-4">
             {/* Top Row - Map + Requires Attention */}
-            <div className="grid grid-cols-12 gap-6">
+            <div className="grid grid-cols-12 gap-4">
               {/* World Map - Takes 7 columns */}
-              <div className="col-span-7 bg-slate-800 border border-slate-700 rounded-lg p-4">
+              <div className="col-span-7 bg-slate-800 border border-slate-700 rounded-lg p-3">
                 <SovereignMap
                   evidenceEvents={events}
                   sccRegistries={sccRegistries}
@@ -675,14 +675,14 @@ export default function SovereignShieldPage() {
 
               {/* Requires Attention Panel - Takes 5 columns */}
               <div className="col-span-5 bg-slate-800 border border-slate-700 rounded-lg flex flex-col">
-                <div className="p-4 border-b border-slate-700 flex items-center justify-between flex-shrink-0">
-                  <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-                    <AlertTriangle className="w-4 h-4 text-yellow-500" />
+                <div className="p-3 border-b border-slate-700 flex items-center justify-between flex-shrink-0">
+                  <h3 className="text-xs font-semibold text-white flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5 text-yellow-500" />
                     REQUIRES ATTENTION
                   </h3>
-                  <button className="text-xs text-blue-400 hover:text-blue-300">View All →</button>
+                  <button className="text-[10px] text-blue-400 hover:text-blue-300">View All →</button>
                 </div>
-                <div className="p-4 pb-5">
+                <div className="p-3 pb-3">
                   {(() => {
                     // Use review queue data directly as the source of truth
                     // Filter: Only SCC-required items that don't have a valid SCC
@@ -792,16 +792,16 @@ export default function SovereignShieldPage() {
 
             {/* Recent Activity */}
             <div className="bg-slate-800 border border-slate-700 rounded-lg">
-              <div className="p-4 border-b border-slate-700">
-                <h2 className="text-lg font-semibold text-white">RECENT ACTIVITY</h2>
+              <div className="p-3 border-b border-slate-700">
+                <h2 className="text-sm font-semibold text-white">RECENT ACTIVITY</h2>
               </div>
-              <div className="p-4">
+              <div className="p-3">
                 {loading ? (
-                  <div className="text-center text-slate-400 py-8">Loading...</div>
+                  <div className="text-center text-slate-400 py-4 text-xs">Loading...</div>
                 ) : transferEvents.length === 0 ? (
-                  <div className="text-center text-slate-400 py-8">No transfer activity</div>
+                  <div className="text-center text-slate-400 py-4 text-xs">No transfer activity</div>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     {transferEvents.slice(0, 10).map((event) => {
                         // Resolve destination to display name (code → full name via COUNTRY_NAMES)
                         const raw =

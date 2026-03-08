@@ -35,16 +35,16 @@ export default function Sidebar() {
   }
 
   return (
-    <div className="w-64 bg-slate-800 border-r border-slate-700 h-screen fixed left-0 top-0 overflow-y-auto flex flex-col">
-      <div className="p-6 flex-1">
-        <div className="mb-8">
-          <h1 className="flex items-baseline gap-1.5 mb-1" style={{ fontFamily: "Inter, sans-serif" }}>
-            <span className="text-xl font-black italic uppercase text-white" style={{ letterSpacing: "-0.05em", lineHeight: 0.85 }}>VERIDION</span>
-            <span className="text-base font-semibold italic lowercase" style={{ color: "#10b981", letterSpacing: "-0.02em", filter: "drop-shadow(0 0 15px rgba(16, 185, 129, 0.3))" }}>nexus</span>
+    <div className="w-56 bg-slate-800 border-r border-slate-700 h-screen fixed left-0 top-0 overflow-y-auto flex flex-col">
+      <div className="p-4 flex-1">
+        <div className="mb-6">
+          <h1 className="flex items-baseline gap-1 mb-0.5" style={{ fontFamily: "Inter, sans-serif" }}>
+            <span className="text-lg font-black italic uppercase text-white" style={{ letterSpacing: "-0.05em", lineHeight: 0.85 }}>VERIDION</span>
+            <span className="text-sm font-semibold italic lowercase" style={{ color: "#10b981", letterSpacing: "-0.02em", filter: "drop-shadow(0 0 15px rgba(16, 185, 129, 0.3))" }}>nexus</span>
           </h1>
-          <p className="text-xs text-slate-400">Compliance Dashboard v1.0.0</p>
+          <p className="text-[10px] text-slate-400">Compliance Dashboard v1.0.0</p>
         </div>
-        <nav className="space-y-1">
+        <nav className="space-y-0.5">
           {navItems.map((item) => {
             const isActive = pathname === item.href;
             const Icon = item.icon;
@@ -52,46 +52,46 @@ export default function Sidebar() {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
                   isActive
                     ? 'bg-emerald-900/30 text-emerald-400 border border-emerald-800'
                     : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
                 }`}
               >
-                <Icon className="w-5 h-5" />
-                <span className="text-sm font-medium">{item.label}</span>
+                <Icon className="w-4 h-4" />
+                <span className="text-xs font-medium">{item.label}</span>
               </Link>
             );
           })}
           {isAdmin(currentUser) && (
             <>
-              <div className="border-t border-slate-700 my-2" />
-              <div className="px-3 py-1">
-                <span className="text-xs font-bold uppercase tracking-widest text-slate-500">
+              <div className="border-t border-slate-700 my-1.5" />
+              <div className="px-2 py-0.5">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
                   System
                 </span>
               </div>
               <Link
                 href="/admin"
-                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                   pathname === '/admin'
                     ? 'bg-slate-700 text-white'
                     : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
                 }`}
               >
-                <Settings className="w-4 h-4" />
+                <Settings className="w-3.5 h-3.5" />
                 Admin Panel
               </Link>
             </>
           )}
         </nav>
       </div>
-      <div className="p-4 border-t border-slate-700">
+      <div className="p-3 border-t border-slate-700">
         <button
           onClick={handleLogout}
-          className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-700/50 transition-colors w-full"
+          className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-700/50 transition-colors w-full"
         >
-          <LogOut className="w-4 h-4" />
+          <LogOut className="w-3.5 h-3.5" />
           Sign Out
         </button>
       </div>
