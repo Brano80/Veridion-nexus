@@ -465,7 +465,7 @@ export default function TransferDetailPage() {
                         <textarea
                           value={decisionReason}
                           onChange={e => setDecisionReason(e.target.value)}
-                          placeholder="Add reason for audit record (required for GDPR Art. 22 compliance)..."
+                          placeholder="Add reason for audit record (required per GDPR Art. 22)..."
                           className="bg-slate-900 border border-slate-700 rounded p-3 text-sm w-full text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500 focus:border-slate-500 resize-y min-h-[80px]"
                           rows={3}
                         />
