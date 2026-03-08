@@ -392,8 +392,6 @@ export default function SovereignShieldPage() {
   } else if (blocked >= 10) {
     status = 'AT_RISK';
   }
-  // Debug: log status to verify it's not DISABLED
-  console.log('[Status] blocked:', blocked, 'status:', status);
 
   // SCC COVERAGE: destinations with unresolved REVIEW transfers OR valid SCC
   // Denominator = union of unresolved destinations + covered destinations
