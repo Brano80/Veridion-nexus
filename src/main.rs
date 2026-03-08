@@ -192,7 +192,7 @@ async fn main() -> std::io::Result<()> {
     let database_url = database_url.replace("localhost", "127.0.0.1");
     let server_host = env::var("SERVER_HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
     let server_port: u16 = env::var("SERVER_PORT").unwrap_or_else(|_| "8080".to_string()).parse().expect("SERVER_PORT must be a number");
-    let allowed_origins = env::var("ALLOWED_ORIGINS").unwrap_or_else(|_| "http://localhost:3000,http://127.0.0.1:3000".to_string());
+    let allowed_origins = env::var("ALLOWED_ORIGINS").unwrap_or_else(|_| "http://localhost:3000,http://127.0.0.1:3000,https://app.veridion-nexus.eu".to_string());
 
     println!("Connecting to database...");
     let pool = sqlx::postgres::PgPoolOptions::new()
