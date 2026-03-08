@@ -1,4 +1,4 @@
-﻿version: '3.8'
+version: '3.8'
 services:
   postgres:
     image: postgres:16-alpine
@@ -38,9 +38,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.dashboard
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.veridion-nexus.eu}
     container_name: veridion-dashboard
     environment:
-      NEXT_PUBLIC_API_URL: https://api.veridion-nexus.eu
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.veridion-nexus.eu}
     ports:
       - "3000:3000"
     restart: unless-stopped
