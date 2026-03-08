@@ -75,18 +75,55 @@ export default function LandingPage() {
       </nav>
 
       {/* SECTION 2 — Hero */}
-      <section className="bg-[#0f172a] pt-32 pb-20 md:pt-40 md:pb-32 min-h-screen flex items-center">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+      <section className="relative pt-32 pb-20 md:pt-40 md:pb-32 min-h-screen flex items-center overflow-hidden" style={{
+        background: 'radial-gradient(ellipse at center, #0a1628 0%, #080f1a 70%, #050810 100%)',
+      }}>
+        {/* Animated Grid Background */}
+        <div className="absolute inset-0 opacity-[0.15]" style={{
+          backgroundImage: `
+            linear-gradient(rgba(16, 185, 129, 0.1) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(16, 185, 129, 0.1) 1px, transparent 1px)
+          `,
+          backgroundSize: '60px 60px',
+          transform: 'perspective(1000px) rotateX(60deg)',
+          transformOrigin: 'center center',
+          animation: 'gridMove 20s linear infinite',
+        }}></div>
+
+        {/* Floating Signal Elements */}
+        <div className="absolute top-32 left-[10%] signal-badge" style={{ animationDelay: '0s' }}>
+          <div className="px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/30 rounded-full backdrop-blur-sm">
+            <span className="text-[10px] font-mono text-emerald-400 tracking-wider">[ EVALUATING... ]</span>
+          </div>
+        </div>
+        <div className="absolute top-48 right-[15%] signal-badge" style={{ animationDelay: '1.5s', transform: 'rotate(-5deg)' }}>
+          <div className="px-3 py-1.5 bg-red-500/10 border border-red-500/30 rounded-full backdrop-blur-sm">
+            <span className="text-[10px] font-mono text-red-400 tracking-wider">[ BLOCK → CN ]</span>
+          </div>
+        </div>
+        <div className="absolute bottom-40 left-[20%] signal-badge" style={{ animationDelay: '3s', transform: 'rotate(3deg)' }}>
+          <div className="px-3 py-1.5 bg-green-500/10 border border-green-500/30 rounded-full backdrop-blur-sm">
+            <span className="text-[10px] font-mono text-green-400 tracking-wider">[ ALLOW → DE ]</span>
+          </div>
+        </div>
+
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
           {/* Top Badge */}
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-full mb-8">
             <span className="text-xs font-bold uppercase tracking-widest text-emerald-400">GDPR Chapter V Runtime Enforcement</span>
           </div>
 
-          {/* Headline */}
-          <h1 className="text-3xl md:text-5xl font-black text-white mb-6 leading-tight">
-            Enforce Cross-Border Data Transfer Policy
-            <span className="block text-emerald-400 mt-2">In Real Time</span>
-          </h1>
+          {/* Headline with Glow */}
+          <div className="relative mb-6">
+            <div className="absolute inset-0 blur-3xl opacity-20" style={{
+              background: 'radial-gradient(ellipse at center, rgba(16, 185, 129, 0.4) 0%, transparent 70%)',
+              transform: 'translateY(20px)',
+            }}></div>
+            <h1 className="relative text-3xl md:text-5xl font-black text-white leading-tight">
+              Enforce Cross-Border Data Transfer Policy
+              <span className="block text-emerald-400 mt-2">In Real Time</span>
+            </h1>
+          </div>
 
           {/* Subheadline */}
           <p className="text-lg md:text-xl text-slate-300 mb-8 max-w-2xl mx-auto leading-relaxed">
@@ -98,7 +135,7 @@ export default function LandingPage() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
             <Link
               href="/signup"
-              className="inline-flex items-center gap-2 px-8 py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-base font-semibold transition-colors shadow-lg shadow-emerald-500/20"
+              className="hero-signup-btn inline-flex items-center gap-2 px-8 py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-base font-semibold transition-all shadow-lg shadow-emerald-500/20"
             >
               Sign Up
               <ArrowRight className="w-5 h-5" />
@@ -112,21 +149,53 @@ export default function LandingPage() {
           </div>
 
           {/* Trust Indicators */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-6 text-sm text-slate-400">
-            <div className="flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-emerald-500" />
-              <span>No credit card required</span>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-6 text-sm">
+            <div className="flex items-center gap-2 px-3 py-1.5 border border-slate-700/50 rounded-lg bg-slate-900/30 backdrop-blur-sm">
+              <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
+              <span className="text-slate-300">No credit card required</span>
             </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-emerald-500" />
-              <span>30-day free trial</span>
+            <div className="flex items-center gap-2 px-3 py-1.5 border border-slate-700/50 rounded-lg bg-slate-900/30 backdrop-blur-sm">
+              <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
+              <span className="text-slate-300">30-day free trial</span>
             </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-emerald-500" />
-              <span>Cancel anytime</span>
+            <div className="flex items-center gap-2 px-3 py-1.5 border border-slate-700/50 rounded-lg bg-slate-900/30 backdrop-blur-sm">
+              <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
+              <span className="text-slate-300">Cancel anytime</span>
             </div>
           </div>
         </div>
+
+        {/* CSS Animations */}
+        <style jsx>{`
+          @keyframes gridMove {
+            0% {
+              transform: perspective(1000px) rotateX(60deg) translateY(0);
+            }
+            100% {
+              transform: perspective(1000px) rotateX(60deg) translateY(60px);
+            }
+          }
+
+          @keyframes signalPulse {
+            0%, 100% {
+              opacity: 0.6;
+              transform: translateY(0) scale(1);
+            }
+            50% {
+              opacity: 1;
+              transform: translateY(-8px) scale(1.05);
+            }
+          }
+
+          .signal-badge {
+            animation: signalPulse 4s ease-in-out infinite;
+          }
+
+          .hero-signup-btn:hover {
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.5), 0 0 40px rgba(16, 185, 129, 0.3);
+            transform: translateY(-1px);
+          }
+        `}</style>
       </section>
 
       {/* SECTION 3 — Problem Statement (White) */}
