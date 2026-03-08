@@ -616,9 +616,6 @@ export default function SovereignShieldPage() {
             </div>
             <div className={`text-xl font-bold ${highRiskDestinations === 0 ? 'text-slate-400' : 'text-red-400'}`}>{highRiskDestinations}</div>
             <div className="text-[10px] text-slate-500 mt-0.5">Blocked countries (no legal basis)</div>
-            <div className="mt-1.5 h-0.5 bg-slate-700 rounded-full overflow-hidden">
-              <div className="h-full bg-red-500" style={{ width: '0%' }}></div>
-            </div>
           </div>
           <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
             <div className="flex items-center justify-between mb-1.5">
