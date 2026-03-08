@@ -107,17 +107,17 @@ It will:
 If you prefer manual control:
 
 ```bash
-# Build and start
-docker compose -f docker-compose.prod.yml up -d --build
+# Build and start (with .env file)
+docker compose -f docker-compose.prod.yml --env-file .env up -d --build
 
 # View logs
-docker compose -f docker-compose.prod.yml logs -f
+docker compose -f docker-compose.prod.yml --env-file .env logs -f
 
 # Stop services
-docker compose -f docker-compose.prod.yml down
+docker compose -f docker-compose.prod.yml --env-file .env down
 
 # Restart a specific service
-docker compose -f docker-compose.prod.yml restart api
+docker compose -f docker-compose.prod.yml --env-file .env restart api
 ```
 
 ## Service Management
@@ -126,24 +126,24 @@ docker compose -f docker-compose.prod.yml restart api
 
 ```bash
 # All services
-docker compose -f docker-compose.prod.yml logs -f
+docker compose -f docker-compose.prod.yml --env-file .env logs -f
 
 # Specific service
-docker compose -f docker-compose.prod.yml logs -f api
-docker compose -f docker-compose.prod.yml logs -f dashboard
-docker compose -f docker-compose.prod.yml logs -f postgres
+docker compose -f docker-compose.prod.yml --env-file .env logs -f api
+docker compose -f docker-compose.prod.yml --env-file .env logs -f dashboard
+docker compose -f docker-compose.prod.yml --env-file .env logs -f postgres
 ```
 
 ### Check Status
 
 ```bash
-docker compose -f docker-compose.prod.yml ps
+docker compose -f docker-compose.prod.yml --env-file .env ps
 ```
 
 ### Stop Services
 
 ```bash
-docker compose -f docker-compose.prod.yml down
+docker compose -f docker-compose.prod.yml --env-file .env down
 ```
 
 ### Update and Redeploy
@@ -174,52 +174,47 @@ The deployment consists of three services:
    - Built with node:20-alpine
    - Configured to call API at `https://api.veridion-nexus.eu`
 
-## Reverse Proxy Setup (Nginx)
+## Reverse Proxy Setup (Caddy)
 
-For production, set up Nginx as a reverse proxy:
+For production, set up Caddy as a reverse proxy with automatic HTTPS:
 
-```nginx
-# /etc/nginx/sites-available/veridion-nexus
-server {
-    listen 80;
-    server_name api.veridion-nexus.eu;
+```bash
+# Install Caddy
+sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
+sudo apt update
+sudo apt install caddy
+```
 
-    location / {
-        proxy_pass http://localhost:8080;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
+Create `/etc/caddy/Caddyfile`:
+
+```
+api.veridion-nexus.eu {
+    reverse_proxy localhost:8080
 }
 
-server {
-    listen 80;
-    server_name veridion-nexus.eu www.veridion-nexus.eu;
+app.veridion-nexus.eu {
+    reverse_proxy localhost:3000
+}
 
-    location / {
-        proxy_pass http://localhost:3000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
+veridion-nexus.eu {
+    reverse_proxy localhost:3000
+}
+
+www.veridion-nexus.eu {
+    reverse_proxy localhost:3000
 }
 ```
 
 Enable and restart:
 ```bash
-sudo ln -s /etc/nginx/sites-available/veridion-nexus /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl restart nginx
+sudo systemctl enable caddy
+sudo systemctl restart caddy
+sudo systemctl status caddy
 ```
 
-## SSL/TLS Setup (Let's Encrypt)
-
-```bash
-sudo apt install certbot python3-certbot-nginx -y
-sudo certbot --nginx -d api.veridion-nexus.eu -d veridion-nexus.eu -d www.veridion-nexus.eu
-```
+Caddy automatically handles SSL/TLS certificates via Let's Encrypt - no manual certificate setup needed!
 
 ## Troubleshooting
 
@@ -239,7 +234,7 @@ sudo certbot --nginx -d api.veridion-nexus.eu -d veridion-nexus.eu -d www.veridi
 
 1. Check Docker has enough resources: `docker system df`
 2. Clear build cache: `docker builder prune`
-3. Rebuild without cache: `docker compose -f docker-compose.prod.yml build --no-cache`
+3. Rebuild without cache: `docker compose -f docker-compose.prod.yml --env-file .env build --no-cache`
 
 ### Port conflicts
 
@@ -253,10 +248,10 @@ If ports 3000, 5432, or 8080 are in use:
 
 ```bash
 # Create backup
-docker compose -f docker-compose.prod.yml exec postgres pg_dump -U postgres veridion_api > backup_$(date +%Y%m%d_%H%M%S).sql
+docker compose -f docker-compose.prod.yml --env-file .env exec postgres pg_dump -U postgres veridion_api > backup_$(date +%Y%m%d_%H%M%S).sql
 
 # Restore backup
-docker compose -f docker-compose.prod.yml exec -T postgres psql -U postgres veridion_api < backup.sql
+docker compose -f docker-compose.prod.yml --env-file .env exec -T postgres psql -U postgres veridion_api < backup.sql
 ```
 
 ### Volume Backup
@@ -279,11 +274,44 @@ docker run --rm -v veridion_api_data:/data -v $(pwd):/backup alpine tar czf /bac
 docker stats
 ```
 
+## Admin Password Reset
+
+If you need to reset the admin user password:
+
+1. **Generate a new bcrypt hash:**
+   ```bash
+   cd /opt/veridion-nexus
+   cargo run --bin generate_hash
+   # This will output a bcrypt hash for "Admin1234!"
+   ```
+
+2. **Update the password hash in the database:**
+   ```bash
+   docker compose -f docker-compose.prod.yml --env-file .env exec postgres psql -U postgres -d veridion_api -c "UPDATE users SET password_hash = 'YOUR_BCRYPT_HASH_HERE' WHERE username = 'admin';"
+   ```
+
+3. **Verify the update:**
+   ```bash
+   docker compose -f docker-compose.prod.yml --env-file .env exec postgres psql -U postgres -d veridion_api -c "SELECT username, email, LEFT(password_hash, 20) as hash_preview FROM users WHERE username = 'admin';"
+   ```
+
+4. **Test login:**
+   - Go to `https://app.veridion-nexus.eu/login`
+   - Use email: `admin@localhost`
+   - Use password: `Admin1234!` (or whatever password you hashed)
+
+**Note:** The `generate_hash` binary is available in the project root. If it's not available, you can create it by adding to `Cargo.toml`:
+```toml
+[[bin]]
+name = "generate_hash"
+path = "generate_hash.rs"
+```
+
 ## Security Notes
 
 - Change default Postgres password
 - Use strong JWT_SECRET
 - Keep Docker and system updated
 - Configure firewall (UFW)
-- Use SSL/TLS in production
+- Use SSL/TLS in production (handled automatically by Caddy)
 - Regularly backup database
