@@ -90,23 +90,6 @@ export default function LandingPage() {
           animation: 'gridMove 20s linear infinite',
         }}></div>
 
-        {/* Floating Signal Elements */}
-        <div className="absolute top-32 left-[10%] signal-badge" style={{ animationDelay: '0s' }}>
-          <div className="px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/30 rounded-full backdrop-blur-sm">
-            <span className="text-[10px] font-mono text-emerald-400 tracking-wider">[ EVALUATING... ]</span>
-          </div>
-        </div>
-        <div className="absolute top-48 right-[15%] signal-badge" style={{ animationDelay: '1.5s', transform: 'rotate(-5deg)' }}>
-          <div className="px-3 py-1.5 bg-red-500/10 border border-red-500/30 rounded-full backdrop-blur-sm">
-            <span className="text-[10px] font-mono text-red-400 tracking-wider">[ BLOCK → CN ]</span>
-          </div>
-        </div>
-        <div className="absolute bottom-40 left-[20%] signal-badge" style={{ animationDelay: '3s', transform: 'rotate(3deg)' }}>
-          <div className="px-3 py-1.5 bg-green-500/10 border border-green-500/30 rounded-full backdrop-blur-sm">
-            <span className="text-[10px] font-mono text-green-400 tracking-wider">[ ALLOW → DE ]</span>
-          </div>
-        </div>
-
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
           {/* Top Badge */}
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-full mb-8">
@@ -174,21 +157,6 @@ export default function LandingPage() {
             100% {
               transform: perspective(1000px) rotateX(60deg) translateY(60px);
             }
-          }
-
-          @keyframes signalPulse {
-            0%, 100% {
-              opacity: 0.6;
-              transform: translateY(0) scale(1);
-            }
-            50% {
-              opacity: 1;
-              transform: translateY(-8px) scale(1.05);
-            }
-          }
-
-          .signal-badge {
-            animation: signalPulse 4s ease-in-out infinite;
           }
 
           .hero-signup-btn:hover {
