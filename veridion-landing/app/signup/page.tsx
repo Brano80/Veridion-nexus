@@ -96,21 +96,21 @@ export default function SignupPage() {
       <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center px-4">
         <div className="w-full max-w-md">
           {/* Brand */}
-          <div className="text-center mb-8">
-            <div className="flex items-center justify-center gap-2 mb-3">
-              <Shield className="w-8 h-8 text-emerald-400" />
+          <div className="text-center mb-6">
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <Shield className="w-7 h-7 text-emerald-400" />
               <h1 style={{ fontFamily: 'Inter, sans-serif' }}>
-                <span className="text-2xl font-black italic uppercase text-white" style={{ letterSpacing: '-0.05em' }}>
+                <span className="text-xl font-black italic uppercase text-white" style={{ letterSpacing: '-0.05em' }}>
                   VERIDION
                 </span>{' '}
-                <span className="text-lg font-semibold italic lowercase" style={{ color: '#10b981', filter: 'drop-shadow(0 0 15px rgba(16, 185, 129, 0.3))' }}>
+                <span className="text-base font-semibold italic lowercase" style={{ color: '#10b981', filter: 'drop-shadow(0 0 15px rgba(16, 185, 129, 0.3))' }}>
                   nexus
                 </span>
               </h1>
             </div>
           </div>
 
-          <div className="bg-slate-800 border border-slate-700 rounded-xl p-8 space-y-6">
+          <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 space-y-5">
             <div className="text-center">
               <div className="text-4xl mb-3">🎉</div>
               <h2 className="text-xl font-bold text-white mb-1">Welcome to Sovereign Shield</h2>
@@ -179,7 +179,7 @@ export default function SignupPage() {
           </div>
 
           {/* Footer */}
-          <p className="text-center text-xs text-slate-600 mt-6">
+          <p className="text-center text-xs text-slate-600 mt-5">
             &copy; 2026 Veridion Nexus
           </p>
         </div>
@@ -191,14 +191,14 @@ export default function SignupPage() {
     <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center px-4">
       <div className="w-full max-w-md">
         {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-2 mb-3">
-            <Shield className="w-8 h-8 text-emerald-400" />
+        <div className="text-center mb-6">
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <Shield className="w-7 h-7 text-emerald-400" />
             <h1 style={{ fontFamily: 'Inter, sans-serif' }}>
-              <span className="text-2xl font-black italic uppercase text-white" style={{ letterSpacing: '-0.05em' }}>
+              <span className="text-xl font-black italic uppercase text-white" style={{ letterSpacing: '-0.05em' }}>
                 VERIDION
               </span>{' '}
-              <span className="text-lg font-semibold italic lowercase" style={{ color: '#10b981', filter: 'drop-shadow(0 0 15px rgba(16, 185, 129, 0.3))' }}>
+              <span className="text-base font-semibold italic lowercase" style={{ color: '#10b981', filter: 'drop-shadow(0 0 15px rgba(16, 185, 129, 0.3))' }}>
                 nexus
               </span>
             </h1>
@@ -206,8 +206,8 @@ export default function SignupPage() {
         </div>
 
         {/* Card */}
-        <div className="bg-slate-800 border border-slate-700 rounded-xl p-8">
-          <h2 className="text-lg font-semibold text-white mb-6 text-center">
+        <div className="bg-slate-800 border border-slate-700 rounded-xl p-6">
+          <h2 className="text-base font-semibold text-white mb-5 text-center">
             Start your free trial
           </h2>
 
@@ -217,9 +217,9 @@ export default function SignupPage() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-3">
             <div>
-              <label htmlFor="companyName" className="block text-sm font-medium text-slate-300 mb-1.5">
+              <label htmlFor="companyName" className="block text-xs font-medium text-slate-300 mb-1">
                 Company name
               </label>
               <input
@@ -227,14 +227,14 @@ export default function SignupPage() {
                 type="text"
                 value={companyName}
                 onChange={(e) => { setCompanyName(e.target.value); setErrors(prev => { const n = {...prev}; delete n.companyName; return n; }); }}
-                className="w-full px-3 py-2.5 bg-slate-900 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-colors"
+                className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-colors"
                 placeholder="Acme Corp"
               />
               {errors.companyName && <p className="text-red-400 text-xs mt-1">{errors.companyName}</p>}
             </div>
 
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-1.5">
+              <label htmlFor="email" className="block text-xs font-medium text-slate-300 mb-1">
                 Email address
               </label>
               <input
@@ -242,7 +242,7 @@ export default function SignupPage() {
                 type="email"
                 value={email}
                 onChange={(e) => { setEmail(e.target.value); setErrors(prev => { const n = {...prev}; delete n.email; return n; }); }}
-                className="w-full px-3 py-2.5 bg-slate-900 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-colors"
+                className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-colors"
                 placeholder="you@company.com"
                 autoComplete="email"
               />
@@ -250,7 +250,7 @@ export default function SignupPage() {
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-slate-300 mb-1.5">
+              <label htmlFor="password" className="block text-xs font-medium text-slate-300 mb-1">
                 Password
               </label>
               <div className="relative">
@@ -259,7 +259,7 @@ export default function SignupPage() {
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => { setPassword(e.target.value); setErrors(prev => { const n = {...prev}; delete n.password; return n; }); }}
-                  className="w-full px-3 py-2.5 bg-slate-900 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-colors pr-10"
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-colors pr-10"
                   placeholder="••••••••"
                   autoComplete="new-password"
                 />
@@ -277,14 +277,14 @@ export default function SignupPage() {
             <button
               type="submit"
               disabled={submitting}
-              className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-800 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+              className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-800 disabled:cursor-not-allowed text-sm text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
             >
               {submitting ? 'Creating account...' : 'Start Free Trial'}
             </button>
           </form>
 
-          <div className="mt-6 text-center">
-            <p className="text-sm text-slate-500">
+          <div className="mt-5 text-center">
+            <p className="text-xs text-slate-500">
               Already have an account?{' '}
               <a
                 href={process.env.NEXT_PUBLIC_DASHBOARD_URL && !process.env.NEXT_PUBLIC_DASHBOARD_URL.includes('localhost') 
@@ -299,7 +299,7 @@ export default function SignupPage() {
         </div>
 
         {/* Footer */}
-        <p className="text-center text-xs text-slate-600 mt-6">
+        <p className="text-center text-xs text-slate-600 mt-5">
           &copy; 2026 Veridion Nexus
         </p>
       </div>
