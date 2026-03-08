@@ -3,7 +3,7 @@ import './globals.css'
 
 export const metadata: Metadata = {
   title: 'Sovereign Shield — EU Compliance API',
-  description: 'GDPR-compliant data transfer monitoring and compliance tooling',
+  description: 'GDPR data transfer monitoring and compliance tooling supporting demonstrable compliance',
 }
 
 export default function RootLayout({
