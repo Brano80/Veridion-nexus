@@ -176,7 +176,7 @@ export default function LoginPage() {
                 rel="noopener noreferrer"
                 className="text-emerald-400 hover:text-emerald-300 transition-colors"
               >
-                Apply for Design Partner Access
+                Sign Up
               </a>
             </p>
           </div>
