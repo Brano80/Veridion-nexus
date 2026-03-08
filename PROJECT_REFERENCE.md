@@ -1,7 +1,7 @@
 # Project Reference — Veridion API / Sovereign Shield
 
-**Version:** 1.6  
-**Last updated:** 2026-03-07
+**Version:** 1.7  
+**Last updated:** 2026-03-08
 
 This is the **single project reference** for Veridion API: vision, scope, tech stack, configuration, and current behaviour (dashboard and API). Use it to onboard, scope work, and keep the codebase and docs aligned.
 
@@ -103,7 +103,7 @@ veridion-api/
 | `DATABASE_URL`   | Yes      | PostgreSQL connection string |
 | `SERVER_HOST`    | No       | Bind host (default `0.0.0.0`) |
 | `SERVER_PORT`    | No       | Bind port (default `8080`) |
-| `ALLOWED_ORIGINS`| No       | CORS origins (default includes localhost:3000) |
+| `ALLOWED_ORIGINS`| No       | CORS origins (default: `http://localhost:3000,http://127.0.0.1:3000,https://app.veridion-nexus.eu`) |
 | `RUST_ENV`       | No       | e.g. `development`; production disables dev-bypass |
 | `JWT_SECRET`     | No       | JWT secret (dev default if unset) |
 | `MIGRATIONS_PATH`| No       | Override migrations dir (default `./migrations`) |
@@ -285,7 +285,7 @@ The MCP (Model Context Protocol) server provides GDPR compliance tools for AI ag
 ### 10.5 Login — `dashboard/app/login/page.tsx`
 
 - **Route**: `/login`. Full-page login form with email/password authentication.
-- **Auth**: Calls `POST /api/v1/auth/login` with email and password. Stores JWT token in `localStorage` (`ss_token`, `ss_user`).
+- **Auth**: Calls `POST {NEXT_PUBLIC_API_URL}/api/v1/auth/login` (uses `process.env.NEXT_PUBLIC_API_URL` environment variable, falls back to empty string for relative path). Stores JWT token in `localStorage` (`ss_token`, `ss_user`).
 - **Redirect**: On success, redirects to `/` (Sovereign Shield home). On error, displays error message.
 - **Remember me**: Optional checkbox (not yet implemented in backend).
 - **Layout**: Does not use `DashboardLayout` — standalone full-page form.
@@ -443,15 +443,15 @@ Pages using `useSearchParams()` are wrapped in Suspense boundaries to satisfy Ne
 **Location**: `/opt/veridion-nexus` on Hetzner Ubuntu 24.04 server
 
 **Files**:
-- `deploy.sh` — Idempotent deployment script with error handling (`set -e`)
+- `deploy.sh` — Production deployment script that: (1) changes to `/opt/veridion-nexus`, (2) runs `git pull`, (3) smart rebuilds API only if Rust/migration files changed, (4) always rebuilds dashboard with `--no-cache`, (5) uses `--env-file .env` for all docker compose commands, (6) verifies health with `curl http://localhost:8080/health`. Idempotent — safe to run multiple times.
 - `Dockerfile` — Multi-stage Rust API build (rust:1.88 builder → debian:bookworm-slim runtime)
-- `Dockerfile.dashboard` — Next.js dashboard build (node:20-alpine)
-- `docker-compose.prod.yml` — Production compose with postgres, api, dashboard services
+- `Dockerfile.dashboard` — Next.js dashboard build (node:20-alpine) with `ARG NEXT_PUBLIC_API_URL` and `ENV NEXT_PUBLIC_API_URL` set before `npm run build` to embed the API URL at build time
+- `docker-compose.prod.yml` — Production compose with postgres, api, dashboard services. Uses `--env-file .env` for environment variables.
 
 **Services**:
 - **postgres**: postgres:16-alpine, named volume `veridion_api_data`
-- **api**: Built from `Dockerfile`, env: `DATABASE_URL`, `JWT_SECRET`, `RUST_ENV=production`, `SERVER_HOST=0.0.0.0`, `SERVER_PORT=8080`
-- **dashboard**: Built from `Dockerfile.dashboard`, env: `NEXT_PUBLIC_API_URL=https://api.veridion-nexus.eu`
+- **api**: Built from `Dockerfile`, env from `.env`: `DATABASE_URL`, `JWT_SECRET`, `RUST_ENV=production`, `SERVER_HOST=0.0.0.0`, `SERVER_PORT=8080`, `ALLOWED_ORIGINS` (includes `https://app.veridion-nexus.eu`)
+- **dashboard**: Built from `Dockerfile.dashboard` with `NEXT_PUBLIC_API_URL` build arg. Runtime env: `NEXT_PUBLIC_API_URL=https://api.veridion-nexus.eu`. Login page uses `process.env.NEXT_PUBLIC_API_URL` for API calls.
 
 **Deployment**:
 ```bash
@@ -460,13 +460,13 @@ chmod +x deploy.sh
 ./deploy.sh
 ```
 
-The script verifies Docker, checks required files, builds images, and starts services. Idempotent — safe to run multiple times.
+The script automatically pulls latest code, intelligently rebuilds only changed services, and verifies deployment success with health checks.
 
 **Migration Notes**:
 - Migration **026** fixes `system_settings` constraint: drops old PRIMARY KEY on `key`, adds UNIQUE constraint on `(key, tenant_id)` to support `ON CONFLICT (key, tenant_id)` in migration **029**.
 - All migrations run automatically on API startup via `sqlx::migrate`.
 
-**Documentation**: See `DEPLOYMENT.md` for detailed setup, Nginx reverse proxy, SSL/TLS, backup procedures.
+**Reverse Proxy**: Production uses **Caddy** (not Nginx) for automatic HTTPS/SSL via Let's Encrypt. See `DEPLOYMENT.md` for Caddy setup, SSL/TLS (automatic), backup procedures, and admin password reset instructions.
 
 ---
 
