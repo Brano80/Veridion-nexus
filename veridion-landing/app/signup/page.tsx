@@ -18,6 +18,7 @@ export default function SignupPage() {
   const [companyName, setCompanyName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -35,6 +36,9 @@ export default function SignupPage() {
     }
     if (password.length < 8) {
       newErrors.password = 'Password must be at least 8 characters';
+    }
+    if (!inviteCode.trim() || inviteCode.trim() !== 'EARLY_ACCESS_2026') {
+      newErrors.inviteCode = 'Invalid invite code';
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -272,6 +276,21 @@ export default function SignupPage() {
                 </button>
               </div>
               {errors.password && <p className="text-red-400 text-xs mt-1">{errors.password}</p>}
+            </div>
+
+            <div>
+              <label htmlFor="inviteCode" className="block text-xs font-medium text-slate-300 mb-1">
+                Invite Code
+              </label>
+              <input
+                id="inviteCode"
+                type="text"
+                value={inviteCode}
+                onChange={(e) => { setInviteCode(e.target.value); setErrors(prev => { const n = {...prev}; delete n.inviteCode; return n; }); }}
+                className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-colors"
+                placeholder="Enter your invite code"
+              />
+              {errors.inviteCode && <p className="text-red-400 text-xs mt-1">{errors.inviteCode}</p>}
             </div>
 
             <button
