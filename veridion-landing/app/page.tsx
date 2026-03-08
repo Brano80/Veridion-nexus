@@ -237,8 +237,7 @@ export default function LandingPage() {
               Three Steps to Runtime Enforcement
             </h2>
             <p className="text-base text-slate-600 max-w-2xl mx-auto">
-              Integrate Veridion Nexus into your application in minutes.
-              Install via REST API or MCP.
+              Integrate via REST API or MCP Server.
             </p>
           </div>
 
@@ -249,13 +248,10 @@ export default function LandingPage() {
               </div>
               <div className="flex-1">
                 <h3 className="text-lg font-semibold text-slate-900 mb-2">Call Before Every Transfer</h3>
-                <p className="text-base text-slate-600 mb-4">
+                <p className="text-base text-slate-600">
                   Before calling OpenAI, Anthropic, or any external API, call{' '}
                   <code className="bg-slate-100 px-2 py-1 rounded text-sm font-mono text-slate-900">POST /api/v1/shield/evaluate</code>{' '}
-                  with destination country, partner name, data categories, and purpose.
-                </p>
-                <p className="text-base text-slate-600">
-                  Sovereign Shield returns ALLOW, BLOCK, or REVIEW in under 100ms.
+                  with the destination country, partner name, data categories, and purpose. Sovereign Shield returns ALLOW, BLOCK, or REVIEW.
                 </p>
               </div>
             </div>
@@ -267,8 +263,7 @@ export default function LandingPage() {
               <div className="flex-1">
                 <h3 className="text-lg font-semibold text-slate-900 mb-2">Enforce the Decision</h3>
                 <p className="text-base text-slate-600">
-                  If ALLOW, proceed with your transfer. If BLOCK, stop the transfer and return an error. 
-                  If REVIEW, queue the transfer for human oversight and wait for approval before proceeding.
+                  If ALLOW, proceed. If BLOCK, stop the transfer and return an error to the caller. If REVIEW, queue the transfer for human oversight — do not proceed until a decision is made.
                 </p>
               </div>
             </div>
@@ -280,8 +275,7 @@ export default function LandingPage() {
               <div className="flex-1">
                 <h3 className="text-lg font-semibold text-slate-900 mb-2">Evidence Is Automatic</h3>
                 <p className="text-base text-slate-600">
-                  Every evaluation is automatically sealed in evidence. No extra steps. Export PDF reports, 
-                  verify chain integrity, and demonstrate compliance to auditors with structured evidence for compliance.
+                  Every evaluation is cryptographically sealed in your audit trail. Export PDF reports, verify chain integrity, and provide structured, time-bound evidence to auditors and DPAs.
                 </p>
               </div>
             </div>
