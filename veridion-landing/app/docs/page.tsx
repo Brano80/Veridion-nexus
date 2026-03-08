@@ -393,7 +393,7 @@ app.use('/api/ai', shieldMiddleware);`}
                 </table>
               </div>
               <p className="text-slate-600 text-sm mt-4">
-                API keys start with <code className="bg-slate-200 px-1.5 py-0.5 rounded text-sm font-mono">ss_test_</code> during the design partner period. Production keys will start with <code className="bg-slate-200 px-1.5 py-0.5 rounded text-sm font-mono">ss_live_</code> when paid plans launch.
+                API keys start with <code className="bg-slate-200 px-1.5 py-0.5 rounded text-sm font-mono">ss_test_</code> for trial accounts and <code className="bg-slate-200 px-1.5 py-0.5 rounded text-sm font-mono">ss_live_</code> for Pro accounts.
               </p>
             </section>
 
@@ -988,14 +988,17 @@ async function callOpenAI(userData) {
               </div>
 
               <h3 className="text-xl font-semibold text-slate-900 mb-3">Setup: Claude Desktop</h3>
+              <p className="text-slate-600 text-sm mb-3">
+                First, clone the repository and build the MCP server: <code className="bg-slate-200 px-1.5 py-0.5 rounded text-xs font-mono">cd mcp-server && npm install && npm run build</code>. Then use the absolute path to <code className="bg-slate-200 px-1.5 py-0.5 rounded text-xs font-mono">dist/index.js</code> in your config.
+              </p>
               <CodeBlock
                 id="mcp-claude-config"
                 language="json"
                 code={`{
   "mcpServers": {
     "sovereign-shield": {
-      "command": "npx",
-      "args": ["sovereign-shield-mcp"],
+      "command": "node",
+      "args": ["/absolute/path/to/veridion-api/mcp-server/dist/index.js"],
       "env": {
         "SOVEREIGN_SHIELD_API_KEY": "ss_test_your_key_here"
       }
@@ -1008,14 +1011,17 @@ async function callOpenAI(userData) {
               </p>
 
               <h3 className="text-xl font-semibold text-slate-900 mb-3">Setup: Cursor</h3>
+              <p className="text-slate-600 text-sm mb-3">
+                First, clone the repository and build the MCP server: <code className="bg-slate-200 px-1.5 py-0.5 rounded text-xs font-mono">cd mcp-server && npm install && npm run build</code>. Then use the absolute path to <code className="bg-slate-200 px-1.5 py-0.5 rounded text-xs font-mono">dist/index.js</code> in your config.
+              </p>
               <CodeBlock
                 id="mcp-cursor-config"
                 language="json"
                 code={`{
   "mcpServers": {
     "sovereign-shield": {
-      "command": "npx",
-      "args": ["sovereign-shield-mcp"],
+      "command": "node",
+      "args": ["/absolute/path/to/veridion-api/mcp-server/dist/index.js"],
       "env": {
         "SOVEREIGN_SHIELD_API_KEY": "ss_test_your_key_here"
       }
