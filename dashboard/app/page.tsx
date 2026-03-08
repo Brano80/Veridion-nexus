@@ -632,9 +632,9 @@ export default function SovereignShieldPage() {
           <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
             <div className="flex items-center justify-between mb-1.5">
               <div className="text-xs text-slate-400 font-medium">SCC COVERAGE</div>
-              <CheckCircle className="w-3.5 h-3.5 text-yellow-500" />
+              <CheckCircle className={`w-3.5 h-3.5 ${sccCoveragePct === 0 ? 'text-slate-500' : 'text-yellow-500'}`} />
             </div>
-            <div className="text-xl font-bold text-yellow-400">{sccCoveragePct}%</div>
+            <div className={`text-xl font-bold ${sccCoveragePct === 0 ? 'text-slate-400' : 'text-yellow-400'}`}>{sccCoveragePct}%</div>
             <div className="text-[10px] text-slate-500 mt-0.5">
               {sccCoverageTotal === 0 ? 'No SCC-required transfers yet' : `${sccCoverageCovered} of ${sccCoverageTotal} destinations covered`}
             </div>
