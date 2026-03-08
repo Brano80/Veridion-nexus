@@ -94,7 +94,7 @@ export default function DocsPage() {
                 Documentation
               </Link>
               <a 
-                href="http://localhost:3000/login" 
+                href={process.env.NEXT_PUBLIC_DASHBOARD_URL ? `${process.env.NEXT_PUBLIC_DASHBOARD_URL}/login` : '/login'}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-slate-300 hover:text-white transition-colors text-sm"
@@ -115,7 +115,7 @@ export default function DocsPage() {
                 Documentation
               </Link>
               <a 
-                href="http://localhost:3000/login" 
+                href={process.env.NEXT_PUBLIC_DASHBOARD_URL ? `${process.env.NEXT_PUBLIC_DASHBOARD_URL}/login` : '/login'}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="block text-slate-300 hover:text-white transition-colors text-sm"
@@ -1133,7 +1133,7 @@ async function callOpenAI(userData) {
             </div>
             <div className="space-y-2">
               <a
-                href="http://localhost:3000/login"
+                href={process.env.NEXT_PUBLIC_DASHBOARD_URL ? `${process.env.NEXT_PUBLIC_DASHBOARD_URL}/login` : '/login'}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="block text-slate-400 hover:text-sky-400 transition-colors text-sm"
@@ -1147,7 +1147,7 @@ async function callOpenAI(userData) {
                 Documentation
               </Link>
               <a
-                href="http://localhost:3000/adequate-countries"
+                href={process.env.NEXT_PUBLIC_DASHBOARD_URL ? `${process.env.NEXT_PUBLIC_DASHBOARD_URL}/adequate-countries` : '/adequate-countries'}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="block text-slate-400 hover:text-sky-400 transition-colors text-sm"

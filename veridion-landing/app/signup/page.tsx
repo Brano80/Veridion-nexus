@@ -160,7 +160,7 @@ export default function SignupPage() {
             {/* Actions */}
             <div className="space-y-3">
               <a
-                href="http://localhost:3000/login"
+                href={process.env.NEXT_PUBLIC_DASHBOARD_URL ? `${process.env.NEXT_PUBLIC_DASHBOARD_URL}/login` : '/login'}
                 className="flex items-center justify-center gap-2 w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg transition-colors"
               >
                 Sign In to Dashboard
@@ -285,7 +285,7 @@ export default function SignupPage() {
             <p className="text-sm text-slate-500">
               Already have an account?{' '}
               <a
-                href="http://localhost:3000/login"
+                href={process.env.NEXT_PUBLIC_DASHBOARD_URL ? `${process.env.NEXT_PUBLIC_DASHBOARD_URL}/login` : '/login'}
                 className="text-emerald-400 hover:text-emerald-300 transition-colors"
               >
                 Sign in
