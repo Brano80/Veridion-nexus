@@ -89,10 +89,12 @@ echo -e "${YELLOW}📋 Verifying required files...${NC}"
 REQUIRED_FILES=(
     "Dockerfile"
     "Dockerfile.dashboard"
+    "Dockerfile.landing"
     "docker-compose.prod.yml"
     "Cargo.toml"
     "src/main.rs"
     "dashboard/package.json"
+    "veridion-landing/package.json"
     "migrations"
 )
 
@@ -129,6 +131,14 @@ fi
 echo -e "${GREEN}🔨 Building Dashboard Docker image (always rebuilt)...${NC}"
 $COMPOSE_CMD -f docker-compose.prod.yml --env-file .env build --no-cache dashboard || {
     echo -e "${RED}❌ Dashboard build failed${NC}"
+    exit 1
+}
+echo ""
+
+# Always rebuild landing with --no-cache
+echo -e "${GREEN}🔨 Building Landing Docker image (always rebuilt)...${NC}"
+$COMPOSE_CMD -f docker-compose.prod.yml --env-file .env build --no-cache landing || {
+    echo -e "${RED}❌ Landing build failed${NC}"
     exit 1
 }
 echo ""
@@ -180,6 +190,7 @@ echo ""
 echo "Services are running:"
 echo "  - API: http://localhost:8080"
 echo "  - Dashboard: http://localhost:3000"
+echo "  - Landing: http://localhost:3001"
 echo "  - Postgres: localhost:5432"
 echo ""
 echo "To view logs:"

@@ -203,7 +203,7 @@ veridion-nexus.eu {
 }
 
 www.veridion-nexus.eu {
-    reverse_proxy localhost:3000
+    reverse_proxy localhost:3001
 }
 ```
 
