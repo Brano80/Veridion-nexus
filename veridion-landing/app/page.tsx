@@ -192,8 +192,7 @@ export default function LandingPage() {
               Runtime Enforcement + Cryptographic Evidence
             </h2>
             <p className="text-base text-slate-600 max-w-2xl mx-auto">
-              A single API call evaluates every transfer, returns ALLOW/BLOCK/REVIEW in under 100ms, 
-              and seals every decision in cryptographic evidence. Integrate in minutes, enforce in production.
+              A single API call evaluates every transfer, returns ALLOW, BLOCK, or REVIEW, and seals every decision in cryptographic evidence.
             </p>
           </div>
 
@@ -202,8 +201,7 @@ export default function LandingPage() {
               <Globe className="w-10 h-10 text-emerald-500 mb-4" />
               <h3 className="text-lg font-semibold text-slate-900 mb-2">Real-Time Monitoring</h3>
               <p className="text-base text-slate-600">
-                Every API call to an external service is evaluated before the transfer proceeds. Country classification, 
-                SCC validation, and legal basis checks happen synchronously.
+                Every transfer your application submits is evaluated before it proceeds. Country classification, SCC validation, and legal basis checks happen synchronously at the point of transfer.
               </p>
             </div>
 
@@ -211,8 +209,7 @@ export default function LandingPage() {
               <Lock className="w-10 h-10 text-emerald-500 mb-4" />
               <h3 className="text-lg font-semibold text-slate-900 mb-2">Runtime Enforcement</h3>
               <p className="text-base text-slate-600">
-                Block transfers to blocked countries. Require human review for SCC-required destinations. 
-                Return ALLOW for EU/EEA and adequate countries.
+                Block transfers to non-adequate countries without a valid SCC. Require human review for SCC-required destinations. Return ALLOW for EU/EEA and adequate countries automatically.
               </p>
             </div>
 
@@ -220,8 +217,7 @@ export default function LandingPage() {
               <FileCheck className="w-10 h-10 text-emerald-500 mb-4" />
               <h3 className="text-lg font-semibold text-slate-900 mb-2">Cryptographic Evidence</h3>
               <p className="text-base text-slate-600">
-                Every decision is sealed with a cryptographic hash and linked in an append-only chain. 
-                Export PDF reports for auditors. Verify chain integrity anytime.
+                Every decision is sealed with a cryptographic hash and linked in an append-only chain. Export PDF reports for auditors and DPAs. Verify chain integrity at any time.
               </p>
             </div>
           </div>
