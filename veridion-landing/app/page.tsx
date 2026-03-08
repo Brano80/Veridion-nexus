@@ -498,12 +498,12 @@ export default function LandingPage() {
               >
                 Documentation
               </a>
-              <a
-                href="#"
+              <Link
+                href="/privacy"
                 className="block text-slate-400 hover:text-sky-400 transition-colors text-sm"
               >
                 Privacy Policy
-              </a>
+              </Link>
             </div>
 
             {/* Right */}
