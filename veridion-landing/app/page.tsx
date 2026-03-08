@@ -297,7 +297,7 @@ export default function LandingPage() {
               <CheckCircle className="w-8 h-8 text-emerald-500 mb-3" />
               <h3 className="text-lg font-semibold text-slate-900 mb-2">Country Classification</h3>
               <p className="text-sm text-slate-600">
-                Automatic classification: EU/EEA, Adequate, SCC-required, Blocked. Updates reflect adequacy decisions.
+                Automatic classification of destinations: EU/EEA, Adequate, SCC-required, and Blocked. Reflects current adequacy decisions including the EU-US Data Privacy Framework and Brazil (January 2026).
               </p>
             </div>
 
@@ -305,7 +305,7 @@ export default function LandingPage() {
               <CheckCircle className="w-8 h-8 text-emerald-500 mb-3" />
               <h3 className="text-lg font-semibold text-slate-900 mb-2">SCC Registry</h3>
               <p className="text-sm text-slate-600">
-                Register Standard Contractual Clauses (C2C, C2P, P2P, P2C) per partner. Auto-approve matching pending reviews.
+                Register Standard Contractual Clauses (C2C, C2P, P2P, P2C) per partner and destination. Pending reviews are auto-approved when a matching SCC is registered.
               </p>
             </div>
 
@@ -322,8 +322,7 @@ export default function LandingPage() {
               <CheckCircle className="w-8 h-8 text-emerald-500 mb-3" />
               <h3 className="text-lg font-semibold text-slate-900 mb-2">Shadow Mode</h3>
               <p className="text-sm text-slate-600">
-                Observe policy behavior before enabling enforcement. All transfers pass through, but real decisions 
-                are recorded in evidence with shadow_mode flag.
+                Observe real policy decisions before enabling enforcement. Transfers are not blocked, but every decision is recorded in your audit trail — so you can see exactly what would have been enforced.
               </p>
             </div>
 
@@ -331,8 +330,7 @@ export default function LandingPage() {
               <CheckCircle className="w-8 h-8 text-emerald-500 mb-3" />
               <h3 className="text-lg font-semibold text-slate-900 mb-2">Evidence Vault</h3>
               <p className="text-sm text-slate-600">
-                Append-only, hash-chained evidence. Export PDF reports. Verify chain integrity. 
-                GDPR Art. 30 supported by design.
+                Append-only, cryptographically hash-chained audit trail. Export PDF reports for auditors and DPAs. Chain integrity verifiable at any time. Designed to support GDPR Art. 30 record-keeping obligations.
               </p>
             </div>
 
@@ -340,8 +338,7 @@ export default function LandingPage() {
               <CheckCircle className="w-8 h-8 text-emerald-500 mb-3" />
               <h3 className="text-lg font-semibold text-slate-900 mb-2">Transfer Log</h3>
               <p className="text-sm text-slate-600">
-                Complete audit trail of all transfers. Filter by destination, partner, status. CSV export. 
-                Shadow mode events clearly marked.
+                Complete record of all evaluated transfers. Filter by destination, partner, and decision status. CSV export available. Shadow mode evaluations are clearly distinguished from enforced decisions.
               </p>
             </div>
           </div>
