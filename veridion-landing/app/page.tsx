@@ -100,7 +100,7 @@ export default function LandingPage() {
               href="/signup"
               className="inline-flex items-center gap-2 px-8 py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-base font-semibold transition-colors shadow-lg shadow-emerald-500/20"
             >
-              Apply for Design Partner Access
+              Sign Up
               <ArrowRight className="w-5 h-5" />
             </Link>
             <a
@@ -369,7 +369,7 @@ export default function LandingPage() {
               href="/signup"
               className="inline-flex items-center gap-2 px-8 py-4 bg-white text-emerald-600 text-lg font-bold rounded-xl hover:bg-slate-50 transition-colors shadow-md"
             >
-              Apply for Design Partner Access
+              Sign Up
               <ArrowRight className="w-5 h-5" />
             </Link>
           </div>
