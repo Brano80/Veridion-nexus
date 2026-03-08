@@ -17,7 +17,12 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const res = await fetch('/api/v1/auth/login', {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+      // Remove trailing slash if present, then add the API path
+      const baseUrl = apiUrl.replace(/\/$/, '');
+      const loginUrl = `${baseUrl}/api/v1/auth/login`;
+      
+      const res = await fetch(loginUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password, remember_me: rememberMe }),
