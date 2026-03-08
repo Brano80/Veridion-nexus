@@ -381,10 +381,17 @@ export default function SovereignShieldPage() {
   // Transfers in Review Queue awaiting human decision
   const actualPending = reviewQueuePending.length;
 
-  // Status: Based on backend availability, not transfer counts
-  // ACTIVE = backend is reachable and settings API succeeded
-  // DISABLED = backend unreachable or settings API failed
-  const status = backendAvailable ? 'ACTIVE' : 'DISABLED';
+  // Status: Based on blocked transfer counts
+  // ACTIVE = default state, no blocked transfers or system is working normally
+  // ATTENTION = some blocked transfers (needs attention)
+  // AT_RISK = many blocked transfers (at risk)
+  // Default to ACTIVE even when there are no events (system is active and monitoring)
+  let status: 'ACTIVE' | 'ATTENTION' | 'AT_RISK' = 'ACTIVE';
+  if (blocked > 0 && blocked < 10) {
+    status = 'ATTENTION';
+  } else if (blocked >= 10) {
+    status = 'AT_RISK';
+  }
 
   // SCC COVERAGE: destinations with unresolved REVIEW transfers OR valid SCC
   // Denominator = union of unresolved destinations + covered destinations
@@ -562,6 +569,8 @@ export default function SovereignShieldPage() {
             <div className="flex items-center gap-3">
               {status === 'ACTIVE' ? (
                 <CheckCircle className="w-5 h-5 text-green-400" />
+              ) : status === 'ATTENTION' ? (
+                <AlertTriangle className="w-5 h-5 text-amber-400" />
               ) : (
                 <AlertTriangle className="w-5 h-5 text-red-400" />
               )}
@@ -569,8 +578,10 @@ export default function SovereignShieldPage() {
                 Status:{' '}
                 {status === 'ACTIVE' ? (
                   <span className="text-green-400">ACTIVE</span>
+                ) : status === 'ATTENTION' ? (
+                  <span className="text-amber-400">ATTENTION</span>
                 ) : (
-                  <span className="text-red-400">DISABLED</span>
+                  <span className="text-red-400">AT_RISK</span>
                 )}
               </span>
             </div>
