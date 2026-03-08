@@ -493,7 +493,7 @@ export default function LandingPage() {
             {/* Center Links */}
             <div className="space-y-2">
               <a
-                href="#faq"
+                href="/docs"
                 className="block text-slate-400 hover:text-sky-400 transition-colors text-sm"
               >
                 Documentation
