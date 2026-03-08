@@ -166,7 +166,7 @@ export default function LandingPage() {
         </div>
 
         {/* CSS Animations */}
-        <style jsx>{`
+        <style dangerouslySetInnerHTML={{__html: `
           @keyframes gridMove {
             0% {
               transform: perspective(1000px) rotateX(60deg) translateY(0);
@@ -195,7 +195,7 @@ export default function LandingPage() {
             box-shadow: 0 0 20px rgba(16, 185, 129, 0.5), 0 0 40px rgba(16, 185, 129, 0.3);
             transform: translateY(-1px);
           }
-        `}</style>
+        `}} />
       </section>
 
       {/* SECTION 3 — Problem Statement (White) */}
