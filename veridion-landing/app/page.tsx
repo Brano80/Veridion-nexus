@@ -148,8 +148,7 @@ export default function LandingPage() {
               <AlertCircle className="w-10 h-10 text-red-500 mb-4" />
               <h3 className="text-lg font-semibold text-slate-900 mb-2">No Visibility</h3>
               <p className="text-sm text-slate-600">
-                You can&apos;t demonstrate compliance if you don&apos;t know which transfers are happening, 
-                where they&apos;re going, or whether adequate safeguards exist.
+                You cannot demonstrate compliance with transfers you cannot see. Without runtime instrumentation, there is no record of which transfers occurred, where data went, or whether adequate safeguards were in place.
               </p>
             </div>
 
@@ -157,26 +156,23 @@ export default function LandingPage() {
               <AlertCircle className="w-10 h-10 text-red-500 mb-4" />
               <h3 className="text-lg font-semibold text-slate-900 mb-2">Manual Audits Are Too Late</h3>
               <p className="text-sm text-slate-600">
-                By the time an auditor asks for evidence, it&apos;s too late to create it. GDPR Art. 30 requires 
-                processing records, but retroactive documentation doesn&apos;t satisfy Art. 25.
+                By the time a DPA or auditor requests evidence, it is too late to create it. GDPR Art. 30 requires records of processing activities, and retroactive documentation does not satisfy the accountability principle under Art. 5(2).
               </p>
             </div>
 
             <div className="bg-slate-50 rounded-xl p-6 shadow-sm">
               <AlertCircle className="w-10 h-10 text-red-500 mb-4" />
-              <h3 className="text-lg font-semibold text-slate-900 mb-2">DPAs Aren&apos;t Enough</h3>
+              <h3 className="text-lg font-semibold text-slate-900 mb-2">A DPA Is Not Enough</h3>
               <p className="text-sm text-slate-600">
-                A Data Processing Agreement establishes the contractual framework, but GDPR Art. 5(2) requires 
-                you to demonstrate compliance per transfer. A DPA alone cannot provide the audit trail you need.
+                A Data Processing Agreement establishes the contractual framework, but GDPR Art. 5(2) requires you to demonstrate compliance per transfer. A DPA alone cannot provide the per-transfer audit trail regulators expect.
               </p>
             </div>
 
             <div className="bg-slate-50 rounded-xl p-6 shadow-sm">
               <AlertCircle className="w-10 h-10 text-red-500 mb-4" />
-              <h3 className="text-lg font-semibold text-slate-900 mb-2">Flying Blind</h3>
+              <h3 className="text-lg font-semibold text-slate-900 mb-2">No Enforcement Without Observability</h3>
               <p className="text-sm text-slate-600">
-                Without runtime enforcement, you&apos;re flying blind until an incident occurs. Shadow Mode 
-                lets you observe policy behavior before enabling enforcement.
+                Without runtime evaluation, transfers to non-adequate countries proceed unchecked. You cannot enforce what you cannot observe. Shadow Mode lets you see exactly what would be enforced before you enable blocking.
               </p>
             </div>
           </div>
