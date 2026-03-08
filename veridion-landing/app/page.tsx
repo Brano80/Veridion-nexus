@@ -493,30 +493,10 @@ export default function LandingPage() {
             {/* Center Links */}
             <div className="space-y-2">
               <a
-                href={process.env.NEXT_PUBLIC_DASHBOARD_URL && !process.env.NEXT_PUBLIC_DASHBOARD_URL.includes('localhost') 
-                  ? `${process.env.NEXT_PUBLIC_DASHBOARD_URL}/login` 
-                  : 'https://app.veridion-nexus.eu/login'}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block text-slate-400 hover:text-sky-400 transition-colors text-sm"
-              >
-                Dashboard
-              </a>
-              <a
                 href="#faq"
                 className="block text-slate-400 hover:text-sky-400 transition-colors text-sm"
               >
                 Documentation
-              </a>
-              <a
-                href={process.env.NEXT_PUBLIC_DASHBOARD_URL && !process.env.NEXT_PUBLIC_DASHBOARD_URL.includes('localhost') 
-                  ? `${process.env.NEXT_PUBLIC_DASHBOARD_URL}/adequate-countries` 
-                  : 'https://app.veridion-nexus.eu/adequate-countries'}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block text-slate-400 hover:text-sky-400 transition-colors text-sm"
-              >
-                Adequate Countries
               </a>
               <a
                 href="#"
