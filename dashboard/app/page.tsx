@@ -25,6 +25,8 @@ export default function SovereignShieldPage() {
   const [showEnforceModal, setShowEnforceModal] = useState(false);
   const [enforceConfirmText, setEnforceConfirmText] = useState('');
   const [enforceUpdating, setEnforceUpdating] = useState(false);
+  const [settingsLoading, setSettingsLoading] = useState(true);
+  const [settingsError, setSettingsError] = useState(false);
   const sccRegistriesRef = useRef<SCCRegistry[]>([]);
 
   useEffect(() => {
@@ -36,6 +38,7 @@ export default function SovereignShieldPage() {
   async function loadData() {
     try {
       setConnectionError(false);
+      setSettingsLoading(true);
       
       // Check backend availability via settings API
       let settingsData;
@@ -44,11 +47,15 @@ export default function SovereignShieldPage() {
         settingsData = await fetchSettings();
         settingsSuccess = true;
         setBackendAvailable(true);
+        setSettingsError(false);
       } catch (error) {
         console.error('Settings API failed:', error);
         settingsSuccess = false;
         setBackendAvailable(false);
+        setSettingsError(true);
         settingsData = { enforcement_mode: 'shadow' };
+      } finally {
+        setSettingsLoading(false);
       }
       
       const [eventsData, sccData, reviewData, decidedIds] = await Promise.all([
@@ -381,17 +388,8 @@ export default function SovereignShieldPage() {
   // Transfers in Review Queue awaiting human decision
   const actualPending = reviewQueuePending.length;
 
-  // Status: Based on blocked transfer counts
-  // ACTIVE = default state, no blocked transfers or system is working normally
-  // ATTENTION = some blocked transfers (needs attention)
-  // AT_RISK = many blocked transfers (at risk)
-  // Default to ACTIVE even when there are no events (system is active and monitoring)
-  let status: 'ACTIVE' | 'ATTENTION' | 'AT_RISK' = 'ACTIVE';
-  if (blocked > 0 && blocked < 10) {
-    status = 'ATTENTION';
-  } else if (blocked >= 10) {
-    status = 'AT_RISK';
-  }
+  // Status: Based on settings error state
+  const status = settingsError ? 'OFFLINE' : 'ACTIVE';
 
   // SCC COVERAGE: destinations with unresolved REVIEW transfers OR valid SCC
   // Denominator = union of unresolved destinations + covered destinations
@@ -567,21 +565,17 @@ export default function SovereignShieldPage() {
         <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              {status === 'ACTIVE' ? (
-                <CheckCircle className="w-5 h-5 text-green-400" />
-              ) : status === 'ATTENTION' ? (
-                <AlertTriangle className="w-5 h-5 text-amber-400" />
-              ) : (
+              {settingsError ? (
                 <AlertTriangle className="w-5 h-5 text-red-400" />
+              ) : (
+                <CheckCircle className="w-5 h-5 text-green-400" />
               )}
               <span className="text-sm font-medium text-white">
                 Status:{' '}
-                {status === 'ACTIVE' ? (
-                  <span className="text-green-400">ACTIVE</span>
-                ) : status === 'ATTENTION' ? (
-                  <span className="text-amber-400">ATTENTION</span>
+                {settingsError ? (
+                  <span className="text-red-400">OFFLINE</span>
                 ) : (
-                  <span className="text-red-400">AT_RISK</span>
+                  <span className="text-green-400">ACTIVE</span>
                 )}
               </span>
             </div>
@@ -632,9 +626,9 @@ export default function SovereignShieldPage() {
           <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
             <div className="flex items-center justify-between mb-1.5">
               <div className="text-xs text-slate-400 font-medium">SCC COVERAGE</div>
-              <CheckCircle className={`w-3.5 h-3.5 ${sccCoveragePct === 0 ? 'text-slate-500' : 'text-yellow-500'}`} />
+              <CheckCircle className={`w-3.5 h-3.5 ${(sccCoverageTotal === 0 || sccCoveragePct === 0) ? 'text-slate-500' : 'text-yellow-500'}`} />
             </div>
-            <div className={`text-xl font-bold ${sccCoveragePct === 0 ? 'text-slate-400' : 'text-yellow-400'}`}>{sccCoveragePct}%</div>
+            <div className={`text-xl font-bold ${(sccCoverageTotal === 0 || sccCoveragePct === 0) ? 'text-slate-400' : 'text-yellow-400'}`}>{sccCoveragePct}%</div>
             <div className="text-[10px] text-slate-500 mt-0.5">
               {sccCoverageTotal === 0 ? 'No SCC-required transfers yet' : `${sccCoverageCovered} of ${sccCoverageTotal} destinations covered`}
             </div>
