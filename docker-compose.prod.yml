@@ -26,6 +26,7 @@ services:
       RUST_ENV: production
       SERVER_HOST: 0.0.0.0
       SERVER_PORT: 8080
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
     ports:
       - "8080:8080"
     depends_on:
