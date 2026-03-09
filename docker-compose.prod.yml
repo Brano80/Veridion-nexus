@@ -1,11 +1,10 @@
-version: '3.8'
 services:
   postgres:
     image: postgres:16-alpine
     container_name: veridion-postgres
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: 
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: veridion_api
     volumes:
       - veridion_api_data:/var/lib/postgresql/data
@@ -22,7 +21,7 @@ services:
       dockerfile: Dockerfile
     container_name: veridion-api
     environment:
-      DATABASE_URL: postgres://postgres:@postgres:5432/veridion_api
+      DATABASE_URL: ${DATABASE_URL}
       JWT_SECRET: 
       RUST_ENV: production
       SERVER_HOST: 0.0.0.0

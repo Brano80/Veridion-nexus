@@ -1,4 +1,5 @@
 #!/bin/bash
+chmod +x "$0"
 # Production deployment script for Veridion Nexus
 # Deploys Rust API and Next.js dashboard to Hetzner Ubuntu 24.04 server
 # Location: /opt/veridion-nexus

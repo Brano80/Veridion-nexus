@@ -38,6 +38,16 @@ cd veridion-nexus
 sudo chown -R $USER:$USER .
 ```
 
+### 2b. Configure Git Authentication
+
+Set up a GitHub personal access token so the server can pull code:
+
+1. Go to https://github.com/settings/tokens
+2. Generate new token (classic) with `repo` scope
+3. Run: `git remote set-url origin https://YOUR_USERNAME:YOUR_TOKEN@github.com/YOUR_USERNAME/YOUR_REPO.git`
+
+After every git pull, re-run: `chmod +x deploy.sh`
+
 ### 3. Configure Environment Variables
 
 Create a `.env` file in the project root:
@@ -158,7 +168,7 @@ git pull
 
 ## Architecture
 
-The deployment consists of three services:
+The deployment consists of four services:
 
 1. **Postgres** (port 5432)
    - Database for API
@@ -166,13 +176,17 @@ The deployment consists of three services:
 
 2. **API** (port 8080)
    - Rust API built from `Dockerfile`
-   - Multi-stage build: rust:1.85 → debian:bookworm-slim
+   - Multi-stage build: rust:1.88 → debian:bookworm-slim
    - Runs migrations automatically on startup
 
 3. **Dashboard** (port 3000)
    - Next.js dashboard built from `Dockerfile.dashboard`
    - Built with node:20-alpine
    - Configured to call API at `https://api.veridion-nexus.eu`
+
+4. **Landing Page** (port 3001)
+   - Next.js landing page built from `Dockerfile.landing`
+   - Configured with `NEXT_PUBLIC_DASHBOARD_URL=https://app.veridion-nexus.eu`
 
 ## Reverse Proxy Setup (Caddy)
 
@@ -199,7 +213,7 @@ app.veridion-nexus.eu {
 }
 
 veridion-nexus.eu {
-    reverse_proxy localhost:3000
+    reverse_proxy localhost:3001
 }
 
 www.veridion-nexus.eu {
