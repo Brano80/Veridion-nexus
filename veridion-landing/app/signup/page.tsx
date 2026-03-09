@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Eye, EyeOff, Copy, Check, ExternalLink, AlertTriangle, Shield } from 'lucide-react';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.veridion-nexus.eu';
 
 interface SignupResult {
   tenant_id: string;
