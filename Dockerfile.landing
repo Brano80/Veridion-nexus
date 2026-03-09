@@ -5,6 +5,8 @@ WORKDIR /app
 # Build argument for Dashboard URL (required at build time for NEXT_PUBLIC_ vars)
 ARG NEXT_PUBLIC_DASHBOARD_URL
 ENV NEXT_PUBLIC_DASHBOARD_URL=$NEXT_PUBLIC_DASHBOARD_URL
+ARG NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
 # Copy package files
 COPY veridion-landing/package*.json ./
