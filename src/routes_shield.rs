@@ -49,15 +49,24 @@ pub struct IngestLogEntry {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EvaluateRequest {
+    #[serde(alias = "destination_country_code")]
     pub destination_country_code: Option<String>,
+    #[serde(alias = "destination_country")]
     pub destination_country: Option<String>,
+    #[serde(alias = "data_categories")]
     pub data_categories: Option<Vec<String>>,
+    #[serde(alias = "partner_name")]
     pub partner_name: Option<String>,
+    #[serde(alias = "source_ip")]
     pub source_ip: Option<String>,
+    #[serde(alias = "dest_ip")]
     pub dest_ip: Option<String>,
+    #[serde(alias = "data_size")]
     pub data_size: Option<u64>,
     pub protocol: Option<String>,
+    #[serde(alias = "user_agent")]
     pub user_agent: Option<String>,
+    #[serde(alias = "request_path")]
     pub request_path: Option<String>,
 }
 
