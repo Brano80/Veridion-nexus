@@ -75,7 +75,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
 }
 
 export function isAdmin(user: CurrentUser | null): boolean {
-  return user?.roles?.includes('admin') ?? false;
+  return (user?.roles?.includes('admin') ?? false) || (user?.is_admin ?? false);
 }
 
 export interface EvidenceEvent {
