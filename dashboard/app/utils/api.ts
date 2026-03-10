@@ -78,7 +78,7 @@ export function isAdmin(user: CurrentUser | null): boolean {
   if (!user) return false;
   const roles = user.roles;
   const hasAdminRole = Array.isArray(roles) && roles.includes('admin');
-  const isAdminFlag = user.is_admin === true || (user as Record<string, unknown>).isAdmin === true;
+  const isAdminFlag = user.is_admin === true || (user as unknown as Record<string, unknown>).isAdmin === true;
   return hasAdminRole || isAdminFlag;
 }
 
