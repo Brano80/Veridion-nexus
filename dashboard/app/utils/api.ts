@@ -75,7 +75,11 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
 }
 
 export function isAdmin(user: CurrentUser | null): boolean {
-  return (user?.roles?.includes('admin') ?? false) || (user?.is_admin ?? false);
+  if (!user) return false;
+  const roles = user.roles;
+  const hasAdminRole = Array.isArray(roles) && roles.includes('admin');
+  const isAdminFlag = user.is_admin === true || (user as Record<string, unknown>).isAdmin === true;
+  return hasAdminRole || isAdminFlag;
 }
 
 export interface EvidenceEvent {

@@ -91,13 +91,14 @@ export default function AdminPage() {
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
 
   // Check admin status via frontend user context first
+  // setCheckingAuth(false) before auth check so loadTenants can run; avoid redirect before user loads
   useEffect(() => {
     getCurrentUser().then((user) => {
       setCurrentUser(user);
+      setCheckingAuth(false);
       if (!isAdmin(user)) {
         setAuthFailed(true);
       }
-      setCheckingAuth(false);
     });
   }, []);
 
@@ -139,7 +140,8 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (authFailed && !checkingAuth) {
-      router.push('/?error=admin_access_required');
+      const t = setTimeout(() => router.push('/?error=admin_access_required'), 0);
+      return () => clearTimeout(t);
     }
   }, [authFailed, checkingAuth, router]);
 
