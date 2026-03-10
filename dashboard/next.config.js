@@ -6,6 +6,7 @@ const nextConfig = {
   },
   async rewrites() {
     return [
+      { source: '/api/admin-proxy/:path*', destination: 'http://api:8080/api/v1/admin/:path*' },
       { source: '/api/:path*', destination: 'http://api:8080/api/:path*' },
     ];
   },
