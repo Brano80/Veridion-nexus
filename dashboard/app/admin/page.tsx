@@ -94,11 +94,9 @@ export default function AdminPage() {
   // setCheckingAuth(false) before auth check so loadTenants can run; avoid redirect before user loads
   useEffect(() => {
     getCurrentUser().then((user) => {
-      console.log('[Admin Auth] getCurrentUser resolved:', { user, roles: user?.roles, is_admin: user?.is_admin, isAdminResult: isAdmin(user) });
       setCurrentUser(user);
       setCheckingAuth(false);
       if (!isAdmin(user)) {
-        console.log('[Admin Auth] Setting authFailed=true (isAdmin returned false)');
         setAuthFailed(true);
       }
     });
@@ -141,16 +139,11 @@ export default function AdminPage() {
   }, [checkingAuth, currentUser, loadTenants]);
 
   useEffect(() => {
-    if (authFailed && !checkingAuth) {
-      console.log('[Admin Auth] Redirect firing - currentUser:', currentUser);
-      console.log('[Admin Auth] Redirect firing - checkingAuth:', checkingAuth);
-      console.log('[Admin Auth] Redirect firing - isAdmin result:', isAdmin(currentUser));
-      console.log('[Admin Auth] Redirect firing - user roles:', currentUser?.roles);
-      console.log('[Admin Auth] Redirect firing - user is_admin:', currentUser?.is_admin);
+    if (!checkingAuth && !isAdmin(currentUser)) {
       const t = setTimeout(() => router.push('/?error=admin_access_required'), 0);
       return () => clearTimeout(t);
     }
-  }, [authFailed, checkingAuth, router, currentUser]);
+  }, [checkingAuth, currentUser, router]);
 
   useEffect(() => {
     if (successBanner) {
