@@ -7,7 +7,7 @@ import {
   Users, Clock, ArrowUpCircle, RefreshCw, Trash2,
   Plus, Search, Shield, Activity, X, AlertTriangle,
 } from 'lucide-react';
-import { getCurrentUser, isAdmin, CurrentUser } from '../utils/api';
+import { getCurrentUser, isAdmin, getAuthHeaders, CurrentUser } from '../utils/api';
 
 interface Tenant {
   id: string;
@@ -29,7 +29,7 @@ const PROXY = '/api/admin-proxy';
 async function adminFetch(path: string, options?: RequestInit) {
   const res = await fetch(`${PROXY}/${path}`, {
     ...options,
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    headers: { ...getAuthHeaders(), ...options?.headers },
   });
   // Admin panel should never show trial expired modal (admin tenant never expires)
   // But we still check for 402 to handle edge cases gracefully

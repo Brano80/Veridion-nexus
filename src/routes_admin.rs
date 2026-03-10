@@ -81,7 +81,7 @@ fn extract_admin_check(req: &HttpRequest) -> Result<(), HttpResponse> {
 async fn verify_admin(req: &HttpRequest, pool: &PgPool) -> Result<Uuid, HttpResponse> {
     extract_admin_check(req)?;
 
-    let raw_key = req
+    let bearer = req
         .headers()
         .get("Authorization")
         .and_then(|v| v.to_str().ok())
@@ -89,8 +89,48 @@ async fn verify_admin(req: &HttpRequest, pool: &PgPool) -> Result<Uuid, HttpResp
         .trim_start_matches("Bearer ")
         .to_string();
 
+    // JWT path: dashboard login sends JWT with is_admin in claims
+    if bearer.starts_with("eyJ") {
+        let secret = std::env::var("JWT_SECRET")
+            .unwrap_or_else(|_| "veridion-api-dev-secret-change-in-production".to_string());
+        let key = jsonwebtoken::DecodingKey::from_secret(secret.as_ref());
+        let validation = jsonwebtoken::Validation::default();
+        let decoded = match jsonwebtoken::decode::<serde_json::Value>(&bearer, &key, &validation) {
+            Ok(d) => d,
+            Err(_) => {
+                return Err(HttpResponse::Unauthorized().json(serde_json::json!({
+                    "error": "Invalid or expired token"
+                })));
+            }
+        };
+        let is_admin = decoded.claims.get("is_admin").and_then(|v| v.as_bool()).unwrap_or(false);
+        if !is_admin {
+            return Err(HttpResponse::Forbidden().json(serde_json::json!({
+                "error": "Admin access required"
+            })));
+        }
+        let tenant_id_str = decoded.claims
+            .get("tenant_id")
+            .and_then(|v| v.as_str())
+            .or_else(|| decoded.claims.get("company_id").and_then(|v| v.as_str()));
+        let tenant_id = match tenant_id_str {
+            Some(s) => Uuid::parse_str(s).map_err(|_| {
+                HttpResponse::Unauthorized().json(serde_json::json!({
+                    "error": "Invalid tenant in token"
+                }))
+            })?,
+            None => {
+                return Err(HttpResponse::Unauthorized().json(serde_json::json!({
+                    "error": "Token missing tenant_id"
+                })));
+            }
+        };
+        return Ok(tenant_id);
+    }
+
+    // API key path: ss_test_/ss_live_ for programmatic admin access
     let mut hasher = Sha256::new();
-    hasher.update(raw_key.as_bytes());
+    hasher.update(bearer.as_bytes());
     let hash = format!("{:x}", hasher.finalize());
 
     let tenant: Option<(Uuid, bool)> = sqlx::query_as(
@@ -111,7 +151,7 @@ async fn verify_admin(req: &HttpRequest, pool: &PgPool) -> Result<Uuid, HttpResp
             "error": "Admin access required"
         }))),
         None => Err(HttpResponse::Unauthorized().json(serde_json::json!({
-            "error": "Invalid API key"
+            "error": "Invalid API key or token"
         }))),
     }
 }

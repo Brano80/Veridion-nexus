@@ -3,11 +3,11 @@ import { NextRequest, NextResponse } from 'next/server';
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8080';
 
 async function proxyRequest(req: NextRequest, { params }: { params: { path: string[] } }) {
-  const adminKey = process.env.ADMIN_API_KEY;
-  if (!adminKey) {
+  const authHeader = req.headers.get('Authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return NextResponse.json(
-      { error: 'Admin API key not configured' },
-      { status: 500 }
+      { error: 'Missing or invalid Authorization header' },
+      { status: 401 }
     );
   }
 
@@ -15,7 +15,7 @@ async function proxyRequest(req: NextRequest, { params }: { params: { path: stri
   const backendUrl = `${BACKEND_URL}/api/v1/admin/${path}`;
 
   const headers: Record<string, string> = {
-    'Authorization': `Bearer ${adminKey}`,
+    'Authorization': authHeader,
     'Content-Type': 'application/json',
   };
 
