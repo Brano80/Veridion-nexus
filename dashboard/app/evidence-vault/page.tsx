@@ -44,10 +44,17 @@ function formatRetentionDate(createdAt: string): string {
 }
 
 function getHumanOversightLegalBasis(eventType: string, articles?: string[]): string {
-  // Prefer articles from API if available, but filter out invalid "GDPR Art. 22"
-  const hasValidArticles = articles && articles.length > 0 && !articles.some(a => a && a.includes('Art. 22'));
+  // Prefer articles from API if available, but filter out invalid "GDPR Art. 22" and data categories
+  const validArticles = articles?.filter(a => {
+    if (!a || typeof a !== 'string') return false;
+    const article = a.trim();
+    // Only include strings that look like GDPR articles (contain "Art." or "GDPR")
+    // Exclude data categories like "email", "name", "documents", etc.
+    return (article.includes('Art.') || article.includes('GDPR') || article.includes('art.')) && !article.includes('Art. 22');
+  }) || [];
+  const hasValidArticles = validArticles.length > 0;
   if (hasValidArticles) {
-    return articles.filter(a => a && !a.includes('Art. 22')).join(', ');
+    return validArticles.join(', ');
   }
   
   // Otherwise use mapping based on event type
@@ -62,11 +69,17 @@ function getHumanOversightLegalBasis(eventType: string, articles?: string[]): st
 }
 
 function getHumanOversightLegalBasisFull(eventType: string, articles?: string[]): string {
-  // Prefer articles from API if available, but filter out invalid "GDPR Art. 22"
-  const hasValidArticles = articles && articles.length > 0 && !articles.some(a => a && a.includes('Art. 22'));
+  // Prefer articles from API if available, but filter out invalid "GDPR Art. 22" and data categories
+  const validArticles = articles?.filter(a => {
+    if (!a || typeof a !== 'string') return false;
+    const article = a.trim();
+    // Only include strings that look like GDPR articles (contain "Art." or "GDPR")
+    // Exclude data categories like "email", "name", "documents", etc.
+    return (article.includes('Art.') || article.includes('GDPR') || article.includes('art.')) && !article.includes('Art. 22');
+  }) || [];
+  const hasValidArticles = validArticles.length > 0;
   if (hasValidArticles) {
-    const filteredArticles = articles.filter(a => a && !a.includes('Art. 22'));
-    const articlesText = filteredArticles.join(', ');
+    const articlesText = validArticles.join(', ');
     const et = (eventType || '').toUpperCase();
     if (et.includes('HUMAN_OVERSIGHT_APPROVED')) {
       return `${articlesText} — International transfer — appropriate safeguards`;
@@ -331,13 +344,21 @@ function EvidenceVaultPageContent() {
         const source = (e.sourceSystem || '').toLowerCase();
         const et = (e.eventType || '').toUpperCase();
         const isHumanOversight = source === 'human-oversight' || et.includes('HUMAN_OVERSIGHT');
-        const hasValidArticles = e.articles && e.articles.length > 0 && !e.articles.some((a: string) => a && a.includes('Art. 22'));
+        // Filter to only include valid GDPR article strings (exclude data categories)
+        const validArticles = e.articles?.filter((a: string) => {
+          if (!a || typeof a !== 'string') return false;
+          const article = a.trim();
+          // Only include strings that look like GDPR articles (contain "Art." or "GDPR")
+          // Exclude data categories like "email", "name", "documents", etc.
+          return (article.includes('Art.') || article.includes('GDPR') || article.includes('art.')) && !article.includes('Art. 22');
+        }) || [];
+        const hasValidArticles = validArticles.length > 0;
         const gdprBasis = isHumanOversight
           ? getHumanOversightLegalBasis(e.eventType || '', e.articles)
           : (e.payload?.decision === 'BLOCK' && e.payload?.country_status === 'unknown'
             ? 'Art. 44 Blocked'
             : hasValidArticles
-              ? e.articles.filter((a: string) => a && !a.includes('Art. 22'))[0]
+              ? validArticles[0]
               : e.payload?.articles?.[0] || getLegalBasis(countryCode) || '—');
         const dataCat = e.payload?.data_categories?.[0] || e.payload?.dataCategories?.[0] || e.payload?.data_category || '—';
         const verification = e.verificationStatus || e.payload?.decision || '—';
@@ -746,9 +767,17 @@ function EvidenceVaultPageContent() {
                             const countryName = event.payload?.destination_country || event.payload?.destinationCountry || event.payload?.destination || '';
                             let countryCode = event.payload?.destination_country_code || event.payload?.destinationCountryCode || '';
                             if (!countryCode && countryName) countryCode = getCountryCodeFromName(countryName);
-                            const hasValidArticles = event.articles && event.articles.length > 0 && !event.articles.some((a: string) => a && a.includes('Art. 22'));
+                            // Filter to only include valid GDPR article strings (exclude data categories)
+                            const validArticles = event.articles?.filter((a: string) => {
+                              if (!a || typeof a !== 'string') return false;
+                              const article = a.trim();
+                              // Only include strings that look like GDPR articles (contain "Art." or "GDPR")
+                              // Exclude data categories like "email", "name", "documents", etc.
+                              return (article.includes('Art.') || article.includes('GDPR') || article.includes('art.')) && !article.includes('Art. 22');
+                            }) || [];
+                            const hasValidArticles = validArticles.length > 0;
                             return hasValidArticles
-                              ? event.articles.filter((a: string) => a && !a.includes('Art. 22'))[0]
+                              ? validArticles[0]
                               : getLegalBasis(countryCode) || '—';
                           })()}
                         </td>
@@ -848,11 +877,19 @@ function EvidenceVaultPageContent() {
                 const source = (e.sourceSystem || '').toLowerCase();
                 const et = (e.eventType || '').toUpperCase();
                 const isHumanOversight = source === 'human-oversight' || et.includes('HUMAN_OVERSIGHT');
-                const hasValidArticles = e.articles && e.articles.length > 0 && !e.articles.some((a: string) => a && a.includes('Art. 22'));
+                // Filter to only include valid GDPR article strings (exclude data categories)
+                const validArticles = e.articles?.filter((a: string) => {
+                  if (!a || typeof a !== 'string') return false;
+                  const article = a.trim();
+                  // Only include strings that look like GDPR articles (contain "Art." or "GDPR")
+                  // Exclude data categories like "email", "name", "documents", etc.
+                  return (article.includes('Art.') || article.includes('GDPR') || article.includes('art.')) && !article.includes('Art. 22');
+                }) || [];
+                const hasValidArticles = validArticles.length > 0;
                 const gdprBasisFull = isHumanOversight
                   ? getHumanOversightLegalBasisFull(e.eventType || '', e.articles)
                   : (hasValidArticles
-                      ? e.articles.filter((a: string) => a && !a.includes('Art. 22')).join(', ')
+                      ? validArticles.join(', ')
                       : getLegalBasisFullText(countryCode));
                 const CopyRow = ({ label, value }: { label: string; value: string }) => (
                   <div className="flex items-start justify-between gap-2 py-1.5">
@@ -1123,9 +1160,19 @@ function EvidenceVaultPageContent() {
                           const isHumanOversightForPdf = sourceForPdf === 'human-oversight' || etForPdf.includes('HUMAN_OVERSIGHT');
                           const gdprBasisForPdf = isHumanOversightForPdf
                             ? getHumanOversightLegalBasisFull(e.eventType || '', e.articles)
-                            : (e.articles && e.articles.length > 0
-                                ? e.articles.join(', ')
-                                : getLegalBasisFullText(countryCode));
+                            : (() => {
+                                // Filter to only include valid GDPR article strings (exclude data categories)
+                                const validArticles = e.articles?.filter((a: string) => {
+                                  if (!a || typeof a !== 'string') return false;
+                                  const article = a.trim();
+                                  // Only include strings that look like GDPR articles (contain "Art." or "GDPR")
+                                  // Exclude data categories like "email", "name", "documents", etc.
+                                  return (article.includes('Art.') || article.includes('GDPR') || article.includes('art.')) && !article.includes('Art. 22');
+                                }) || [];
+                                return validArticles.length > 0
+                                  ? validArticles.join(', ')
+                                  : getLegalBasisFullText(countryCode);
+                              })();
                           const html = `<html><head><title>Evidence - ${e.eventId || e.id}</title>
 <style>body{font-family:system-ui,sans-serif;color:#1e293b;padding:2rem;max-width:600px}
 h3{font-size:0.7rem;text-transform:uppercase;letter-spacing:0.1em;color:#64748b;margin:1.5rem 0 0.5rem}
