@@ -50,6 +50,10 @@ export default function SovereignShieldPage() {
         setSettingsError(false);
       } catch (error) {
         console.error('Settings API failed:', error);
+        console.error('Error details:', {
+          message: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+        });
         settingsSuccess = false;
         setBackendAvailable(false);
         setSettingsError(true);
@@ -122,6 +126,7 @@ export default function SovereignShieldPage() {
       setSccRegistries([]);
       setConnectionError(true);
       setBackendAvailable(false);
+      setSettingsError(true);
     } finally {
       setLoading(false);
     }
@@ -388,8 +393,9 @@ export default function SovereignShieldPage() {
   // Transfers in Review Queue awaiting human decision
   const actualPending = reviewQueuePending.length;
 
-  // Status: Based on settings error state
-  const status = settingsError ? 'OFFLINE' : 'ACTIVE';
+  // Status: OFFLINE only when API health check fails or settings cannot be fetched
+  // If API is reachable and settings load successfully, status is ACTIVE regardless of transfer count
+  const status = (settingsError || !backendAvailable) ? 'OFFLINE' : 'ACTIVE';
 
   // SCC COVERAGE: destinations with unresolved REVIEW transfers OR valid SCC
   // Denominator = union of unresolved destinations + covered destinations
@@ -495,7 +501,6 @@ export default function SovereignShieldPage() {
               <Shield className="w-5 h-5 text-emerald-400 shrink-0" />
               <div>
                 <span className="font-semibold text-emerald-400">ENFORCING</span>
-                <span className="text-slate-300 ml-2">— Blocking transfers</span>
               </div>
             </div>
             <button
@@ -572,7 +577,7 @@ export default function SovereignShieldPage() {
               )}
               <span className="text-sm font-medium text-white">
                 Status:{' '}
-                {settingsError ? (
+                {(settingsError || !backendAvailable) ? (
                   <span className="text-red-400">OFFLINE</span>
                 ) : (
                   <span className="text-green-400">ACTIVE</span>

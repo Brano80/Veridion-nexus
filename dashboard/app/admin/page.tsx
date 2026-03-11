@@ -19,7 +19,7 @@ interface Tenant {
   trial_expires_at: string | null;
   trial_status: string;
   rate_limit_per_minute: number;
-  evaluations_24h: number;
+  evaluations_month: number;
   created_at: string;
   deleted_at: string | null;
 }
@@ -117,14 +117,22 @@ export default function AdminPage() {
       }
       if (!res.ok) {
         // For other errors, log but don't redirect
-        console.error('Failed to load tenants:', res.status);
+        const errorText = await res.text().catch(() => 'Unknown error');
+        console.error('Failed to load tenants:', res.status, errorText);
+        setTenants([]); // Clear tenants on error
         return;
       }
       const data = await res.json();
+      console.log('Loaded tenants:', data.length, 'tenants');
       setTenants(data);
     } catch (error) {
       // Network errors shouldn't trigger redirect
       console.error('Failed to load tenants:', error);
+      console.error('Error details:', {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+      setTenants([]); // Clear tenants on error
     } finally {
       setLoading(false);
     }
@@ -162,7 +170,7 @@ export default function AdminPage() {
   const totalTenants = tenants.length;
   const activeTrials = tenants.filter((t) => t.plan === 'free_trial' && t.trial_status === 'active').length;
   const proTenants = tenants.filter((t) => t.plan === 'pro').length;
-  const totalEvals = tenants.reduce((sum, t) => sum + t.evaluations_24h, 0);
+  const totalEvals = tenants.reduce((sum, t) => sum + t.evaluations_month, 0);
 
   async function handleCreate() {
     setCreating(true);
@@ -293,7 +301,7 @@ export default function AdminPage() {
           </div>
           <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
             <div className="flex items-center justify-between mb-2">
-              <div className="text-sm text-slate-400 font-medium">EVALUATIONS (24H)</div>
+              <div className="text-sm text-slate-400 font-medium">EVALUATIONS (MONTH)</div>
               <Activity className="w-4 h-4 text-slate-500" />
             </div>
             <div className="text-2xl font-bold text-white">{totalEvals}</div>
@@ -351,7 +359,7 @@ export default function AdminPage() {
                 <th className="text-left px-4 py-3 text-slate-400 font-medium">Plan</th>
                 <th className="text-left px-4 py-3 text-slate-400 font-medium">Mode</th>
                 <th className="text-left px-4 py-3 text-slate-400 font-medium">Trial Status</th>
-                <th className="text-right px-4 py-3 text-slate-400 font-medium">Evals (24h)</th>
+                <th className="text-right px-4 py-3 text-slate-400 font-medium">Evals (month)</th>
                 <th className="text-left px-4 py-3 text-slate-400 font-medium">API Key Prefix</th>
                 <th className="text-left px-4 py-3 text-slate-400 font-medium">Created</th>
                 <th className="text-right px-4 py-3 text-slate-400 font-medium">Actions</th>
@@ -366,7 +374,11 @@ export default function AdminPage() {
                 </tr>
               )}
               {filtered.map((t) => (
-                <tr key={t.id} className="border-b border-slate-700/50 hover:bg-slate-700/20">
+                <tr
+                  key={t.id}
+                  onClick={() => router.push(`/admin/tenants/${t.id}`)}
+                  className="border-b border-slate-700/50 hover:bg-slate-700/20 cursor-pointer"
+                >
                   <td className="px-4 py-3 text-white font-medium">
                     {t.name}
                     {t.is_admin && (
@@ -400,13 +412,13 @@ export default function AdminPage() {
                       </div>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-right text-white tabular-nums">{t.evaluations_24h}</td>
+                  <td className="px-4 py-3 text-right text-white tabular-nums">{t.evaluations_month}</td>
                   <td className="px-4 py-3 text-slate-400 font-mono text-xs">{t.api_key_prefix}...</td>
                   <td className="px-4 py-3 text-slate-400 text-xs">{new Date(t.created_at).toLocaleDateString()}</td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-1">
                       <button
-                        onClick={() => handleExtendTrial(t)}
+                        onClick={(e) => { e.stopPropagation(); handleExtendTrial(t); }}
                         title="Extend trial +30 days"
                         className="p-1.5 rounded hover:bg-slate-700 text-slate-400 hover:text-yellow-400 transition-colors"
                       >
@@ -414,7 +426,7 @@ export default function AdminPage() {
                       </button>
                       {nextPlan[t.plan] && (
                         <button
-                          onClick={() => handleUpgradePlan(t)}
+                          onClick={(e) => { e.stopPropagation(); handleUpgradePlan(t); }}
                           title={`Upgrade to ${nextPlan[t.plan]}`}
                           className="p-1.5 rounded hover:bg-slate-700 text-slate-400 hover:text-emerald-400 transition-colors"
                         >
@@ -422,14 +434,14 @@ export default function AdminPage() {
                         </button>
                       )}
                       <button
-                        onClick={() => setRotateTarget(t)}
+                        onClick={(e) => { e.stopPropagation(); setRotateTarget(t); }}
                         title="Rotate API key"
                         className="p-1.5 rounded hover:bg-slate-700 text-slate-400 hover:text-blue-400 transition-colors"
                       >
                         <RefreshCw className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => setDeleteTarget(t)}
+                        onClick={(e) => { e.stopPropagation(); setDeleteTarget(t); }}
                         disabled={t.is_admin}
                         title={t.is_admin ? 'Cannot delete admin tenant' : 'Delete tenant'}
                         className={`p-1.5 rounded transition-colors ${

@@ -160,6 +160,12 @@ pub async fn patch_settings(
 
     match result {
         Ok(res) if res.rows_affected() > 0 => {
+            // Keep tenants.mode in sync for admin panel
+            let _ = sqlx::query("UPDATE tenants SET mode = $1, updated_at = NOW() WHERE id = $2")
+                .bind(new_mode)
+                .bind(tenant.tenant_id)
+                .execute(pool.get_ref())
+                .await;
             HttpResponse::Ok().json(serde_json::json!({
                 "enforcement_mode": new_mode,
                 "updated_at": Utc::now().to_rfc3339(),
@@ -177,6 +183,12 @@ pub async fn patch_settings(
 
             match insert_result {
                 Ok(_) => {
+                    // Keep tenants.mode in sync for admin panel
+                    let _ = sqlx::query("UPDATE tenants SET mode = $1, updated_at = NOW() WHERE id = $2")
+                        .bind(new_mode)
+                        .bind(tenant.tenant_id)
+                        .execute(pool.get_ref())
+                        .await;
                     HttpResponse::Ok().json(serde_json::json!({
                         "enforcement_mode": new_mode,
                         "updated_at": Utc::now().to_rfc3339(),

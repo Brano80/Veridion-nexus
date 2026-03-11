@@ -74,7 +74,7 @@ export default function Sidebar() {
               <Link
                 href="/admin"
                 className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                  pathname === '/admin'
+                  pathname?.startsWith('/admin')
                     ? 'bg-slate-700 text-white'
                     : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
                 }`}

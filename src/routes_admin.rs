@@ -32,7 +32,7 @@ pub struct TenantResponse {
     pub trial_expires_at: Option<String>,
     pub trial_status: String,
     pub rate_limit_per_minute: i32,
-    pub evaluations_24h: i64,
+    pub evaluations_month: i64,
     pub created_at: String,
     pub deleted_at: Option<String>,
 }
@@ -56,7 +56,7 @@ fn tenant_to_response(row: TenantRow, evals: i64) -> TenantResponse {
         trial_expires_at: row.trial_expires_at.map(|t| t.to_rfc3339()),
         trial_status: trial_status(row.trial_expires_at),
         rate_limit_per_minute: row.rate_limit_per_minute,
-        evaluations_24h: evals,
+        evaluations_month: evals,
         created_at: row.created_at.to_rfc3339(),
         deleted_at: row.deleted_at.map(|t| t.to_rfc3339()),
     }
@@ -211,7 +211,7 @@ pub async fn list_tenants(
     for tenant in tenants {
         let evals: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM compliance_records \
-             WHERE tenant_id = $1 AND created_at > NOW() - INTERVAL '24 hours'"
+             WHERE tenant_id = $1 AND created_at >= date_trunc('month', NOW())::timestamptz"
         )
         .bind(tenant.id)
         .fetch_one(pool.get_ref())
@@ -222,6 +222,179 @@ pub async fn list_tenants(
     }
 
     HttpResponse::Ok().json(results)
+}
+
+// ── GET /api/v1/admin/tenants/{id} (detail view) ──
+
+#[get("/api/v1/admin/tenants/{id}")]
+pub async fn get_tenant_detail(
+    req: HttpRequest,
+    pool: web::Data<PgPool>,
+    path: web::Path<Uuid>,
+) -> HttpResponse {
+    if let Err(e) = verify_admin(&req, pool.get_ref()).await {
+        return e;
+    }
+
+    let tenant_id = path.into_inner();
+
+    let tenant_row: Option<TenantRow> = sqlx::query_as::<_, TenantRow>(
+        "SELECT id, name, plan, mode, api_key_hash, api_key_prefix, is_admin, \
+         trial_expires_at, rate_limit_per_minute, deleted_at, created_at, updated_at \
+         FROM tenants WHERE id = $1 AND deleted_at IS NULL"
+    )
+    .bind(tenant_id)
+    .fetch_optional(pool.get_ref())
+    .await
+    .unwrap_or(None);
+
+    let tenant_row = match tenant_row {
+        Some(t) => t,
+        None => {
+            return HttpResponse::NotFound().json(serde_json::json!({
+                "error": "Tenant not found"
+            }));
+        }
+    };
+
+    // Activity: evals this month, evals total, last activity
+    let evals_month: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM compliance_records \
+         WHERE tenant_id = $1 AND created_at >= date_trunc('month', NOW())::timestamptz"
+    )
+    .bind(tenant_id)
+    .fetch_one(pool.get_ref())
+    .await
+    .unwrap_or(0);
+
+    let evals_total: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM compliance_records WHERE tenant_id = $1"
+    )
+    .bind(tenant_id)
+    .fetch_one(pool.get_ref())
+    .await
+    .unwrap_or(0);
+
+    let last_activity: Option<DateTime<Utc>> = sqlx::query_scalar(
+        "SELECT MAX(created_at) FROM compliance_records WHERE tenant_id = $1"
+    )
+    .bind(tenant_id)
+    .fetch_one(pool.get_ref())
+    .await
+    .ok()
+    .flatten();
+
+    // Transfer Summary: total, blocked, allowed, pending review (from evidence_events)
+    let total_transfers: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM evidence_events WHERE tenant_id = $1 AND source_system = 'sovereign-shield'"
+    )
+    .bind(tenant_id)
+    .fetch_one(pool.get_ref())
+    .await
+    .unwrap_or(0);
+
+    let blocked: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM evidence_events WHERE tenant_id = $1 AND source_system = 'sovereign-shield' AND event_type = 'DATA_TRANSFER_BLOCKED'"
+    )
+    .bind(tenant_id)
+    .fetch_one(pool.get_ref())
+    .await
+    .unwrap_or(0);
+
+    let allowed: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM evidence_events WHERE tenant_id = $1 AND source_system = 'sovereign-shield' AND event_type = 'DATA_TRANSFER'"
+    )
+    .bind(tenant_id)
+    .fetch_one(pool.get_ref())
+    .await
+    .unwrap_or(0);
+
+    let pending_review: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM evidence_events WHERE tenant_id = $1 AND source_system = 'sovereign-shield' AND event_type = 'DATA_TRANSFER_REVIEW'"
+    )
+    .bind(tenant_id)
+    .fetch_one(pool.get_ref())
+    .await
+    .unwrap_or(0);
+
+    // SCC Registry: active SCCs
+    #[derive(sqlx::FromRow)]
+    struct SccRow {
+        partner_name: String,
+        destination_country_code: String,
+        expires_at: Option<DateTime<Utc>>,
+        scc_module: Option<String>,
+    }
+
+    let scc_rows: Vec<SccRow> = sqlx::query_as(
+        "SELECT partner_name, destination_country_code, expires_at, scc_module \
+         FROM scc_registries WHERE tenant_id = $1 AND status = 'active' \
+         ORDER BY partner_name, destination_country_code"
+    )
+    .bind(tenant_id)
+    .fetch_all(pool.get_ref())
+    .await
+    .unwrap_or_default();
+
+    let scc_registry: Vec<serde_json::Value> = scc_rows.iter().map(|r| {
+        serde_json::json!({
+            "partnerName": r.partner_name,
+            "country": r.destination_country_code,
+            "expiry": r.expires_at.map(|t| t.to_rfc3339()),
+            "module": r.scc_module,
+        })
+    }).collect();
+
+    // Review Queue: pending count, overdue count (pending and created_at < NOW() - 24h)
+    let pending_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM human_oversight WHERE tenant_id = $1 AND status = 'PENDING'"
+    )
+    .bind(tenant_id)
+    .fetch_one(pool.get_ref())
+    .await
+    .unwrap_or(0);
+
+    let overdue_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM human_oversight WHERE tenant_id = $1 AND status = 'PENDING' AND created_at < NOW() - INTERVAL '24 hours'"
+    )
+    .bind(tenant_id)
+    .fetch_one(pool.get_ref())
+    .await
+    .unwrap_or(0);
+
+    let account = serde_json::json!({
+        "name": tenant_row.name,
+        "plan": tenant_row.plan,
+        "mode": tenant_row.mode,
+        "trialStatus": trial_status(tenant_row.trial_expires_at),
+        "trialExpiry": tenant_row.trial_expires_at.map(|t| t.to_rfc3339()),
+        "createdAt": tenant_row.created_at.to_rfc3339(),
+        "apiKeyPrefix": tenant_row.api_key_prefix,
+    });
+
+    let activity = serde_json::json!({
+        "evalsThisMonth": evals_month,
+        "evalsTotal": evals_total,
+        "lastActivityAt": last_activity.map(|t| t.to_rfc3339()),
+    });
+
+    let transfer_summary = serde_json::json!({
+        "total": total_transfers,
+        "blocked": blocked,
+        "allowed": allowed,
+        "pendingReview": pending_review,
+    });
+
+    HttpResponse::Ok().json(serde_json::json!({
+        "account": account,
+        "activity": activity,
+        "transferSummary": transfer_summary,
+        "sccRegistry": scc_registry,
+        "reviewQueue": {
+            "pendingCount": pending_count,
+            "overdueCount": overdue_count,
+        },
+    }))
 }
 
 // ── GET /api/v1/admin/stats ──
@@ -257,10 +430,10 @@ pub async fn admin_stats(
     .await
     .unwrap_or(0);
 
-    let evals_24h: i64 = sqlx::query_scalar(
+    let evals_month: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM compliance_records cr \
          INNER JOIN tenants t ON cr.tenant_id = t.id AND t.deleted_at IS NULL \
-         WHERE cr.created_at > NOW() - INTERVAL '24 hours'"
+         WHERE cr.created_at >= date_trunc('month', NOW())::timestamptz"
     )
     .fetch_one(pool.get_ref())
     .await
@@ -270,7 +443,7 @@ pub async fn admin_stats(
         "total_tenants": total,
         "active_trials": active_trials,
         "pro_tenants": pro,
-        "total_evaluations_24h": evals_24h,
+        "total_evaluations_month": evals_month,
     }))
 }
 
@@ -328,6 +501,15 @@ pub async fn create_tenant(
             }));
         }
     };
+
+    // Seed system_settings so dashboard toggle and admin stay in sync
+    let _ = sqlx::query(
+        "INSERT INTO system_settings (tenant_id, key, value, updated_at) VALUES ($1, 'enforcement_mode', $2, NOW())"
+    )
+    .bind(tenant.id)
+    .bind(mode)
+    .execute(pool.get_ref())
+    .await;
 
     let mut resp = serde_json::to_value(tenant_to_response(tenant, 0)).unwrap();
     resp["api_key_raw"] = serde_json::Value::String(raw_key);
@@ -418,12 +600,34 @@ pub async fn update_tenant(
 
     let evals: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM compliance_records \
-         WHERE tenant_id = $1 AND created_at > NOW() - INTERVAL '24 hours'"
+         WHERE tenant_id = $1 AND created_at >= date_trunc('month', NOW())::timestamptz"
     )
     .bind(tenant_id)
     .fetch_one(pool.get_ref())
     .await
     .unwrap_or(0);
+
+    // Sync system_settings when mode changes so dashboard toggle shows correct
+    if body.mode.is_some() {
+        let upd = sqlx::query(
+            "UPDATE system_settings SET value = $1, updated_at = NOW() WHERE tenant_id = $2 AND key = 'enforcement_mode'"
+        )
+        .bind(mode)
+        .bind(tenant_id)
+        .execute(pool.get_ref())
+        .await;
+        if let Ok(res) = upd {
+            if res.rows_affected() == 0 {
+                let _ = sqlx::query(
+                    "INSERT INTO system_settings (tenant_id, key, value, updated_at) VALUES ($1, 'enforcement_mode', $2, NOW())"
+                )
+                .bind(tenant_id)
+                .bind(mode)
+                .execute(pool.get_ref())
+                .await;
+            }
+        }
+    }
 
     HttpResponse::Ok().json(tenant_to_response(updated, evals))
 }
@@ -532,7 +736,8 @@ pub async fn rotate_api_key(
 }
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
-    cfg.service(list_tenants)
+    cfg.service(get_tenant_detail)
+       .service(list_tenants)
        .service(admin_stats)
        .service(create_tenant)
        .service(update_tenant)

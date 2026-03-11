@@ -1,7 +1,7 @@
 # Project Reference — Veridion API / Sovereign Shield
 
-**Version:** 1.7  
-**Last updated:** 2026-03-08
+**Version:** 1.8  
+**Last updated:** 2026-03-11
 
 This is the **single project reference** for Veridion API: vision, scope, tech stack, configuration, and current behaviour (dashboard and API). Use it to onboard, scope work, and keep the codebase and docs aligned.
 
@@ -195,6 +195,19 @@ veridion-api/
 
 **Note:** Dashboard calls `/api/v1/shield/evaluate` via `evaluateTransfer()`. Full route list in `src/main.rs` startup log. Evidence API returns `merkleRoots` for chain integrity display.
 
+### 8.8 Admin Routes
+
+| Method + path | Purpose |
+|---------------|--------|
+| `GET /api/v1/admin/tenants` | List all tenants (cross-tenant query, no tenant_id filter) |
+| `GET /api/v1/admin/stats` | Admin KPI stats (total_tenants, active_trials, pro_tenants, total_evaluations_month) — cross-tenant |
+| `POST /api/v1/admin/tenants` | Create tenant |
+| `PATCH /api/v1/admin/tenants/{id}` | Update tenant (plan, mode, trial_expires_at, rate_limit_per_minute) |
+| `DELETE /api/v1/admin/tenants/{id}` | Soft delete tenant (sets deleted_at) |
+| `POST /api/v1/admin/tenants/{id}/rotate-api-key` | Rotate tenant API key |
+
+**Auth**: Admin routes verify admin access via `verify_admin()` function which checks JWT `is_admin` claim or API key `is_admin` flag. Admin routes are **cross-tenant by design** — all queries operate across all tenants without `tenant_id` filtering. Only admin context permits cross-tenant queries.
+
 ### 8.6 MCP Server
 
 The MCP (Model Context Protocol) server provides GDPR compliance tools for AI agents (Claude Desktop, Cursor, etc.). It runs as a standalone Node.js process with stdio transport.
@@ -211,7 +224,7 @@ The MCP (Model Context Protocol) server provides GDPR compliance tools for AI ag
 |---|---|
 | `evaluate_transfer` | Evaluate a cross-border transfer before it happens. Returns ALLOW, BLOCK, or REVIEW with cryptographic evidence seal. |
 | `check_scc_coverage` | Check SCC registry for a specific partner/country combination. |
-| `get_compliance_status` | Get account compliance overview (enforcement mode, transfer stats, pending reviews, expiring SCCs). |
+| `get_compliance_status` | Get account compliance overview (enforcement mode from `/api/v1/settings`, transfer stats from `/api/v1/lenses/sovereign-shield/stats`). Uses correct API field names: `totalTransfers`, `blockedToday`, `pendingApprovals`. Calculates `allowed` as `totalTransfers - blockedToday - pendingApprovals`. |
 | `list_adequate_countries` | List countries by GDPR transfer status (EU/EEA, adequate, SCC required, blocked). Optional filter parameter. |
 
 **Setup**:
@@ -266,7 +279,7 @@ The MCP (Model Context Protocol) server provides GDPR compliance tools for AI ag
 - **Enforcement Mode**: Banner at top: SHADOW MODE (yellow) — "All transfers are passing through. Decisions shown are not being enforced." or ENFORCING (green) — "ENFORCING — Blocking transfers". Toggle: "Enable Enforcement" (opens confirmation modal; type ENABLE_ENFORCEMENT to proceed) or "Switch to Shadow Mode". Mode persisted in `system_settings` table.
 - **Data**: `fetchEvidenceEvents()`, `fetchSCCRegistries()`, `fetchReviewQueuePending()`, `fetchDecidedEvidenceIds()`, `fetchSettings()`; auto-refresh 5s; Refresh button. **ensureEventsInReviewQueue** runs on load: finds SCC-required (REVIEW) events without a valid SCC (partner-specific check) and creates a review queue item via `createReviewQueueItem({ action, context, evidenceEventId })` for each not already in queue. Decided evidence IDs excluded from "Requires Attention".
 - **Header**: "SOVEREIGN SHIELD", "GDPR Chapter V (Art. 44-49) • International Data Transfers". Refresh.
-- **Status bar**: Status (PROTECTED, ATTENTION), Last scan.
+- **Status bar**: Status (ACTIVE when API is reachable and settings load successfully, OFFLINE only when API health check fails or settings cannot be fetched), Last scan. Zero transfers = active but idle, not offline.
 - **KPI cards (8)**: Row 1 — TRANSFERS (24H), ADEQUATE COUNTRIES (24H) — grey when 0, green when >= 1, HIGH RISK DESTINATIONS (24H) — grey when 0, red when >= 1, **BLOCK (24H)** — grey when 0, red when >= 1 (policy blocks + `HUMAN_OVERSIGHT_REJECTED`). Row 2 — SCC COVERAGE, EXPIRING SCCs — grey when 0, yellow when >= 1, **PENDING APPROVALS** — grey when 0, yellow when >= 1 (SCC-required without valid SCC), ACTIVE AGENTS.
 - **Main**: **Left** — TRANSFER MAP (SovereignMap/WorldMap); EU/EEA adequate. **Right** — REQUIRES ATTENTION: only SCC-required without valid SCC, pending and not decided; click → Transfer Detail; up to 5; "View All →". **Below** — RECENT ACTIVITY (last 10 events, BLOCK/REVIEW/ALLOW badges; SHADOW badge shown when `payload.shadow_mode === true`).
 
@@ -327,6 +340,7 @@ The MCP (Model Context Protocol) server provides GDPR compliance tools for AI ag
   - Extend trial (+30 days), upgrade plan, rotate API key, delete tenant
   - **Trial expiry warning**: Amber "Expiring soon" badge on tenant names within 7 days of expiry
 - **Auth**: Admin-only access; redirects non-admin users to home page.
+- **Backend**: Admin routes (`/api/v1/admin/*`) are cross-tenant by design — queries do not filter by `tenant_id`. Admin routes verify admin access via JWT `is_admin` claim or API key `is_admin` flag, then query across all tenants.
 
 ---
 
@@ -367,6 +381,11 @@ The MCP (Model Context Protocol) server provides GDPR compliance tools for AI ag
   - `triggerTrialExpired()` — trigger registered callback
   - `checkTrialExpired(res)` — helper checks response status 402 and triggers modal
   - All fetch functions check for 402 status and trigger trial expired modal
+- **401 Unauthorized Handling**: Global 401 handler:
+  - `checkUnauthorized(res)` — helper checks response status 401 (expired/invalid JWT token)
+  - Clears expired token and user data from localStorage (`ss_token`, `ss_user`)
+  - Redirects to `/login?expired=true` with session expired message
+  - Applied to main API functions: `fetchSettings()`, `fetchEvidenceEvents()`, `fetchSCCRegistries()`, `fetchReviewQueuePending()`, `fetchDecidedEvidenceIds()`
 - **Calls**: 
   - Settings: `fetchSettings()`, `patchSettings({ enforcementMode, confirmationToken? })` — uses camelCase keys
   - Evidence: `fetchEvidenceEvents()`, `fetchEvidenceEventsPaginated(page, limit, eventType?, sourceSystem?)`, `fetchEvidenceEventsWithMeta(params?)` (events, totalCount, merkleRoots), `verifyIntegrity()`
