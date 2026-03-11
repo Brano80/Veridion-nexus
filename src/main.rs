@@ -257,7 +257,7 @@ async fn main() -> std::io::Result<()> {
     }
     println!("Migrations applied.");
 
-    // SLA timeout background job — auto-block pending reviews older than 4 hours
+    // SLA timeout background job — auto-block pending reviews older than 24 hours
     let pool_clone = pool.clone();
     tokio::spawn(async move {
         loop {

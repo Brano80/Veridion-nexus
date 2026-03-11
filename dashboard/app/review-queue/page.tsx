@@ -21,7 +21,7 @@ function getCountryFromAction(action: string): { code: string; name: string } {
 
 function formatSlaRemaining(createdAt: string): { text: string; badgeClass: string; borderClass: string } {
   const created = new Date(createdAt).getTime();
-  const deadline = created + 4 * 60 * 60 * 1000; // +4 hours
+  const deadline = created + 24 * 60 * 60 * 1000; // +24 hours
   const now = Date.now();
 
   if (now >= deadline) {

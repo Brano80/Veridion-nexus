@@ -391,7 +391,7 @@ pub async fn decide_review(
     Ok(())
 }
 
-/// SLA timeout: auto-block pending reviews older than 4 hours.
+/// SLA timeout: auto-block pending reviews older than 24 hours.
 pub async fn process_sla_timeouts(pool: &PgPool) -> Result<(), String> {
     #[derive(sqlx::FromRow)]
     struct TimeoutRow {
@@ -411,7 +411,7 @@ pub async fn process_sla_timeouts(pool: &PgPool) -> Result<(), String> {
            FROM human_oversight ho
            JOIN compliance_records cr ON cr.seal_id = ho.seal_id AND cr.tenant_id = ho.tenant_id
            WHERE ho.status = 'PENDING'
-             AND ho.created_at < NOW() - INTERVAL '4 hours'"#,
+             AND ho.created_at < NOW() - INTERVAL '24 hours'"#,
     )
     .fetch_all(pool)
     .await
@@ -454,7 +454,7 @@ pub async fn process_sla_timeouts(pool: &PgPool) -> Result<(), String> {
         // Build payload from original evidence event
         let mut payload = serde_json::json!({
             "decision": "REJECTED",
-            "reason": "SLA timeout — transfer auto-blocked after 4 hours without human review",
+            "reason": "SLA timeout — transfer auto-blocked after 24 hours without human review",
             "reviewer_id": "system-sla-timeout",
             "shadow_mode": is_shadow,
         });

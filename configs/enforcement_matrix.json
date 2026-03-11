@@ -4,7 +4,7 @@
     "article": "5",
     "name": "Principles & lawfulness",
     "level": "L2",
-    "human_sla_hours": 4,
+    "human_sla_hours": 24,
     "default_action_on_timeout": "deny",
     "fallback_on_miss": "deny",
     "notes": "Block processing if no lawful basis; soft block to allow human override within SLA."
@@ -14,7 +14,7 @@
     "article": "6",
     "name": "Lawful basis check",
     "level": "L2",
-    "human_sla_hours": 4,
+    "human_sla_hours": 24,
     "default_action_on_timeout": "deny",
     "fallback_on_miss": "deny",
     "notes": "Consent/contract/legal obligation; deny when basis missing or expired."
@@ -24,7 +24,7 @@
     "article": "7",
     "name": "Consent conditions",
     "level": "L2",
-    "human_sla_hours": 4,
+    "human_sla_hours": 24,
     "default_action_on_timeout": "deny",
     "fallback_on_miss": "deny",
     "notes": "Verify demonstrable consent; revoke -> soft block."
@@ -52,7 +52,7 @@
     "article": "18",
     "name": "Restriction of processing",
     "level": "L2",
-    "human_sla_hours": 4,
+    "human_sla_hours": 24,
     "default_action_on_timeout": "deny",
     "fallback_on_miss": "deny",
     "notes": "Soft block until claim resolved."
@@ -71,7 +71,7 @@
     "article": "21",
     "name": "Objection",
     "level": "L2",
-    "human_sla_hours": 4,
+    "human_sla_hours": 24,
     "default_action_on_timeout": "deny",
     "fallback_on_miss": "deny",
     "notes": "Soft block processing unless overriding legitimate interest documented."
@@ -81,7 +81,7 @@
     "article": "22",
     "name": "Automated decisions",
     "level": "L2",
-    "human_sla_hours": 4,
+    "human_sla_hours": 24,
     "default_action_on_timeout": "deny",
     "fallback_on_miss": "deny",
     "notes": "Hold high-risk automated decisions pending human review."
@@ -182,7 +182,7 @@
     "article": "13",
     "name": "Incident classification",
     "level": "L2",
-    "human_sla_hours": 4,
+    "human_sla_hours": 24,
     "default_action_on_timeout": "deny",
     "fallback_on_miss": "deny",
     "notes": "Soft block risky operations pending classification."
@@ -201,7 +201,7 @@
     "article": "17",
     "name": "Major incident handling",
     "level": "L2",
-    "human_sla_hours": 4,
+    "human_sla_hours": 24,
     "default_action_on_timeout": "deny",
     "fallback_on_miss": "deny",
     "notes": "Soft block risky flows until incident state cleared."
@@ -238,7 +238,7 @@
     "article": "24",
     "name": "Contractual clauses",
     "level": "L2",
-    "human_sla_hours": 4,
+    "human_sla_hours": 24,
     "default_action_on_timeout": "deny",
     "fallback_on_miss": "deny",
     "notes": "Soft block onboarding vendor until clauses verified."
@@ -266,7 +266,7 @@
     "article": "28-30",
     "name": "TPRM & SLA monitoring",
     "level": "L2",
-    "human_sla_hours": 4,
+    "human_sla_hours": 24,
     "default_action_on_timeout": "deny",
     "fallback_on_miss": "deny",
     "notes": "Soft block risky vendor activity; SLA breach escalation."
@@ -295,7 +295,7 @@
     "article": "10",
     "name": "Data governance",
     "level": "L2",
-    "human_sla_hours": 4,
+    "human_sla_hours": 24,
     "default_action_on_timeout": "deny",
     "fallback_on_miss": "deny",
     "notes": "Dataset registry + deploy gate."
@@ -323,7 +323,7 @@
     "article": "13",
     "name": "Transparency",
     "level": "L2",
-    "human_sla_hours": 4,
+    "human_sla_hours": 24,
     "default_action_on_timeout": "deny",
     "fallback_on_miss": "deny",
     "notes": "Disclosure middleware; fail-closed on missing template."
@@ -333,7 +333,7 @@
     "article": "14",
     "name": "Human oversight",
     "level": "L2",
-    "human_sla_hours": 4,
+    "human_sla_hours": 24,
     "default_action_on_timeout": "deny",
     "fallback_on_miss": "deny",
     "notes": "Soft block if oversight not confirmed."
@@ -361,7 +361,7 @@
     "article": "50",
     "name": "Watermarking",
     "level": "L2",
-    "human_sla_hours": 4,
+    "human_sla_hours": 24,
     "default_action_on_timeout": "deny",
     "fallback_on_miss": "deny",
     "notes": "C2PA manifest required; soft block if cannot stamp."
@@ -371,7 +371,7 @@
     "article": "52",
     "name": "Transparency obligations",
     "level": "L2",
-    "human_sla_hours": 4,
+    "human_sla_hours": 24,
     "default_action_on_timeout": "deny",
     "fallback_on_miss": "deny",
     "notes": "Disclose AI interaction; block if disclosure unavailable."
@@ -408,7 +408,7 @@
     "article": "General-purpose",
     "name": "GPAI disclosures",
     "level": "L2",
-    "human_sla_hours": 4,
+    "human_sla_hours": 24,
     "default_action_on_timeout": "deny",
     "fallback_on_miss": "deny",
     "notes": "Soft block GPAI outputs until disclosures applied."
