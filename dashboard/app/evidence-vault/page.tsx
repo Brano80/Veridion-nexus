@@ -756,29 +756,41 @@ function EvidenceVaultPageContent() {
                             })()}
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-sm text-slate-300 font-mono whitespace-nowrap">
+                        <td className="px-4 py-3 text-sm text-slate-300 font-mono">
                           {(() => {
                             const source = (event.sourceSystem || '').toLowerCase();
                             const et = (event.eventType || '').toUpperCase();
                             const isHumanOversight = source === 'human-oversight' || et.includes('HUMAN_OVERSIGHT');
+                            let articlesText: string;
                             if (isHumanOversight) {
-                              return getHumanOversightLegalBasis(event.eventType || '', event.articles) || '—';
+                              articlesText = getHumanOversightLegalBasis(event.eventType || '', event.articles) || '—';
+                            } else {
+                              const countryName = event.payload?.destination_country || event.payload?.destinationCountry || event.payload?.destination || '';
+                              let countryCode = event.payload?.destination_country_code || event.payload?.destinationCountryCode || '';
+                              if (!countryCode && countryName) countryCode = getCountryCodeFromName(countryName);
+                              // Filter to only include valid GDPR article strings (exclude data categories)
+                              const validArticles = event.articles?.filter((a: string) => {
+                                if (!a || typeof a !== 'string') return false;
+                                const article = a.trim();
+                                // Only include strings that look like GDPR articles (contain "Art." or "GDPR")
+                                // Exclude data categories like "email", "name", "documents", etc.
+                                return (article.includes('Art.') || article.includes('GDPR') || article.includes('art.')) && !article.includes('Art. 22');
+                              }) || [];
+                              const hasValidArticles = validArticles.length > 0;
+                              articlesText = hasValidArticles
+                                ? validArticles.join(', ')
+                                : getLegalBasis(countryCode) || '—';
                             }
-                            const countryName = event.payload?.destination_country || event.payload?.destinationCountry || event.payload?.destination || '';
-                            let countryCode = event.payload?.destination_country_code || event.payload?.destinationCountryCode || '';
-                            if (!countryCode && countryName) countryCode = getCountryCodeFromName(countryName);
-                            // Filter to only include valid GDPR article strings (exclude data categories)
-                            const validArticles = event.articles?.filter((a: string) => {
-                              if (!a || typeof a !== 'string') return false;
-                              const article = a.trim();
-                              // Only include strings that look like GDPR articles (contain "Art." or "GDPR")
-                              // Exclude data categories like "email", "name", "documents", etc.
-                              return (article.includes('Art.') || article.includes('GDPR') || article.includes('art.')) && !article.includes('Art. 22');
-                            }) || [];
-                            const hasValidArticles = validArticles.length > 0;
-                            return hasValidArticles
-                              ? validArticles[0]
-                              : getLegalBasis(countryCode) || '—';
+                            // Split by comma and display each article on a new line
+                            const articles = articlesText.split(',').map(a => a.trim()).filter(a => a && a !== '—');
+                            if (articles.length === 0) return '—';
+                            return (
+                              <div className="space-y-0.5">
+                                {articles.map((article, idx) => (
+                                  <div key={idx} className="whitespace-nowrap">{article}</div>
+                                ))}
+                              </div>
+                            );
                           })()}
                         </td>
                         <td className="px-4 py-3">
