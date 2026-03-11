@@ -51,7 +51,7 @@ function formatSlaRemaining(createdAt: string): { text: string; badgeClass: stri
 
 function isOverdue(createdAt: string): boolean {
   const created = new Date(createdAt).getTime();
-  const deadline = created + 4 * 60 * 60 * 1000;
+  const deadline = created + 24 * 60 * 60 * 1000; // +24 hours
   return Date.now() >= deadline;
 }
 
