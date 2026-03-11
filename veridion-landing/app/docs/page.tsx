@@ -259,6 +259,14 @@ if (decision === 'REVIEW') {
                 </div>
               </div>
 
+              {/* How to set destination_country_code */}
+              <div className="bg-blue-50 border-l-4 border-blue-400 p-4 mb-6 rounded-r-lg">
+                <h4 className="text-lg font-semibold text-slate-900 mb-2">How to set destination_country_code</h4>
+                <p className="text-slate-700 text-sm">
+                  This field is not auto-detected — you set it once per vendor integration based on where that vendor processes data. Example: OpenAI → "US", AWS Frankfurt → "DE", Anthropic → "US". You define it as a constant in your wrapper function, not dynamically per call.
+                </p>
+              </div>
+
               {/* Pattern Cards */}
               <div className="space-y-6">
                 {/* Pattern 1 */}
@@ -424,19 +432,13 @@ app.use('/api/ai', shieldMiddleware);`}
                     <tr>
                       <td className="border border-slate-300 px-4 py-2 font-mono text-sm">destination_country_code</td>
                       <td className="border border-slate-300 px-4 py-2">string</td>
-                      <td className="border border-slate-300 px-4 py-2">Yes*</td>
+                      <td className="border border-slate-300 px-4 py-2">Yes</td>
                       <td className="border border-slate-300 px-4 py-2">ISO 3166-1 alpha-2 country code (e.g. "US", "CN")</td>
-                    </tr>
-                    <tr>
-                      <td className="border border-slate-300 px-4 py-2 font-mono text-sm">destination_country</td>
-                      <td className="border border-slate-300 px-4 py-2">string</td>
-                      <td className="border border-slate-300 px-4 py-2">No</td>
-                      <td className="border border-slate-300 px-4 py-2">Human-readable country name</td>
                     </tr>
                     <tr>
                       <td className="border border-slate-300 px-4 py-2 font-mono text-sm">data_categories</td>
                       <td className="border border-slate-300 px-4 py-2">array</td>
-                      <td className="border border-slate-300 px-4 py-2">Yes*</td>
+                      <td className="border border-slate-300 px-4 py-2">Yes (optional, defaults to REVIEW)</td>
                       <td className="border border-slate-300 px-4 py-2">Personal data categories being transferred (e.g. ["email", "name"])</td>
                     </tr>
                     <tr>
@@ -472,9 +474,6 @@ app.use('/api/ai', shieldMiddleware);`}
                   </tbody>
                 </table>
               </div>
-              <p className="text-slate-600 text-sm mb-6">
-                *Either destination_country_code or destination_country is required. If data_categories is omitted, the decision defaults to REVIEW.
-              </p>
 
               <h4 className="text-lg font-semibold text-slate-900 mb-3">Example request</h4>
               <CodeBlock
@@ -482,7 +481,6 @@ app.use('/api/ai', shieldMiddleware);`}
                 language="json"
                 code={`{
   "destination_country_code": "US",
-  "destination_country": "United States",
   "data_categories": ["email", "name", "user_id"],
   "partner_name": "OpenAI",
   "protocol": "HTTPS",
