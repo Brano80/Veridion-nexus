@@ -7,7 +7,7 @@ import { Globe, FileText, Shield, ClipboardCheck, List, MapPin, Settings, LogOut
 import { getCurrentUser, isAdmin, getAuthHeaders, clearAuthState, CurrentUser } from '../utils/api';
 
 const navItems = [
-  { href: '/', label: 'Sovereign Shield', icon: Globe },
+  { href: '/', label: 'Veridion Nexus', icon: Globe },
   { href: '/review-queue', label: 'Review Queue', icon: ClipboardCheck },
   { href: '/scc-registry', label: 'SCC Registry', icon: FileText },
   { href: '/adequate-countries', label: 'Adequate Countries', icon: MapPin },

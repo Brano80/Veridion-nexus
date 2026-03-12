@@ -2,10 +2,10 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-const API_KEY = process.env.SOVEREIGN_SHIELD_API_KEY;
-const API_URL = process.env.SOVEREIGN_SHIELD_API_URL || "https://api.veridion-nexus.eu";
+const API_KEY = process.env.VERIDION_NEXUS_API_KEY;
+const API_URL = process.env.VERIDION_NEXUS_API_URL || "https://api.veridion-nexus.eu";
 if (!API_KEY) {
-    console.error("SOVEREIGN_SHIELD_API_KEY environment variable is required.\n" +
+    console.error("VERIDION_NEXUS_API_KEY environment variable is required.\n" +
         "Get your API key at https://veridion-nexus.eu");
     process.exit(1);
 }
@@ -32,7 +32,7 @@ async function apiRequest(method, path, body) {
         throw new Error(`Cannot reach Sovereign Shield API at ${API_URL}. Check your network connection.`);
     }
     if (res.status === 401) {
-        throw new Error("Authentication failed. Check your SOVEREIGN_SHIELD_API_KEY environment variable.");
+        throw new Error("Authentication failed. Check your VERIDION_NEXUS_API_KEY environment variable.");
     }
     if (res.status === 402) {
         throw new Error("Trial expired. Upgrade to Pro at https://app.veridion-nexus.eu");
@@ -240,18 +240,21 @@ server.registerTool("get_compliance_status", {
     inputSchema: z.object({}),
 }, async () => {
     try {
-        const [stats, pending, sccs] = await Promise.all([
+        const [stats, settings, pending, sccs] = await Promise.all([
             apiRequest("GET", "/api/v1/lenses/sovereign-shield/stats"),
+            apiRequest("GET", "/api/v1/settings"),
             apiRequest("GET", "/api/v1/human_oversight/pending"),
             apiRequest("GET", "/api/v1/scc-registries"),
         ]);
-        const mode = String(stats.enforcement_mode ?? "shadow") === "enforce"
+        const mode = String(settings.enforcement_mode ?? "shadow") === "enforce"
             ? "ENFORCING 🔒"
             : "SHADOW MODE ⚡";
-        const transfers24h = stats.transfers_24h ?? 0;
-        const allowed = stats.allowed ?? 0;
-        const blocked = stats.blocked ?? 0;
+        const totalTransfers = Number(stats.totalTransfers ?? 0);
+        const blockedToday = Number(stats.blockedToday ?? 0);
+        const pendingApprovals = Number(stats.pendingApprovals ?? 0);
         const pendingCount = Array.isArray(pending) ? pending.length : 0;
+        // Calculate allowed as totalTransfers - blockedToday - pendingApprovals
+        const allowed = Math.max(0, totalTransfers - blockedToday - pendingApprovals);
         const activeSccCount = Array.isArray(sccs) ? sccs.length : 0;
         const now = new Date();
         const thirtyDays = 30 * 24 * 60 * 60 * 1000;
@@ -267,10 +270,10 @@ server.registerTool("get_compliance_status", {
         let text = `📊 SOVEREIGN SHIELD COMPLIANCE STATUS\n` +
             `Mode: ${mode}\n\n` +
             `TRANSFERS (24H)\n` +
-            `  Total: ${transfers24h}\n` +
+            `  Total: ${totalTransfers}\n` +
             `  Allowed: ${allowed}\n` +
-            `  Blocked: ${blocked}\n` +
-            `  Pending Review: ${pendingCount}\n\n` +
+            `  Blocked: ${blockedToday}\n` +
+            `  Pending Review: ${pendingApprovals}\n\n` +
             `SCC REGISTRY\n` +
             `  Active SCCs: ${activeSccCount}\n` +
             `  Expiring within 30 days: ${expiringCount}\n\n` +

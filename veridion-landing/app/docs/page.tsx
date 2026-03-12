@@ -961,7 +961,7 @@ async function callOpenAI(userData) {
             >
               <h2 className="text-3xl font-bold text-slate-900 mb-4">MCP Server</h2>
               <p className="text-slate-700 mb-6">
-                Sovereign Shield is available as an MCP (Model Context Protocol) server. This makes GDPR transfer evaluation available as a tool in Claude and Cursor workflows, without manual API integration.
+                Veridion Nexus is available as an MCP (Model Context Protocol) server. This makes GDPR transfer evaluation available as a tool in Claude and Cursor workflows, without manual API integration.
               </p>
 
               <div className="grid md:grid-cols-2 gap-6 mb-8">
@@ -987,16 +987,16 @@ async function callOpenAI(userData) {
 
               <h3 className="text-xl font-semibold text-slate-900 mb-3">Setup: Claude Desktop</h3>
               <p className="text-slate-600 text-sm mb-3">
-                First, clone the repository and build the MCP server: <code className="bg-slate-200 px-1.5 py-0.5 rounded text-xs font-mono">cd mcp-server && npm install && npm run build</code>. Then use the absolute path to <code className="bg-slate-200 px-1.5 py-0.5 rounded text-xs font-mono">dist/index.js</code> in your config.
+                Install using npx: <code className="bg-slate-200 px-1.5 py-0.5 rounded text-xs font-mono">npx -y veridion-nexus-mcp</code>
               </p>
               <CodeBlock
                 id="mcp-claude-config"
                 language="json"
                 code={`{
   "mcpServers": {
-    "sovereign-shield": {
-      "command": "node",
-      "args": ["/absolute/path/to/veridion-api/mcp-server/dist/index.js"],
+    "veridion-nexus": {
+      "command": "npx",
+      "args": ["-y", "veridion-nexus-mcp"],
       "env": {
         "SOVEREIGN_SHIELD_API_KEY": "ss_test_your_key_here"
       }
@@ -1010,16 +1010,16 @@ async function callOpenAI(userData) {
 
               <h3 className="text-xl font-semibold text-slate-900 mb-3">Setup: Cursor</h3>
               <p className="text-slate-600 text-sm mb-3">
-                First, clone the repository and build the MCP server: <code className="bg-slate-200 px-1.5 py-0.5 rounded text-xs font-mono">cd mcp-server && npm install && npm run build</code>. Then use the absolute path to <code className="bg-slate-200 px-1.5 py-0.5 rounded text-xs font-mono">dist/index.js</code> in your config.
+                Install using npx: <code className="bg-slate-200 px-1.5 py-0.5 rounded text-xs font-mono">npx -y veridion-nexus-mcp</code>
               </p>
               <CodeBlock
                 id="mcp-cursor-config"
                 language="json"
                 code={`{
   "mcpServers": {
-    "sovereign-shield": {
-      "command": "node",
-      "args": ["/absolute/path/to/veridion-api/mcp-server/dist/index.js"],
+    "veridion-nexus": {
+      "command": "npx",
+      "args": ["-y", "veridion-nexus-mcp"],
       "env": {
         "SOVEREIGN_SHIELD_API_KEY": "ss_test_your_key_here"
       }

@@ -19,7 +19,7 @@ export default function TrialExpiredModal() {
           Your trial has ended
         </h2>
         <p className="text-slate-400 text-center text-sm mb-6">
-          Your 30-day Sovereign Shield trial has expired. Your evidence records and audit data are preserved — upgrade to continue enforcement.
+          Your 30-day Veridion Nexus trial has expired. Your evidence records and audit data are preserved — upgrade to continue enforcement.
         </p>
 
         {/* What they had */}

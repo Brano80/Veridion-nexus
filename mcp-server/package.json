@@ -1,11 +1,11 @@
 {
-  "name": "sovereign-shield-mcp",
-  "version": "1.0.0",
-  "description": "Sovereign Shield MCP server — GDPR Art. 44-49 runtime compliance for AI agents",
+  "name": "veridion-nexus-mcp",
+  "version": "1.0.2",
+  "description": "Veridion Nexus MCP server - GDPR Art. 44-49 runtime compliance for AI agents",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "sovereign-shield-mcp": "dist/index.js"
+    "veridion-nexus-mcp": "dist/index.js"
   },
   "scripts": {
     "build": "tsc",

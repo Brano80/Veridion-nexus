@@ -117,7 +117,7 @@ export default function SignupPage() {
           <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 space-y-5">
             <div className="text-center">
               <div className="text-4xl mb-3">🎉</div>
-              <h2 className="text-xl font-bold text-white mb-1">Welcome to Sovereign Shield</h2>
+              <h2 className="text-xl font-bold text-white mb-1">Welcome to Veridion Nexus</h2>
               <p className="text-slate-400">Your 30-day free trial has started.</p>
             </div>
 

@@ -1,4 +1,4 @@
-# Sovereign Shield Dashboard
+# Veridion Nexus Dashboard
 
 Product UI for monitoring and managing compliance decisions.
 

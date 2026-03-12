@@ -13,7 +13,7 @@ const jetbrainsMono = JetBrains_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'Sovereign Shield Dashboard',
+  title: 'Veridion Nexus Dashboard',
   description: 'Compliance monitoring and decision management',
 }
 

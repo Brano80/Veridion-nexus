@@ -280,7 +280,7 @@ export default function LandingPage() {
                 <p className="text-base text-slate-600">
                   Before calling OpenAI, Anthropic, or any external API, call{' '}
                   <code className="bg-slate-100 px-2 py-1 rounded text-sm font-mono text-slate-900">POST /api/v1/shield/evaluate</code>{' '}
-                  with the destination country, partner name, data categories, and purpose. Sovereign Shield returns ALLOW, BLOCK, or REVIEW.
+                  with the destination country, partner name, data categories, and purpose. Veridion Nexus returns ALLOW, BLOCK, or REVIEW.
                 </p>
               </div>
             </div>
@@ -483,7 +483,7 @@ export default function LandingPage() {
                 </h1>
               </div>
               <p className="text-sm text-slate-400">
-                Sovereign Shield — GDPR Chapter V Runtime Enforcement
+                Veridion Nexus — GDPR Chapter V Runtime Enforcement
               </p>
               <p className="text-xs text-slate-500">
                 © 2026 Veridion Nexus. Built in the EU.

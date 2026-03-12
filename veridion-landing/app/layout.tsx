@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Sovereign Shield — EU Compliance API',
+  title: 'Veridion Nexus — EU GDPR Compliance API',
   description: 'GDPR data transfer monitoring and compliance tooling supporting demonstrable compliance',
 }
 

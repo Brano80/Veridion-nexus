@@ -1,8 +1,8 @@
-# Sovereign Shield MCP Server
+# Veridion Nexus MCP Server
 
 GDPR Art. 44-49 runtime compliance enforcement for AI agents.
 
-Sovereign Shield is available as an MCP (Model Context Protocol) server. This allows AI agents — including Claude, Cursor, and any MCP-compatible assistant — to evaluate cross-border data transfers automatically, without manual API integration.
+Veridion Nexus is available as an MCP (Model Context Protocol) server. This allows AI agents — including Claude, Cursor, and any MCP-compatible assistant — to evaluate cross-border data transfers automatically, without manual API integration.
 
 ## Installation
 
@@ -13,11 +13,11 @@ Add to `claude_desktop_config.json`:
 ```json
 {
   "mcpServers": {
-    "sovereign-shield": {
+    "veridion-nexus": {
       "command": "npx",
-      "args": ["sovereign-shield-mcp"],
+      "args": ["veridion-nexus-mcp"],
       "env": {
-        "SOVEREIGN_SHIELD_API_KEY": "ss_test_your_key_here"
+        "VERIDION_NEXUS_API_KEY": "ss_test_your_key_here"
       }
     }
   }
@@ -35,11 +35,11 @@ Add to `.cursor/mcp.json` in your project root:
 ```json
 {
   "mcpServers": {
-    "sovereign-shield": {
+    "veridion-nexus": {
       "command": "npx",
-      "args": ["sovereign-shield-mcp"],
+      "args": ["veridion-nexus-mcp"],
       "env": {
-        "SOVEREIGN_SHIELD_API_KEY": "ss_test_your_key_here"
+        "VERIDION_NEXUS_API_KEY": "ss_test_your_key_here"
       }
     }
   }
@@ -68,12 +68,12 @@ node dist/index.js
 
 | Variable | Required | Default |
 |---|---|---|
-| `SOVEREIGN_SHIELD_API_KEY` | Yes | — |
-| `SOVEREIGN_SHIELD_API_URL` | No | `https://api.veridion-nexus.eu` |
+| `VERIDION_NEXUS_API_KEY` | Yes | — |
+| `VERIDION_NEXUS_API_URL` | No | `https://api.veridion-nexus.eu` |
 
 ## Example usage in Claude
 
-Once configured, Claude will automatically use Sovereign Shield before data transfers:
+Once configured, Claude will automatically use Veridion Nexus before data transfers:
 
 > "Before calling the OpenAI API with this user's email address, evaluate the transfer to the US."
 
@@ -83,7 +83,7 @@ Claude calls `evaluate_transfer` and handles the decision.
 
 1. Your AI agent receives a task that involves sending personal data to an external service
 2. The agent calls `evaluate_transfer` with the destination country and data categories
-3. Sovereign Shield evaluates the transfer against GDPR Art. 44-49 and returns ALLOW, BLOCK, or REVIEW
+3. Veridion Nexus evaluates the transfer against GDPR Art. 44-49 and returns ALLOW, BLOCK, or REVIEW
 4. Every decision is cryptographically sealed in the Evidence Vault
 5. The agent proceeds (ALLOW), stops (BLOCK), or queues for human review (REVIEW)
 
@@ -97,7 +97,7 @@ Claude calls `evaluate_transfer` and handles the decision.
 
 ## Limitations
 
-- Sovereign Shield supports demonstrable compliance — it does not guarantee it
+- Veridion Nexus supports demonstrable compliance — it does not guarantee it
 - Country classifications are updated manually, not pulled live from the EU Commission
 - The system trusts the `data_categories` you provide; it does not inspect payload content
 - Shadow Mode (trial) records decisions but does not enforce them
