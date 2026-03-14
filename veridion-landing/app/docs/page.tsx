@@ -1160,12 +1160,10 @@ async function callOpenAI(userData) {
                 <span>🇩🇪</span>
               </div>
               <a
-                href="https://veridion-nexus.eu"
-                target="_blank"
-                rel="noopener noreferrer"
+                href="mailto:veridion-nexus@protonmail.com"
                 className="block text-slate-400 hover:text-sky-400 transition-colors text-sm"
               >
-                veridion-nexus.eu
+                veridion-nexus@protonmail.com
               </a>
               <div className="bg-slate-800 border border-slate-700 rounded-full px-3 py-1 inline-block text-xs text-slate-300">
                 GDPR Art. 44-49 Infrastructure Supporting Demonstrable Compliance
