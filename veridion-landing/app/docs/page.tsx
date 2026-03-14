@@ -237,7 +237,7 @@ if (decision === 'REVIEW') {
               
               <h3 className="text-xl font-semibold text-slate-800 mb-4">Where does evaluate() fit?</h3>
               <p className="text-slate-700 mb-6">
-                Sovereign Shield works at your application's outbound layer — the point where your code calls an external API. You don't need to add it to every line of code. Add it once, to the wrapper function that calls your AI provider.
+                Veridion Nexus works at your application's outbound layer — the point where your code calls an external API. You don't need to add it to every line of code. Add it once, to the wrapper function that calls your AI provider.
               </p>
 
               {/* Flow Diagram */}
@@ -248,7 +248,7 @@ if (decision === 'REVIEW') {
                   <div>Middleware / Wrapper Function</div>
                   <div className="text-slate-400">↓ evaluate_transfer()</div>
                   <div className="flex items-center justify-center gap-4">
-                    <span>Sovereign Shield</span>
+                    <span>Veridion Nexus</span>
                     <span className="text-slate-400">←→</span>
                     <span>Evidence Vault</span>
                   </div>
@@ -1070,14 +1070,14 @@ async function callOpenAI(userData) {
             >
               <h2 className="text-3xl font-bold text-slate-900 mb-4">Limitations</h2>
               <p className="text-slate-700 mb-6">
-                Sovereign Shield supports demonstrable compliance — it does not guarantee it. Understand these limitations before integrating:
+                Veridion Nexus supports demonstrable compliance — it does not guarantee it. Understand these limitations before integrating:
               </p>
               
               <div className="space-y-4">
                 <div className="border-l-4 border-amber-400 bg-amber-50 p-4 rounded-r-lg">
                   <h3 className="font-semibold text-slate-900 mb-2">Caller-provided classification</h3>
                   <p className="text-slate-700 text-sm">
-                    Sovereign Shield trusts the data_categories you provide. It does not inspect payload content. If you classify personal data incorrectly, the evaluation reflects that.
+                    Veridion Nexus trusts the data_categories you provide. It does not inspect payload content. If you classify personal data incorrectly, the evaluation reflects that.
                   </p>
                 </div>
 
@@ -1091,14 +1091,14 @@ async function callOpenAI(userData) {
                 <div className="border-l-4 border-amber-400 bg-amber-50 p-4 rounded-r-lg">
                   <h3 className="font-semibold text-slate-900 mb-2">Not legal advice</h3>
                   <p className="text-slate-700 text-sm">
-                    Sovereign Shield is a technical enforcement and evidence tool. It does not replace a DPO, legal counsel, or a Transfer Impact Assessment. Consult a privacy lawyer for your specific situation.
+                    Veridion Nexus is a technical enforcement and evidence tool. It does not replace a DPO, legal counsel, or a Transfer Impact Assessment. Consult a privacy lawyer for your specific situation.
                   </p>
                 </div>
 
                 <div className="border-l-4 border-amber-400 bg-amber-50 p-4 rounded-r-lg">
                   <h3 className="font-semibold text-slate-900 mb-2">No TIA generation</h3>
                   <p className="text-slate-700 text-sm">
-                    Transfer Impact Assessments require legal and factual analysis specific to your organisation. Sovereign Shield does not generate TIAs.
+                    Transfer Impact Assessments require legal and factual analysis specific to your organisation. Veridion Nexus does not generate TIAs.
                   </p>
                 </div>
 
@@ -1112,7 +1112,7 @@ async function callOpenAI(userData) {
                 <div className="border-l-4 border-amber-400 bg-amber-50 p-4 rounded-r-lg">
                   <h3 className="font-semibold text-slate-900 mb-2">SCC verification is registry-based</h3>
                   <p className="text-slate-700 text-sm">
-                    Sovereign Shield checks whether an active SCC exists in your registry for the destination partner. It does not verify the legal validity or completeness of your SCCs.
+                    Veridion Nexus checks whether an active SCC exists in your registry for the destination partner. It does not verify the legal validity or completeness of your SCCs.
                   </p>
                 </div>
               </div>
@@ -1133,35 +1133,19 @@ async function callOpenAI(userData) {
                 </h1>
               </div>
               <p className="text-sm text-slate-400">
-                Sovereign Shield — GDPR Chapter V Runtime Enforcement
+                Veridion Nexus — GDPR Chapter V Runtime Enforcement
               </p>
               <p className="text-xs text-slate-500">
                 © 2026 Veridion Nexus. Built in the EU.
               </p>
             </div>
             <div className="space-y-2">
-              <a
-                href={process.env.NEXT_PUBLIC_DASHBOARD_URL ? `${process.env.NEXT_PUBLIC_DASHBOARD_URL}/login` : '/login'}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block text-slate-400 hover:text-sky-400 transition-colors text-sm"
-              >
-                Dashboard
-              </a>
               <Link
                 href="/docs"
                 className="block text-slate-400 hover:text-sky-400 transition-colors text-sm"
               >
                 Documentation
               </Link>
-              <a
-                href={process.env.NEXT_PUBLIC_DASHBOARD_URL ? `${process.env.NEXT_PUBLIC_DASHBOARD_URL}/adequate-countries` : '/adequate-countries'}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block text-slate-400 hover:text-sky-400 transition-colors text-sm"
-              >
-                Adequate Countries
-              </a>
               <a
                 href="#"
                 className="block text-slate-400 hover:text-sky-400 transition-colors text-sm"

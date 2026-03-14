@@ -425,23 +425,23 @@ export default function LandingPage() {
               },
               {
                 q: 'Does having a DPA with OpenAI satisfy GDPR Art. 5(2)?',
-                a: 'A Data Processing Agreement establishes the contractual framework, but GDPR Art. 5(2) requires you to demonstrate compliance per transfer. Sovereign Shield creates a cryptographically sealed evidence record for every evaluated transfer, giving you the audit trail a DPA alone cannot provide.',
+                a: 'A Data Processing Agreement establishes the contractual framework, but GDPR Art. 5(2) requires you to demonstrate compliance per transfer. Veridion Nexus creates a cryptographically sealed evidence record for every evaluated transfer, giving you the audit trail a DPA alone cannot provide.',
               },
               {
                 q: 'What is Shadow Mode?',
-                a: 'Shadow Mode lets you observe Sovereign Shield&apos;s decisions without enforcing them. Every transfer is evaluated and sealed, but the system always returns ALLOW to your application. Use it to understand your transfer risk profile before enabling enforcement.',
+                a: 'Shadow Mode lets you observe Veridion Nexus&apos;s decisions without enforcing them. Every transfer is evaluated and sealed, but the system always returns ALLOW to your application. Use it to understand your transfer risk profile before enabling enforcement.',
               },
               {
                 q: 'How long does evaluation take?',
-                a: 'Sovereign Shield returns a decision in under 100ms. The evaluation is synchronous — your application receives ALLOW, BLOCK, or REVIEW before the transfer proceeds.',
+                a: 'Veridion Nexus returns a decision in under 100ms. The evaluation is synchronous — your application receives ALLOW, BLOCK, or REVIEW before the transfer proceeds.',
               },
               {
                 q: 'What happens when a transfer is REVIEW?',
                 a: 'A REVIEW decision means the transfer requires human oversight — typically because an SCC exists but hasn&apos;t been validated for that specific partner. The transfer is queued in the Human Oversight dashboard for a DPO or compliance officer to approve or reject.',
               },
               {
-                q: 'Is Sovereign Shield legal advice?',
-                a: 'No. Sovereign Shield enforces policy and creates evidence. It does not replace legal counsel. Adequacy decisions and SCC validity can change — consult a DPO or privacy lawyer for your specific situation.',
+                q: 'Is Veridion Nexus legal advice?',
+                a: 'No. Veridion Nexus enforces policy and creates evidence. It does not replace legal counsel. Adequacy decisions and SCC validity can change — consult a DPO or privacy lawyer for your specific situation.',
               },
             ].map((item, index) => (
               <div
@@ -488,6 +488,7 @@ export default function LandingPage() {
               <p className="text-xs text-slate-500">
                 © 2026 Veridion Nexus. Built in the EU.
               </p>
+              <a href="mailto:veridion-nexus@protonmail.com" className="text-gray-400 hover:text-white text-sm">veridion-nexus@protonmail.com</a>
             </div>
 
             {/* Center Links */}
