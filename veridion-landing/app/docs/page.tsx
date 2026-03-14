@@ -1105,7 +1105,7 @@ async function callOpenAI(userData) {
                 <div className="border-l-4 border-amber-400 bg-amber-50 p-4 rounded-r-lg">
                   <h3 className="font-semibold text-slate-900 mb-2">Shadow Mode does not block</h3>
                   <p className="text-slate-700 text-sm">
-                    During the 30-day trial, Shadow Mode always returns ALLOW to your application. Evidence is sealed, but no transfers are actually blocked. Enforcement requires upgrading to Pro.
+                    Veridion Nexus evaluates every transfer and records the real decision — ALLOW, BLOCK, or REVIEW — but always returns ALLOW to your application. No transfers are stopped during Shadow Mode. Use it to observe your risk profile before enabling enforcement.
                   </p>
                 </div>
 

@@ -488,7 +488,7 @@ export default function LandingPage() {
               <p className="text-xs text-slate-500">
                 © 2026 Veridion Nexus. Built in the EU.
               </p>
-              <a href="mailto:veridion-nexus@protonmail.com" className="text-gray-400 hover:text-white text-sm">veridion-nexus@protonmail.com</a>
+              <a href="mailto:veridion-nexus@protonmail.com" className="text-gray-400 hover:text-white text-sm mt-1 block">veridion-nexus@protonmail.com</a>
             </div>
 
             {/* Center Links */}
