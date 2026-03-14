@@ -998,7 +998,7 @@ async function callOpenAI(userData) {
       "command": "npx",
       "args": ["-y", "veridion-nexus-mcp"],
       "env": {
-        "SOVEREIGN_SHIELD_API_KEY": "ss_test_your_key_here"
+        "VERIDION_NEXUS_API_KEY": "ss_test_your_key_here"
       }
     }
   }
@@ -1021,7 +1021,7 @@ async function callOpenAI(userData) {
       "command": "npx",
       "args": ["-y", "veridion-nexus-mcp"],
       "env": {
-        "SOVEREIGN_SHIELD_API_KEY": "ss_test_your_key_here"
+        "VERIDION_NEXUS_API_KEY": "ss_test_your_key_here"
       }
     }
   }
