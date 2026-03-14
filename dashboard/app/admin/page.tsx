@@ -210,7 +210,8 @@ export default function AdminPage() {
       const res = await adminFetch(`tenants/${rotateTarget.id}/rotate-api-key`, { method: 'POST' });
       if (res.ok) {
         const data = await res.json();
-        setSuccessBanner(`API key rotated for ${rotateTarget.name}. New prefix: ${data.api_key_prefix}`);
+        const fullKey = data.api_key_raw || data.api_key_prefix;
+        setSuccessBanner(`API key rotated for ${rotateTarget.name}. New API key: ${fullKey} — save this securely, it won't be shown again.`);
         setRotateTarget(null);
         await loadTenants();
       }

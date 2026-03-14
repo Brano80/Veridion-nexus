@@ -714,7 +714,7 @@ pub async fn rotate_api_key(
         }
     };
 
-    let (_raw_key, api_key_hash, key_prefix) = generate_api_key(prefix_type);
+    let (raw_key, api_key_hash, key_prefix) = generate_api_key(prefix_type);
 
     match sqlx::query(
         "UPDATE tenants SET api_key_hash = $1, api_key_prefix = $2, updated_at = NOW() \
@@ -727,7 +727,8 @@ pub async fn rotate_api_key(
     .await
     {
         Ok(_) => HttpResponse::Ok().json(serde_json::json!({
-            "api_key_prefix": key_prefix
+            "api_key_prefix": key_prefix,
+            "api_key_raw": raw_key
         })),
         Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({
             "error": format!("Failed to rotate API key: {}", e)
