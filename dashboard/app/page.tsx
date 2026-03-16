@@ -694,7 +694,7 @@ export default function SovereignShieldPage() {
                     // Use review queue data directly as the source of truth
                     // Filter: Only SCC-required items that don't have a valid SCC
                     const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-                    const requiresAttention = reviewQueuePending.filter((item: any) => {
+                    const requiresAttentionRaw = reviewQueuePending.filter((item: any) => {
                       // Exclude items that already have a decision (rejected or approved)
                       const evidenceId = item.evidenceId || item.context?.event_id || item.context?.evidence_id;
                       if (evidenceId && decidedEvidenceIds.has(evidenceId)) return false;
@@ -742,6 +742,29 @@ export default function SovereignShieldPage() {
 
                       return true;
                     });
+
+                    // Group by destination_country_code + partner_name so burst-grouped items show as one
+                    const groupKey = (item: any) => {
+                      const code = (item.context?.destination_country_code || item.context?.destinationCountryCode || '').trim().toUpperCase();
+                      const partner = (item.context?.partner_name || item.context?.partnerName || item.context?.partner || '').trim().toLowerCase();
+                      return `${code}::${partner}`;
+                    };
+                    const grouped = new Map<string, { item: any; count: number }>();
+                    for (const item of requiresAttentionRaw) {
+                      const key = groupKey(item);
+                      const existing = grouped.get(key);
+                      const tc = item.transferCount ?? 1;
+                      if (existing) {
+                        existing.count += tc;
+                        if (new Date(item.created || 0) < new Date(existing.item.created || 0)) existing.item = item;
+                      } else {
+                        grouped.set(key, { item, count: tc });
+                      }
+                    }
+                    const requiresAttention = Array.from(grouped.values()).map(({ item, count }) => ({
+                      ...item,
+                      transferCount: count,
+                    }));
 
                     return requiresAttention.length === 0 ? (
                       <div className="text-center py-4">

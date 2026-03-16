@@ -78,13 +78,34 @@ export default function ReviewQueuePage() {
     return () => clearInterval(timer);
   }, []);
 
+  function groupByDestinationPartner(raw: ReviewQueueItem[]): ReviewQueueItem[] {
+    const groupKey = (item: ReviewQueueItem) => {
+      const code = (item.context?.destination_country_code || item.context?.destinationCountryCode || '').trim().toUpperCase();
+      const partner = (item.context?.partner_name || item.context?.partnerName || item.context?.partner || '').trim().toLowerCase();
+      return `${code}::${partner}`;
+    };
+    const grouped = new Map<string, { item: ReviewQueueItem; count: number }>();
+    for (const item of raw) {
+      const key = groupKey(item);
+      const existing = grouped.get(key);
+      const tc = item.transferCount ?? 1;
+      if (existing) {
+        existing.count += tc;
+        if (new Date(item.created || 0) < new Date(existing.item.created || 0)) existing.item = item;
+      } else {
+        grouped.set(key, { item, count: tc });
+      }
+    }
+    return Array.from(grouped.values()).map(({ item, count }) => ({ ...item, transferCount: count }));
+  }
+
   async function loadItems() {
     try {
       const data = await fetchReviewQueuePending();
       const pendingOnly = (Array.isArray(data) ? data : []).filter(
         (item: ReviewQueueItem) => (item.status || '').toUpperCase() === 'PENDING'
       );
-      setItems(pendingOnly);
+      setItems(groupByDestinationPartner(pendingOnly));
       setLastChecked(new Date());
     } catch (error) {
       console.error('Failed to load review queue:', error);
