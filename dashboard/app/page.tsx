@@ -119,7 +119,7 @@ export default function SovereignShieldPage() {
       setReviewQueueMap(eventToReviewMap);
 
       // Automatically add events that need attention to review queue
-      await ensureEventsInReviewQueue(eventsArray, existingEvidenceIds, new Set(decidedIds));
+      await ensureEventsInReviewQueue(eventsArray, existingEvidenceIds, new Set(decidedIds), reviewQueueArray);
     } catch (error) {
       console.error('Failed to load data:', error);
       setEvents([]);
@@ -135,7 +135,8 @@ export default function SovereignShieldPage() {
   async function ensureEventsInReviewQueue(
     eventsArray: EvidenceEvent[],
     existingEvidenceIds: Set<string>,
-    decidedEvidenceIds: Set<string>
+    decidedEvidenceIds: Set<string>,
+    reviewQueueArray: any[]
   ) {
     // Use ref to always get latest SCC registries (avoids stale closure)
     const sccArray = sccRegistriesRef.current;
@@ -187,6 +188,15 @@ export default function SovereignShieldPage() {
     console.log(`Found ${needsAttention.length} events that need attention`);
     console.log(`Existing evidence IDs in queue:`, Array.from(existingEvidenceIds));
 
+    // Build set of (destination_code, partner) that already have a PENDING review (burst-grouped)
+    const pendingDestinationPartners = new Set<string>();
+    for (const item of reviewQueueArray) {
+      if ((item.status || '').toUpperCase() !== 'PENDING') continue;
+      const code = (item.context?.destination_country_code || item.context?.destinationCountryCode || '').trim().toUpperCase();
+      const partner = (item.context?.partner_name || item.context?.partnerName || item.context?.partner || '').trim().toLowerCase();
+      if (code && code.length === 2) pendingDestinationPartners.add(`${code}::${partner}`);
+    }
+
     // Add each event to review queue if not already there
     for (const event of needsAttention) {
       const evidenceId = event.id || event.eventId;
@@ -198,6 +208,13 @@ export default function SovereignShieldPage() {
       // Check if already in queue by event_id in context or by evidenceId
       if (existingEvidenceIds.has(evidenceId) || existingEvidenceIds.has(eventId)) {
         continue; // Already in queue
+      }
+
+      // Skip if we already have a PENDING review for this destination+partner (burst-grouped)
+      const eventCode = (event.payload?.destination_country_code || event.payload?.destinationCountryCode || '').trim().toUpperCase();
+      const eventPartner = (event.payload?.partner_name || event.payload?.partnerName || event.payload?.partner || '').trim().toLowerCase();
+      if (eventCode && eventCode.length === 2 && pendingDestinationPartners.has(`${eventCode}::${eventPartner}`)) {
+        continue; // Already covered by grouped review
       }
 
       try {
@@ -224,6 +241,9 @@ export default function SovereignShieldPage() {
         // Add to existing set to avoid duplicates (both eventId and evidenceId)
         existingEvidenceIds.add(evidenceId);
         if (eventId) existingEvidenceIds.add(eventId);
+        // Mark this destination+partner as having a pending review so we skip the rest this run
+        const key = `${countryCode}::${(partner || '').trim().toLowerCase()}`;
+        if (countryCode.length === 2) pendingDestinationPartners.add(key);
         console.log(`Added event ${evidenceId} to review queue with seal ${result.sealId}`);
       } catch (error) {
         console.error(`Failed to add event ${evidenceId} to review queue:`, error);
