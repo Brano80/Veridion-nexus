@@ -149,6 +149,11 @@ export default function ReviewQueuePage() {
                       {code !== '—' && code.length === 2 && name !== code && (
                         <span className="text-slate-500 text-xs">({code})</span>
                       )}
+                      {(item.transferCount ?? 1) > 1 && (
+                        <span className="px-2 py-0.5 rounded text-xs font-medium bg-slate-600/50 text-slate-400 border border-slate-500/50">
+                          ×{(item.transferCount ?? 1)} transfers
+                        </span>
+                      )}
                     </div>
                     <span className="px-2 py-1 bg-amber-500/15 text-amber-400 border border-amber-500/25 rounded text-xs font-medium">
                       GDPR Art. 46 — SCC Required

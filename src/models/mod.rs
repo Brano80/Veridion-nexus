@@ -122,6 +122,8 @@ pub struct ComplianceRecordRow {
     pub evidence_event_id: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    #[serde(default)]
+    pub transfer_count: i32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
@@ -153,5 +155,6 @@ pub struct ReviewItemResponse {
     pub final_decision: Option<String>,
     pub decided_at: Option<String>,
     pub expires_at: Option<String>,
+    pub transfer_count: i32,
 }
 

@@ -770,7 +770,14 @@ export default function SovereignShieldPage() {
                             >
                               <div className="flex items-start justify-between gap-2">
                                 <div className="flex-1 min-w-0">
-                                  <div className="text-sm text-white font-medium">{country}</div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm text-white font-medium">{country}</span>
+                                    {(item.transferCount ?? 1) > 1 && (
+                                      <span className="px-2 py-0.5 rounded text-xs font-medium bg-slate-600/50 text-slate-400 border border-slate-500/50">
+                                        ×{(item.transferCount ?? 1)} transfers
+                                      </span>
+                                    )}
+                                  </div>
                                   <div className="text-xs text-slate-400 mt-1">
                                     {new Date(item.created || item.context?.created_at || Date.now()).toLocaleString('en-US', {
                                       month: 'short',

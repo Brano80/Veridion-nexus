@@ -37,7 +37,7 @@ pub async fn create_review(
 ) -> Result<String, String> {
     // Do not create a duplicate review for the same evidence event (e.g. already rejected or approved).
     // Return existing seal_id so frontend stops re-adding; REQUIRES ATTENTION only shows PENDING items.
-    let existing: Option<(String,)> = sqlx::query_as(
+    let existing_by_event: Option<(String,)> = sqlx::query_as(
         "SELECT seal_id FROM compliance_records WHERE tenant_id = $1 AND evidence_event_id = $2 LIMIT 1",
     )
     .bind(tenant_id)
@@ -46,7 +46,54 @@ pub async fn create_review(
     .await
     .map_err(|e| format!("Failed to check existing review: {}", e))?;
 
-    if let Some((existing_seal_id,)) = existing {
+    if let Some((existing_seal_id,)) = existing_by_event {
+        return Ok(existing_seal_id);
+    }
+
+    // Burst grouping: check if a PENDING review already exists for same tenant + destination_country_code + partner_name.
+    // If so, increment transfer_count and return existing seal_id instead of creating a new review.
+    let dest_code = context
+        .get("destination_country_code")
+        .or_else(|| context.get("destinationCountryCode"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let partner_name = context
+        .get("partner_name")
+        .or_else(|| context.get("partnerName"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+
+    // Extract destination_country_code and partner_name from evidence_events.payload (JSONB).
+    // Payload keys may be snake_case or camelCase; normalize and trim for comparison.
+    let existing_pending: Option<(String,)> = sqlx::query_as(
+        r#"SELECT cr.seal_id
+           FROM compliance_records cr
+           JOIN human_oversight ho ON ho.seal_id = cr.seal_id AND ho.tenant_id = cr.tenant_id
+           JOIN evidence_events ee ON ee.event_id = cr.evidence_event_id
+             AND (ee.tenant_id = cr.tenant_id OR ee.tenant_id IS NULL)
+           WHERE cr.tenant_id = $1
+             AND ho.status = 'PENDING'
+             AND cr.evidence_event_id IS NOT NULL
+             AND UPPER(TRIM(COALESCE(ee.payload->>'destination_country_code', ee.payload->>'destinationCountryCode', ''))) = UPPER(TRIM(COALESCE($2, '')))
+             AND TRIM(COALESCE(ee.payload->>'partner_name', ee.payload->>'partnerName', '')) = TRIM(COALESCE($3, ''))
+           LIMIT 1"#,
+    )
+    .bind(tenant_id)
+    .bind(dest_code)
+    .bind(partner_name)
+    .fetch_optional(pool)
+    .await
+    .map_err(|e| format!("Failed to check existing pending review: {}", e))?;
+
+    if let Some((existing_seal_id,)) = existing_pending {
+        let _ = sqlx::query(
+            "UPDATE compliance_records SET transfer_count = transfer_count + 1, updated_at = NOW() WHERE tenant_id = $1 AND seal_id = $2",
+        )
+        .bind(tenant_id)
+        .bind(&existing_seal_id)
+        .execute(pool)
+        .await
+        .map_err(|e| format!("Failed to increment transfer_count: {}", e))?;
         return Ok(existing_seal_id);
     }
 
@@ -59,8 +106,8 @@ pub async fn create_review(
 
     if let Err(e) = sqlx::query(
         r#"INSERT INTO compliance_records
-            (agent_id, action_summary, seal_id, status, human_oversight_status, tx_id, payload_hash, evidence_event_id, tenant_id)
-           VALUES ($1, $2, $3, 'PENDING_REVIEW', 'PENDING', $4, $5, $6, $7)"#
+            (agent_id, action_summary, seal_id, status, human_oversight_status, tx_id, payload_hash, evidence_event_id, tenant_id, transfer_count)
+           VALUES ($1, $2, $3, 'PENDING_REVIEW', 'PENDING', $4, $5, $6, $7, 1)"#
     )
     .bind(agent_id)
     .bind(action)
@@ -241,6 +288,7 @@ pub async fn list_reviews(pool: &PgPool, status: Option<&str>, tenant_id: uuid::
             final_decision,
             decided_at: ho.decided_at.map(|t| t.to_rfc3339()),
             expires_at: None,
+            transfer_count: cr.transfer_count,
         }
     }).collect();
 

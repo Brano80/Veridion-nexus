@@ -20,6 +20,21 @@ function checkTrialExpired(res: Response): void {
   }
 }
 
+// Helper to check for 401 status and redirect to login
+function checkUnauthorized(res: Response): void {
+  if (res.status === 401) {
+    // Clear expired token and user data
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('ss_token');
+      localStorage.removeItem('ss_user');
+      currentUserCache = null;
+      // Redirect to login page
+      window.location.href = '/login?expired=true';
+    }
+    throw new Error('Unauthorized - session expired');
+  }
+}
+
 export interface CurrentUser {
   id: string;
   username: string;
@@ -132,10 +147,12 @@ export interface ReviewQueueItem {
   finalDecision?: string;
   decidedAt?: string;
   expiresAt?: string;
+  transferCount?: number;
 }
 
 export async function fetchEvidenceEvents(): Promise<EvidenceEvent[]> {
   const res = await fetch(`${API_BASE}/api/v1/evidence/events?limit=500`, { headers: getAuthHeaders() });
+  checkUnauthorized(res);
   checkTrialExpired(res);
   if (!res.ok) throw new Error('Failed to fetch evidence events');
   const data = await res.json();
@@ -215,6 +232,7 @@ export async function fetchEvidenceEventsWithMeta(params?: {
 
 export async function fetchSCCRegistries(): Promise<SCCRegistry[]> {
   const res = await fetch(`${API_BASE}/api/v1/scc-registries`, { headers: getAuthHeaders() });
+  checkUnauthorized(res);
   checkTrialExpired(res);
   if (!res.ok) throw new Error('Failed to fetch SCC registries');
   const data = await res.json();
@@ -384,6 +402,7 @@ export async function createSCCRegistry(data: {
 
 export async function fetchReviewQueuePending(): Promise<ReviewQueueItem[]> {
   const res = await fetch(`${API_BASE}/api/v1/human_oversight/pending`, { headers: getAuthHeaders() });
+  checkUnauthorized(res);
   checkTrialExpired(res);
   if (!res.ok) throw new Error('Failed to fetch review queue');
   const data = await res.json();
@@ -394,6 +413,7 @@ export async function fetchReviewQueuePending(): Promise<ReviewQueueItem[]> {
 export async function fetchDecidedEvidenceIds(): Promise<string[]> {
   try {
     const res = await fetch(`${API_BASE}/api/v1/human_oversight/decided-evidence-ids`, { headers: getAuthHeaders() });
+    checkUnauthorized(res);
     checkTrialExpired(res);
     if (!res.ok) return [];
     const data = await res.json();
@@ -562,6 +582,7 @@ export async function evaluateTransfer(data: {
 /** GET /api/v1/settings — current enforcement mode (shadow | enforce) */
 export async function fetchSettings(): Promise<{ enforcement_mode: string; updated_at: string }> {
   const res = await fetch(`${API_BASE}/api/v1/settings`, { headers: getAuthHeaders() });
+  checkUnauthorized(res);
   checkTrialExpired(res);
   if (!res.ok) throw new Error('Failed to fetch settings');
   return res.json();
