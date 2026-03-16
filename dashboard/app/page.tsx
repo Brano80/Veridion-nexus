@@ -909,9 +909,13 @@ export default function SovereignShieldPage() {
                               </div>
                             </div>
                             <div className="flex items-center gap-1.5 flex-shrink-0">
-                              {isShadow && (
+                              {isShadow ? (
                                 <span className="px-1.5 py-0.5 bg-amber-500/15 text-amber-400 border border-amber-500/25 rounded text-[10px] font-medium whitespace-nowrap">
                                   SHADOW
+                                </span>
+                              ) : (
+                                <span className="px-1.5 py-0.5 bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 rounded text-[10px] font-medium whitespace-nowrap">
+                                  ENFORCING
                                 </span>
                               )}
                               <span className={`px-2 py-1 rounded text-xs font-medium border whitespace-nowrap ${

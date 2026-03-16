@@ -435,7 +435,7 @@ export default function TransferLogPage() {
                               SHADOW
                             </span>
                           ) : (
-                            <span className="px-1.5 py-0.5 bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 rounded text-[10px] font-medium whitespace-nowrap">
+                            <span className="px-1 py-0.5 bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 rounded text-[9px] font-medium whitespace-nowrap">
                               ENFORCING
                             </span>
                           )}
