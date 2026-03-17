@@ -128,7 +128,7 @@ function EvidenceVaultPageContent() {
   const [pdfExporting, setPdfExporting] = useState(false);
   const drawerRef = useRef<HTMLDivElement>(null);
 
-  const EVENTS_PER_PAGE = 10;
+  const EVENTS_PER_PAGE = 50;
   const totalPages = Math.max(1, Math.ceil(events.length / EVENTS_PER_PAGE));
   const currentPage = Math.min(page, totalPages);
   const paginatedEvents = events.slice(
@@ -175,7 +175,16 @@ function EvidenceVaultPageContent() {
 
   async function loadEvents() {
     try {
-      const { events: rawEvents, merkleRoots, totalSealed } = await fetchEvidenceEventsWithMeta();
+      // Map event type filter to API event_type when it maps to a single value
+      const eventTypeApi = filters.eventType === 'Human Decision — Blocked' ? 'HUMAN_OVERSIGHT_REJECTED'
+        : filters.eventType === 'Human Decision — Approved' ? 'HUMAN_OVERSIGHT_APPROVED'
+        : undefined;
+      const { events: rawEvents, merkleRoots, totalSealed } = await fetchEvidenceEventsWithMeta({
+        limit: 5000,
+        search: filters.search || undefined,
+        destination_country: filters.destinationCountry || undefined,
+        eventType: eventTypeApi,
+      });
       setMerkleRootsCount(merkleRoots);
       setTotalSealedCount(totalSealed);
       // Update last scan time when data loads successfully
@@ -726,11 +735,18 @@ function EvidenceVaultPageContent() {
                         }`}
                       >
                         <td className="px-4 py-3 text-sm text-slate-300" title={event.eventId || event.id || undefined}>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            {formatEventTypeLabel(event.eventType, event.payload)}
-                            {event.payload?.shadow_mode === true && (
-                              <span className="px-2 py-0.5 bg-amber-500/15 text-amber-400 border border-amber-500/25 rounded text-xs font-medium">
-                                SHADOW
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {formatEventTypeLabel(event.eventType, event.payload)}
+                              {event.payload?.shadow_mode === true && (
+                                <span className="px-2 py-0.5 bg-amber-500/15 text-amber-400 border border-amber-500/25 rounded text-xs font-medium">
+                                  SHADOW
+                                </span>
+                              )}
+                            </div>
+                            {((event.eventType || '').toUpperCase().includes('HUMAN_OVERSIGHT_REJECTED') || (event.eventType || '').toUpperCase().includes('HUMAN_OVERSIGHT_APPROVED')) && Number(event.payload?.transfer_count || 0) > 1 && (
+                              <span className="inline-flex w-fit px-2 py-0.5 rounded text-xs font-medium bg-slate-600/50 text-slate-400 border border-slate-500/50">
+                                ×{event.payload.transfer_count} transfers
                               </span>
                             )}
                           </div>
@@ -837,7 +853,7 @@ function EvidenceVaultPageContent() {
               </table>
               <div className="p-4 border-t border-slate-700 flex items-center justify-between">
                 <p className="text-xs text-slate-400">
-                  Evidence Vault maintains immutable audit trail
+                  Evidence Vault maintains immutable audit trail · {events.length} event{events.length !== 1 ? 's' : ''} loaded
                 </p>
                 <div className="flex items-center gap-2">
                   <button

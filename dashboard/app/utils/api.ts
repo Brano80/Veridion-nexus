@@ -202,6 +202,9 @@ export async function fetchEvidenceEventsPaginated(
 export async function fetchEvidenceEventsWithMeta(params?: {
   eventType?: string;
   limit?: number;
+  offset?: number;
+  search?: string;
+  destination_country?: string;
 }): Promise<{
   events: EvidenceEvent[];
   totalCount: number;
@@ -210,9 +213,12 @@ export async function fetchEvidenceEventsWithMeta(params?: {
 }> {
   const searchParams = new URLSearchParams();
   if (params?.eventType) searchParams.set('event_type', params.eventType);
-  if (params?.limit) searchParams.set('limit', String(params.limit));
+  searchParams.set('limit', String(params?.limit ?? 2000));
+  if (params?.offset != null) searchParams.set('offset', String(params.offset));
+  if (params?.search) searchParams.set('search', params.search);
+  if (params?.destination_country) searchParams.set('destination_country', params.destination_country);
   const qs = searchParams.toString();
-  const url = `${API_BASE}/api/v1/evidence/events${qs ? `?${qs}` : ''}`;
+  const url = `${API_BASE}/api/v1/evidence/events?${qs}`;
   const res = await fetch(url, { headers: getAuthHeaders() });
   checkTrialExpired(res);
   if (!res.ok) throw new Error('Failed to fetch evidence events');
