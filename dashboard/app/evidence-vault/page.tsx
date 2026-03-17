@@ -697,14 +697,14 @@ function EvidenceVaultPageContent() {
               <>
               <table className="w-full table-fixed" style={{ tableLayout: 'fixed' }}>
                 <colgroup>
-                  <col style={{ width: '18%' }} />
-                  <col style={{ width: '14%' }} />
-                  <col style={{ width: '14%' }} />
-                  <col style={{ width: '10%' }} />
+                  <col style={{ width: '17%' }} />
                   <col style={{ width: '13%' }} />
                   <col style={{ width: '13%' }} />
                   <col style={{ width: '9%' }} />
-                  <col style={{ width: '9%' }} />
+                  <col style={{ width: '12%' }} />
+                  <col style={{ width: '12%' }} />
+                  <col style={{ width: '8%' }} />
+                  <col style={{ width: '12%' }} />
                 </colgroup>
                 <thead className="bg-slate-700/50">
                   <tr>
@@ -715,7 +715,7 @@ function EvidenceVaultPageContent() {
                     <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider whitespace-nowrap">Source</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider whitespace-nowrap">Time</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider whitespace-nowrap">Retention</th>
-                    <th className="px-4 py-3 pl-8 text-left text-xs font-medium text-slate-300 uppercase tracking-wider whitespace-nowrap">Verification</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider whitespace-nowrap min-w-[100px]">Verification</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-700">
@@ -831,17 +831,17 @@ function EvidenceVaultPageContent() {
                         <td className="px-4 py-3">
                           <div className="text-xs text-slate-500 whitespace-nowrap">{getRetentionYear(event.createdAt)}</div>
                         </td>
-                        <td className="px-4 py-3 pl-8">
+                        <td className="px-4 py-3 min-w-[100px] whitespace-nowrap">
                           {event.verificationStatus === 'BLOCK' || event.verificationStatus === 'VERIFIED' ? (
-                            <span className="px-2 py-1 bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 rounded text-xs font-medium">
+                            <span className="inline-block px-2 py-0.5 bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 rounded text-[11px] font-medium shrink-0">
                               VERIFIED
                             </span>
                           ) : event.verificationStatus === 'REVIEW' || event.verificationStatus === 'PENDING' ? (
-                            <span className="px-2 py-1 bg-amber-500/15 text-amber-400 border border-amber-500/25 rounded text-xs font-medium">
+                            <span className="inline-block px-2 py-0.5 bg-amber-500/15 text-amber-400 border border-amber-500/25 rounded text-[11px] font-medium shrink-0">
                               PENDING
                             </span>
                           ) : (
-                            <span className="px-2 py-1 bg-slate-500/15 text-slate-400 border border-slate-500/25 rounded text-xs font-medium">
+                            <span className="inline-block px-2 py-0.5 bg-slate-500/15 text-slate-400 border border-slate-500/25 rounded text-[11px] font-medium shrink-0">
                               UNVERIFIED
                             </span>
                           )}
