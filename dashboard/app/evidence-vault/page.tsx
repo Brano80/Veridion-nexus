@@ -1076,6 +1076,14 @@ function EvidenceVaultPageContent() {
                                     <div><span className="text-slate-400">Data Category:</span> <span className="text-white">{e.payload?.data_categories?.[0] || e.payload?.dataCategories?.[0] || (e.payload?.data_category ?? '—')}</span></div>
                                   </>
                                 )}
+                                {isHumanDecision && Number(e.payload?.transfer_count || 0) > 1 && (
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-slate-400">Transfers Covered:</span>
+                                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-slate-600/50 text-slate-400 border border-slate-500/50">
+                                      ×{e.payload.transfer_count} transfers
+                                    </span>
+                                  </div>
+                                )}
                                 <div><span className="text-slate-400">Source System:</span> <span className="text-white">{e.sourceSystem || '—'}</span></div>
                                 {e.payload?.reason && typeof e.payload.reason === 'string' && e.payload.reason.trim() && (
                                   <div suppressHydrationWarning><span className="text-slate-400">Decision Reason:</span> <span className="text-white">{e.payload.reason}</span></div>

@@ -309,15 +309,23 @@ pub async fn decide_review(
         _ => return Err(format!("Invalid decision: {}", decision)),
     };
 
-    // Fetch the compliance record to get evidence_event_id and verify tenant_id
-    let evidence_event_id: Option<String> = sqlx::query_scalar(
-        "SELECT evidence_event_id FROM compliance_records WHERE tenant_id = $1 AND seal_id = $2"
+    // Fetch the compliance record to get evidence_event_id, transfer_count, and verify tenant_id
+    #[derive(sqlx::FromRow)]
+    struct ComplianceRow {
+        evidence_event_id: Option<String>,
+        transfer_count: i32,
+    }
+    let cr: Option<ComplianceRow> = sqlx::query_as(
+        "SELECT evidence_event_id, transfer_count FROM compliance_records WHERE tenant_id = $1 AND seal_id = $2"
     )
     .bind(tenant_id)
     .bind(seal_id)
     .fetch_optional(pool)
     .await
     .map_err(|e| format!("Failed to fetch compliance record: {}", e))?;
+
+    let evidence_event_id = cr.as_ref().and_then(|r| r.evidence_event_id.clone());
+    let transfer_count = cr.as_ref().map(|r| r.transfer_count).unwrap_or(1);
 
     if evidence_event_id.is_none() {
         return Err("Review not found or access denied".into());
@@ -374,6 +382,7 @@ pub async fn decide_review(
         "reviewer_id": reviewer_id,
         "comments": comments,
         "shadow_mode": is_shadow,
+        "transfer_count": transfer_count,
     });
 
     // Fetch original evidence event and include destination data
