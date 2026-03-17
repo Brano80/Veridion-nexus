@@ -431,39 +431,35 @@ export default function SovereignShieldPage() {
   // If API is reachable and settings load successfully, status is ACTIVE regardless of transfer count
   const status = (settingsError || !backendAvailable) ? 'OFFLINE' : 'ACTIVE';
 
-  // SCC COVERAGE: destinations with unresolved REVIEW transfers OR valid SCC
-  // Denominator = union of unresolved destinations + covered destinations
-  // Once all transfers to a destination are resolved, it drops out of the denominator
+  // SCC COVERAGE: only PENDING reviews without valid SCC reduce coverage.
+  // Resolved reviews (REJECTED, APPROVED, SLA timeout) and ALLOW/BLOCK-only destinations do NOT reduce coverage.
+  // Denominator = union of (1) destinations with active PENDING review + no SCC, (2) destinations with valid SCC
   
-  // Destinations with unresolved REVIEW transfers (no valid SCC, not decided)
   const unresolvedSccDestinations = new Set<string>();
-  for (const e of events) {
-    const eventType = e.eventType;
-    const isReview = eventType === 'DATA_TRANSFER_REVIEW' || e.payload?.decision === 'REVIEW' || e.verificationStatus === 'REVIEW';
+  for (const item of reviewQueuePending) {
+    if ((item.status || '').toUpperCase() !== 'PENDING') continue;
     
-    // Skip if not a REVIEW event
-    if (!isReview) continue;
-    
-    // Get country code
-    let code = (e.payload?.destination_country_code ?? e.payload?.destinationCountryCode ?? '').trim().toUpperCase();
+    let code = (item.context?.destination_country_code ?? item.context?.destinationCountryCode ?? '').trim().toUpperCase();
     if (!code || code.length !== 2) {
-      // Try country name if code not available
-      const name = e.payload?.destination_country ?? e.payload?.destinationCountry ?? '';
+      const name = item.context?.destination_country ?? item.context?.destination ?? '';
       if (name) {
         const mappedCode = getCountryCodeFromName(name);
         code = mappedCode ? mappedCode.toUpperCase() : '';
       }
     }
-    
     if (!code || code.length !== 2) continue;
     
-    // Only count if not already decided
-    const id1 = e.id;
-    const id2 = e.eventId;
-    if (id1 && decidedEvidenceIds.has(id1)) continue;
-    if (id2 && decidedEvidenceIds.has(id2)) continue;
-    
-    unresolvedSccDestinations.add(code);
+    const partner = (item.context?.partner_name ?? item.context?.partnerName ?? item.context?.partner ?? '').trim().toLowerCase();
+    const hasValidScc = sccRegistries.some((scc) => {
+      if (scc.status === 'revoked' || scc.status === 'archived') return false;
+      if (scc.status !== 'active' && scc.status !== 'valid') return false;
+      const expires = scc.expiryDate ?? (scc as any).expiresAt ?? (scc as any).expires_at;
+      if (expires && new Date(expires) <= new Date()) return false;
+      const sccCode = (getCountryCodeFromName(scc.destinationCountry) || scc.destinationCountry || (scc as any).destinationCountryCode || '').trim().toUpperCase();
+      const sccPartner = (scc.partnerName ?? (scc as any).partner_name ?? '').trim().toLowerCase();
+      return sccCode === code && sccPartner === partner;
+    });
+    if (!hasValidScc) unresolvedSccDestinations.add(code);
   }
   
   // Valid SCC destinations (non-expired, exclude revoked and archived)
