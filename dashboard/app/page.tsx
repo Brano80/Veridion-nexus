@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import DashboardLayout from './components/DashboardLayout';
 import SovereignMap from './components/SovereignMap';
 import { RefreshCw, Shield, AlertTriangle, CheckCircle } from 'lucide-react';
-import { fetchEvidenceEvents, fetchSCCRegistries, fetchReviewQueuePending, fetchDecidedEvidenceIds, createReviewQueueItem, fetchSettings, patchSettings, EvidenceEvent, SCCRegistry } from './utils/api';
+import { fetchEvidenceEvents, fetchSCCRegistries, fetchReviewQueuePending, fetchReviewQueueAll, fetchDecidedEvidenceIds, createReviewQueueItem, fetchSettings, patchSettings, EvidenceEvent, SCCRegistry } from './utils/api';
 import { getCountryCodeFromName, getLegalBasis, EU_EEA_COUNTRIES, ADEQUATE_COUNTRIES, COUNTRY_NAMES } from './config/countries';
 
 export default function SovereignShieldPage() {
@@ -62,10 +62,11 @@ export default function SovereignShieldPage() {
         setSettingsLoading(false);
       }
       
-      const [eventsData, sccData, reviewData, decidedIds] = await Promise.all([
+      const [eventsData, sccData, reviewData, reviewAllData, decidedIds] = await Promise.all([
         fetchEvidenceEvents().catch(() => []),
         fetchSCCRegistries().catch(() => []),
         fetchReviewQueuePending().catch(() => []),
+        fetchReviewQueueAll().catch(() => []),
         fetchDecidedEvidenceIds().catch(() => []),
       ]);
       
@@ -74,6 +75,7 @@ export default function SovereignShieldPage() {
       const eventsArray = Array.isArray(eventsData) ? eventsData : [];
       const sccArray = Array.isArray(sccData) ? sccData : [];
       const reviewQueueArray = Array.isArray(reviewData) ? reviewData : [];
+      const reviewQueueAll = Array.isArray(reviewAllData) ? reviewAllData : [];
       setEvents(eventsArray);
       setSccRegistries(sccArray);
       sccRegistriesRef.current = sccArray; // Update ref with latest SCC registries
@@ -119,7 +121,7 @@ export default function SovereignShieldPage() {
       setReviewQueueMap(eventToReviewMap);
 
       // Automatically add events that need attention to review queue
-      await ensureEventsInReviewQueue(eventsArray, existingEvidenceIds, new Set(decidedIds), reviewQueueArray);
+      await ensureEventsInReviewQueue(eventsArray, existingEvidenceIds, new Set(decidedIds), reviewQueueArray, reviewQueueAll);
     } catch (error) {
       console.error('Failed to load data:', error);
       setEvents([]);
@@ -136,7 +138,8 @@ export default function SovereignShieldPage() {
     eventsArray: EvidenceEvent[],
     existingEvidenceIds: Set<string>,
     decidedEvidenceIds: Set<string>,
-    reviewQueueArray: any[]
+    reviewQueueArray: any[],
+    reviewQueueAll: any[]
   ) {
     // Use ref to always get latest SCC registries (avoids stale closure)
     const sccArray = sccRegistriesRef.current;
@@ -190,11 +193,21 @@ export default function SovereignShieldPage() {
 
     // Build set of (destination_code, partner) that already have a PENDING review (burst-grouped)
     const pendingDestinationPartners = new Set<string>();
-    for (const item of reviewQueueArray) {
+    for (const item of reviewQueueAll) {
       if ((item.status || '').toUpperCase() !== 'PENDING') continue;
       const code = (item.context?.destination_country_code || item.context?.destinationCountryCode || '').trim().toUpperCase();
       const partner = (item.context?.partner_name || item.context?.partnerName || item.context?.partner || '').trim().toLowerCase();
       if (code && code.length === 2) pendingDestinationPartners.add(`${code}::${partner}`);
+    }
+
+    // Build set of (destination_code, partner) that have been APPROVED or REJECTED — do not re-add
+    const decidedDestinationPartners = new Set<string>();
+    for (const item of reviewQueueAll) {
+      const status = (item.status || '').toUpperCase();
+      if (status !== 'DECIDED') continue;
+      const code = (item.context?.destination_country_code || item.context?.destinationCountryCode || '').trim().toUpperCase();
+      const partner = (item.context?.partner_name || item.context?.partnerName || item.context?.partner || '').trim().toLowerCase();
+      if (code && code.length === 2) decidedDestinationPartners.add(`${code}::${partner}`);
     }
 
     // Add each event to review queue if not already there
@@ -210,11 +223,12 @@ export default function SovereignShieldPage() {
         continue; // Already in queue
       }
 
-      // Skip if we already have a PENDING review for this destination+partner (burst-grouped)
+      // Skip if we already have a PENDING or DECIDED review for this destination+partner (burst-grouped)
       const eventCode = (event.payload?.destination_country_code || event.payload?.destinationCountryCode || '').trim().toUpperCase();
       const eventPartner = (event.payload?.partner_name || event.payload?.partnerName || event.payload?.partner || '').trim().toLowerCase();
-      if (eventCode && eventCode.length === 2 && pendingDestinationPartners.has(`${eventCode}::${eventPartner}`)) {
-        continue; // Already covered by grouped review
+      const destPartnerKey = eventCode && eventCode.length === 2 ? `${eventCode}::${eventPartner}` : '';
+      if (destPartnerKey && (pendingDestinationPartners.has(destPartnerKey) || decidedDestinationPartners.has(destPartnerKey))) {
+        continue; // Already covered by grouped review or already decided
       }
 
       try {

@@ -409,6 +409,20 @@ export async function fetchReviewQueuePending(): Promise<ReviewQueueItem[]> {
   return data.reviews || [];
 }
 
+/** Fetch all review queue items (pending + decided). Used to build decidedDestinationPartners. */
+export async function fetchReviewQueueAll(): Promise<ReviewQueueItem[]> {
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/review-queue`, { headers: getAuthHeaders() });
+    checkUnauthorized(res);
+    checkTrialExpired(res);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.reviews || [];
+  } catch {
+    return [];
+  }
+}
+
 /** Evidence event IDs that already have a decision (rejected/approved). Exclude these from REQUIRES ATTENTION. */
 export async function fetchDecidedEvidenceIds(): Promise<string[]> {
   try {
