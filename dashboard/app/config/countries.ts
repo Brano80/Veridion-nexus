@@ -13,7 +13,7 @@ export const ADEQUATE_COUNTRIES = new Set<string>([
 ]);
 
 export const SCC_REQUIRED_COUNTRIES = new Set<string>([
-  'US', 'IN', 'AU', 'MX', 'SG', 'ZA', 'ID', 'TR', 'PH', 'VN', 'EG', 'NG', 'PK', 'BD', 'TH', 'MY',
+  'US', 'IN', 'AU', 'MX', 'SG', 'ZA', 'ID', 'TR', 'PH', 'VN', 'EG', 'NG', 'PK', 'BD', 'TH', 'MY', 'CL',
 ]);
 
 export const BLOCKED_COUNTRIES = new Set<string>([
@@ -43,16 +43,16 @@ export const SMALL_COUNTRY_MARKERS: Record<string, { lat: number; lng: number; n
 };
 
 export const COUNTRY_NAMES: Record<string, string> = {
-  AD: 'Andorra', AR: 'Argentina', AU: 'Australia', AT: 'Austria', BE: 'Belgium', BG: 'Bulgaria',
-  BR: 'Brazil', BY: 'Belarus', CA: 'Canada', CH: 'Switzerland', CN: 'China', CY: 'Cyprus',
+  AD: 'Andorra', AE: 'United Arab Emirates', AR: 'Argentina', AU: 'Australia', AT: 'Austria', BE: 'Belgium', BG: 'Bulgaria',
+  BR: 'Brazil', BY: 'Belarus', CA: 'Canada', CH: 'Switzerland', CL: 'Chile', CN: 'China', CO: 'Colombia', CY: 'Cyprus',
   CZ: 'Czechia', DE: 'Germany', DK: 'Denmark', EE: 'Estonia', EG: 'Egypt', ES: 'Spain',
   FI: 'Finland', FO: 'Faroe Islands', FR: 'France', GB: 'United Kingdom', GG: 'Guernsey',
   GR: 'Greece', HR: 'Croatia', HU: 'Hungary', ID: 'Indonesia', IE: 'Ireland', IL: 'Israel',
   IM: 'Isle of Man', IN: 'India', IR: 'Iran', IS: 'Iceland', IT: 'Italy', JE: 'Jersey',
   JP: 'Japan', KP: 'North Korea', KR: 'South Korea', LI: 'Liechtenstein', LT: 'Lithuania',
   LU: 'Luxembourg', LV: 'Latvia', MT: 'Malta', MX: 'Mexico', MY: 'Malaysia', NG: 'Nigeria',
-  NL: 'Netherlands', NO: 'Norway', NZ: 'New Zealand', PK: 'Pakistan', PH: 'Philippines',
-  PL: 'Poland', PT: 'Portugal', RO: 'Romania', RU: 'Russia', SE: 'Sweden', SG: 'Singapore',
+  NL: 'Netherlands', NO: 'Norway', NZ: 'New Zealand', PK: 'Pakistan', PE: 'Peru', PH: 'Philippines',
+  PL: 'Poland', PT: 'Portugal', RO: 'Romania', RU: 'Russia', SA: 'Saudi Arabia', SE: 'Sweden', SG: 'Singapore',
   SI: 'Slovenia', SK: 'Slovakia', SO: 'Somalia', SS: 'South Sudan', SD: 'Sudan', SY: 'Syria',
   TH: 'Thailand', TJ: 'Tajikistan', TM: 'Turkmenistan', TR: 'Turkey', US: 'United States',
   UY: 'Uruguay', UZ: 'Uzbekistan', VE: 'Venezuela', VN: 'Vietnam', YE: 'Yemen', ZA: 'South Africa',
@@ -98,6 +98,7 @@ export const SCC_REQUIRED_COUNTRY_LIST = [
   { name: 'Bangladesh', code: 'BD', flag: '🇧🇩' },
   { name: 'Thailand', code: 'TH', flag: '🇹🇭' },
   { name: 'Malaysia', code: 'MY', flag: '🇲🇾' },
+  { name: 'Chile', code: 'CL', flag: '🇨🇱' },
 ];
 
 /** Country list for Blocked section */

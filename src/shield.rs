@@ -13,7 +13,7 @@ const ADEQUATE: &[&str] = &[
 
 const SCC_REQUIRED: &[&str] = &[
     "US","AU","IN","MX","SG","ZA",
-    "ID","TR","PH","VN","EG","NG","PK","BD","TH","MY"
+    "ID","TR","PH","VN","EG","NG","PK","BD","TH","MY","CL"
 ];
 
 const BLOCKED: &[&str] = &["CN","RU","KP","IR","SY","BY"];
@@ -124,6 +124,11 @@ pub fn country_name(code: &str) -> String {
         "LI" => "Liechtenstein".into(),
         "AD" => "Andorra".into(),
         "AR" => "Argentina".into(),
+        "CL" => "Chile".into(),
+        "CO" => "Colombia".into(),
+        "PE" => "Peru".into(),
+        "SA" => "Saudi Arabia".into(),
+        "AE" => "United Arab Emirates".into(),
         "FO" => "Faroe Islands".into(),
         "GG" => "Guernsey".into(),
         "IM" => "Isle of Man".into(),
