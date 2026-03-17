@@ -21,23 +21,23 @@ interface WorldMapProps {
   onCountryClick?: (country: CountryData) => void;
 }
 
-// Fill: muted pastel colors — slightly brighter for visibility on dark background
+// Fill: vibrant colors — saturated but with transparency for overlay on dark
 const getCountryFill = (countryData: CountryData | null): string => {
   if (!countryData) return '#334155';
   const isRed = countryData.status === 'blocked';
   const isOrangeFill = countryData.status === 'scc_required' && countryData.sccDisplay === 'fill';
   const isGreen = countryData.status === 'adequate_protection';
-  if (isRed) return '#fecaca95';       // muted pastel red, slightly brighter
-  if (isOrangeFill) return '#fed7aa95'; // muted pastel orange, slightly brighter
-  if (isGreen) return '#9ef4be95';     // muted pastel green, slightly brighter
+  if (isRed) return '#f87171aa';       // vibrant red
+  if (isOrangeFill) return '#fb923caa'; // vibrant orange
+  if (isGreen) return '#4ade80aa';     // vibrant green
   return '#334155';
 };
 
-// Stroke: muted orange for orange-border state (SCC Covered), else default
+// Stroke: vibrant orange for orange-border state (SCC Covered), else default
 const getCountryStroke = (countryData: CountryData | null): string => {
   if (!countryData) return '#64748b';
   const isOrangeBorder = countryData.status === 'scc_required' && countryData.sccDisplay === 'border';
-  return isOrangeBorder ? '#fed7aa' : '#64748b';
+  return isOrangeBorder ? '#fb923c' : '#64748b';
 };
 
 const getCountryStrokeWidth = (countryData: CountryData | null): number => {
@@ -182,19 +182,19 @@ const WorldMap: React.FC<WorldMapProps> = ({ countries = [], markers = [], isLoa
       {/* Legend */}
       <div className="mt-2 flex items-center justify-center gap-2 flex-shrink-0">
         <div className="flex items-center gap-1.5">
-          <div className="w-4 h-4 rounded" style={{ backgroundColor: '#9ef4be95' }}></div>
+          <div className="w-4 h-4 rounded" style={{ backgroundColor: '#4ade80aa' }}></div>
           <span className="text-xs text-slate-300">Adequate Protection</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-4 h-4 rounded" style={{ backgroundColor: '#fed7aa95' }}></div>
+          <div className="w-4 h-4 rounded" style={{ backgroundColor: '#fb923caa' }}></div>
           <span className="text-xs text-slate-300">SCC Required (Unresolved)</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-4 h-4 rounded border-2 bg-transparent" style={{ borderColor: '#fed7aa' }}></div>
+          <div className="w-4 h-4 rounded border-2 bg-transparent" style={{ borderColor: '#fb923c' }}></div>
           <span className="text-xs text-slate-300">SCC Required (Covered)</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-4 h-4 rounded" style={{ backgroundColor: '#fecaca95' }}></div>
+          <div className="w-4 h-4 rounded" style={{ backgroundColor: '#f87171aa' }}></div>
           <span className="text-xs text-slate-300">Blocked transfers (24h)</span>
         </div>
       </div>
