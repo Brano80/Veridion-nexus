@@ -660,6 +660,8 @@ export interface AgentCard {
     gdpr_enforcement_mode: string;
     policy_history_url: string;
     policy_history?: unknown[];
+    agent_api_key?: string;
+    WARNING?: string;
   };
 }
 
