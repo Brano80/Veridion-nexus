@@ -6,7 +6,7 @@ import { fetchEvidenceEventsWithMeta, fetchAgents, EvidenceEvent, AgentCard } fr
 import { Cpu, AlertTriangle, RefreshCw, Shield, X, FileText, Eye } from 'lucide-react';
 import RegisterAgentModal from './RegisterAgentModal';
 
-const INTERNAL_SOURCES = ['human-oversight'];
+const INTERNAL_SOURCES = ['human-oversight', 'sovereign-shield'];
 
 interface AgentInfo {
   name: string;
