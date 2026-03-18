@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import DashboardLayout from '../components/DashboardLayout';
 import { fetchEvidenceEventsWithMeta, fetchAgents, EvidenceEvent, AgentCard } from '../utils/api';
-import { Cpu, AlertTriangle, RefreshCw, Shield, X, FileText, Eye } from 'lucide-react';
+import { Cpu, AlertTriangle, RefreshCw, Shield, X, FileText, Eye, Plus } from 'lucide-react';
 import RegisterAgentModal from './RegisterAgentModal';
 
 const INTERNAL_SOURCES = ['human-oversight', 'sovereign-shield'];
@@ -87,7 +87,8 @@ export default function AgentsPage() {
   const [registeredAgents, setRegisteredAgents] = useState<AgentCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [registerModal, setRegisterModal] = useState<string | null>(null);
+  const [registerModalOpen, setRegisterModalOpen] = useState(false);
+  const [registerModalName, setRegisterModalName] = useState('');
   const [toast, setToast] = useState('');
   const [cardPanel, setCardPanel] = useState<AgentCard | null>(null);
 
@@ -155,14 +156,23 @@ export default function AgentsPage() {
               AI agents and systems interacting with Veridion Nexus
             </p>
           </div>
-          <button
-            onClick={handleRefresh}
-            disabled={refreshing}
-            className="flex items-center gap-2 px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
-          >
-            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-            Refresh
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => { setRegisterModalName(''); setRegisterModalOpen(true); }}
+              className="flex items-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Register New Agent
+            </button>
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="flex items-center gap-2 px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+          </div>
         </div>
 
         {/* Banner — only if unregistered agents exist */}
@@ -306,7 +316,7 @@ export default function AgentsPage() {
                       </>
                     ) : (
                       <button
-                        onClick={() => setRegisterModal(agent.name)}
+                        onClick={() => { setRegisterModalName(agent.name); setRegisterModalOpen(true); }}
                         className="px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-600 hover:bg-emerald-500 text-white transition-colors"
                       >
                         Register Agent
@@ -322,9 +332,9 @@ export default function AgentsPage() {
 
       {/* Registration Modal */}
       <RegisterAgentModal
-        open={registerModal !== null}
-        agentName={registerModal || ''}
-        onClose={() => setRegisterModal(null)}
+        open={registerModalOpen}
+        agentName={registerModalName}
+        onClose={() => setRegisterModalOpen(false)}
         onSuccess={handleRegisterSuccess}
       />
 
