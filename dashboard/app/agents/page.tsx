@@ -33,7 +33,7 @@ function buildAgents(events: EvidenceEvent[]): AgentInfo[] {
   const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
 
   for (const e of events) {
-    const source = (e.sourceSystem || e.source_system || '').trim();
+    const source = (e.sourceSystem || '').trim();
     if (!source) continue;
 
     let agent = map.get(source);
