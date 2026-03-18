@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import DashboardLayout from '../components/DashboardLayout';
-import { fetchEvidenceEventsWithMeta, EvidenceEvent } from '../utils/api';
-import { Cpu, AlertTriangle, RefreshCw } from 'lucide-react';
+import { fetchEvidenceEventsWithMeta, fetchAgents, EvidenceEvent, AgentCard } from '../utils/api';
+import { Cpu, AlertTriangle, RefreshCw, Shield, X, FileText, Eye } from 'lucide-react';
+import RegisterAgentModal from './RegisterAgentModal';
 
 const INTERNAL_SOURCES = ['human-oversight'];
 
@@ -83,13 +84,21 @@ function buildAgents(events: EvidenceEvent[]): AgentInfo[] {
 
 export default function AgentsPage() {
   const [agents, setAgents] = useState<AgentInfo[]>([]);
+  const [registeredAgents, setRegisteredAgents] = useState<AgentCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [registerModal, setRegisterModal] = useState<string | null>(null);
+  const [toast, setToast] = useState('');
+  const [cardPanel, setCardPanel] = useState<AgentCard | null>(null);
 
-  async function loadAgents() {
+  async function loadAll() {
     try {
-      const { events } = await fetchEvidenceEventsWithMeta({ limit: 5000 });
+      const [{ events }, { agents: regAgents }] = await Promise.all([
+        fetchEvidenceEventsWithMeta({ limit: 5000 }),
+        fetchAgents(),
+      ]);
       setAgents(buildAgents(events));
+      setRegisteredAgents(regAgents);
     } catch (err) {
       console.error('Failed to load agents:', err);
     } finally {
@@ -97,22 +106,44 @@ export default function AgentsPage() {
     }
   }
 
-  useEffect(() => {
-    loadAgents();
-  }, []);
+  useEffect(() => { loadAll(); }, []);
 
   async function handleRefresh() {
     setRefreshing(true);
-    await loadAgents();
+    await loadAll();
     setRefreshing(false);
+  }
+
+  function handleRegisterSuccess() {
+    setToast('Agent registered successfully');
+    loadAll();
+    setTimeout(() => setToast(''), 4000);
+  }
+
+  function isRegistered(agentName: string): boolean {
+    return registeredAgents.some(r => r.name === agentName);
+  }
+
+  function getRegisteredCard(agentName: string): AgentCard | undefined {
+    return registeredAgents.find(r => r.name === agentName);
   }
 
   const totalAgents = agents.length;
   const activeAgents = agents.filter(a => a.isActive).length;
+  const registeredCount = agents.filter(a => isRegistered(a.name)).length;
+  const unregisteredCount = totalAgents - registeredCount;
 
   return (
     <DashboardLayout>
       <div className="max-w-6xl mx-auto space-y-6">
+        {/* Toast */}
+        {toast && (
+          <div className="fixed top-4 right-4 z-50 bg-emerald-600 text-white px-4 py-2.5 rounded-lg shadow-lg text-sm font-medium flex items-center gap-2 animate-in slide-in-from-right">
+            <Shield className="w-4 h-4" />
+            {toast}
+          </div>
+        )}
+
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
@@ -134,21 +165,25 @@ export default function AgentsPage() {
           </button>
         </div>
 
-        {/* Banner */}
-        <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="w-5 h-5 text-amber-400 mt-0.5 shrink-0" />
-            <div>
-              <p className="text-sm font-semibold text-amber-400">Unregistered agents detected</p>
-              <p className="text-xs text-slate-400 mt-1">
-                Register your agents to enforce per-agent data policies and generate A2A-compatible compliance documentation.
-              </p>
+        {/* Banner — only if unregistered agents exist */}
+        {unregisteredCount > 0 && (
+          <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-amber-400 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-amber-400">
+                  {unregisteredCount} unregistered agent{unregisteredCount !== 1 ? 's' : ''} detected
+                </p>
+                <p className="text-xs text-slate-400 mt-1">
+                  Register your agents to enforce per-agent data policies and generate A2A-compatible compliance documentation.
+                </p>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Summary */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-4 gap-4">
           <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
             <div className="text-2xl font-bold text-white">{totalAgents}</div>
             <div className="text-xs text-slate-400 mt-1">Agents Detected</div>
@@ -158,7 +193,11 @@ export default function AgentsPage() {
             <div className="text-xs text-slate-400 mt-1">Active (last 24h)</div>
           </div>
           <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
-            <div className="text-2xl font-bold text-amber-400">{totalAgents}</div>
+            <div className="text-2xl font-bold text-emerald-400">{registeredCount}</div>
+            <div className="text-xs text-slate-400 mt-1">Registered</div>
+          </div>
+          <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
+            <div className="text-2xl font-bold text-amber-400">{unregisteredCount}</div>
             <div className="text-xs text-slate-400 mt-1">Unregistered</div>
           </div>
         </div>
@@ -173,72 +212,143 @@ export default function AgentsPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {agents.map((agent) => (
-              <div
-                key={agent.name}
-                className="bg-slate-800 border border-slate-700 rounded-lg p-5 flex flex-col gap-4"
-              >
-                {/* Top row: name + status */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-slate-700 flex items-center justify-center">
-                      <Cpu className="w-5 h-5 text-slate-400" />
-                    </div>
-                    <div>
-                      <div className="text-sm font-semibold text-white">{agent.name}</div>
-                      <div className="text-xs text-slate-500">
-                        Last active: {agent.lastActivity ? formatTimeAgo(agent.lastActivity) : '—'}
+            {agents.map((agent) => {
+              const registered = isRegistered(agent.name);
+              const card = getRegisteredCard(agent.name);
+              const trustLevel = card?.['x-veridion']?.trust_level ?? 0;
+
+              return (
+                <div
+                  key={agent.name}
+                  className={`bg-slate-800 border rounded-lg p-5 flex flex-col gap-4 ${
+                    registered ? 'border-emerald-500/30' : 'border-slate-700'
+                  }`}
+                >
+                  {/* Top row: name + status */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                        registered ? 'bg-emerald-500/15' : 'bg-slate-700'
+                      }`}>
+                        <Cpu className={`w-5 h-5 ${registered ? 'text-emerald-400' : 'text-slate-400'}`} />
+                      </div>
+                      <div>
+                        <div className="text-sm font-semibold text-white">{agent.name}</div>
+                        <div className="text-xs text-slate-500">
+                          Last active: {agent.lastActivity ? formatTimeAgo(agent.lastActivity) : '—'}
+                        </div>
                       </div>
                     </div>
+                    <div className="flex items-center gap-1.5">
+                      {registered && (
+                        <span className="px-2 py-0.5 rounded text-[11px] font-medium border bg-emerald-500/15 text-emerald-400 border-emerald-500/25">
+                          REGISTERED
+                        </span>
+                      )}
+                      {registered && trustLevel > 0 && (
+                        <span className="px-2 py-0.5 rounded text-[11px] font-medium border bg-blue-500/15 text-blue-400 border-blue-500/25">
+                          Trust Level {trustLevel}
+                        </span>
+                      )}
+                      <span className={`px-2 py-0.5 rounded text-[11px] font-medium border ${
+                        agent.isActive
+                          ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25'
+                          : 'bg-slate-500/15 text-slate-400 border-slate-500/25'
+                      }`}>
+                        {agent.isActive ? 'ACTIVE' : 'INACTIVE'}
+                      </span>
+                    </div>
                   </div>
-                  <span className={`px-2 py-0.5 rounded text-[11px] font-medium border ${
-                    agent.isActive
-                      ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25'
-                      : 'bg-slate-500/15 text-slate-400 border-slate-500/25'
-                  }`}>
-                    {agent.isActive ? 'ACTIVE' : 'INACTIVE'}
-                  </span>
-                </div>
 
-                {/* Stats row */}
-                <div className="flex items-center gap-3">
-                  <div className="text-xs text-slate-400">
-                    <span className="text-white font-semibold">{agent.totalTransfers}</span> transfers
+                  {/* Stats row */}
+                  <div className="flex items-center gap-3">
+                    <div className="text-xs text-slate-400">
+                      <span className="text-white font-semibold">{agent.totalTransfers}</span> transfers
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {agent.allowCount > 0 && (
+                        <span className="px-1.5 py-0.5 rounded text-[11px] font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
+                          {agent.allowCount} ALLOW
+                        </span>
+                      )}
+                      {agent.reviewCount > 0 && (
+                        <span className="px-1.5 py-0.5 rounded text-[11px] font-medium bg-amber-500/15 text-amber-400 border border-amber-500/25">
+                          {agent.reviewCount} REVIEW
+                        </span>
+                      )}
+                      {agent.blockCount > 0 && (
+                        <span className="px-1.5 py-0.5 rounded text-[11px] font-medium bg-red-500/15 text-red-400 border border-red-500/25">
+                          {agent.blockCount} BLOCK
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    {agent.allowCount > 0 && (
-                      <span className="px-1.5 py-0.5 rounded text-[11px] font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
-                        {agent.allowCount} ALLOW
-                      </span>
-                    )}
-                    {agent.reviewCount > 0 && (
-                      <span className="px-1.5 py-0.5 rounded text-[11px] font-medium bg-amber-500/15 text-amber-400 border border-amber-500/25">
-                        {agent.reviewCount} REVIEW
-                      </span>
-                    )}
-                    {agent.blockCount > 0 && (
-                      <span className="px-1.5 py-0.5 rounded text-[11px] font-medium bg-red-500/15 text-red-400 border border-red-500/25">
-                        {agent.blockCount} BLOCK
-                      </span>
-                    )}
-                  </div>
-                </div>
 
-                {/* Register button */}
-                <div className="pt-2 border-t border-slate-700">
-                  <button
-                    disabled
-                    title="Coming soon"
-                    className="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-700 text-slate-500 cursor-not-allowed"
-                  >
-                    Register Agent
-                  </button>
+                  {/* Action row */}
+                  <div className="pt-2 border-t border-slate-700 flex items-center gap-2">
+                    {registered ? (
+                      <>
+                        <button
+                          onClick={() => card && setCardPanel(card)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          View Agent Card
+                        </button>
+                        <button
+                          disabled
+                          title="Coming soon"
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-700 text-slate-500 cursor-not-allowed"
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                          Policy History
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => setRegisterModal(agent.name)}
+                        className="px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-600 hover:bg-emerald-500 text-white transition-colors"
+                      >
+                        Register Agent
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
+
+      {/* Registration Modal */}
+      <RegisterAgentModal
+        open={registerModal !== null}
+        agentName={registerModal || ''}
+        onClose={() => setRegisterModal(null)}
+        onSuccess={handleRegisterSuccess}
+      />
+
+      {/* Agent Card Side Panel */}
+      {cardPanel && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-sm" onClick={() => setCardPanel(null)}>
+          <div
+            className="w-full max-w-lg bg-slate-800 border-l border-slate-700 h-full overflow-y-auto shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-5 border-b border-slate-700">
+              <h2 className="text-lg font-bold text-white">A2A Agent Card</h2>
+              <button onClick={() => setCardPanel(null)} className="text-slate-400 hover:text-white transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-5">
+              <pre className="bg-slate-900 border border-slate-700 rounded-lg p-4 text-xs text-slate-300 overflow-x-auto whitespace-pre-wrap">
+                {JSON.stringify(cardPanel, null, 2)}
+              </pre>
+            </div>
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 }
