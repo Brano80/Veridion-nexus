@@ -296,20 +296,10 @@ export default function AgentsPage() {
               return (
                 <div
                   key={agent.name}
-                  className={`relative bg-slate-800 border rounded-lg p-5 flex flex-col gap-4 ${
+                  className={`bg-slate-800 border rounded-lg p-5 flex flex-col gap-4 ${
                     registered ? 'border-emerald-500/30' : 'border-slate-700'
                   }`}
                 >
-                  {registered && card?.['x-veridion']?.agent_id && (
-                    <button
-                      onClick={() => handleDeleteAgent(card!['x-veridion'].agent_id, agent.name)}
-                      disabled={deleting === card!['x-veridion'].agent_id}
-                      className="absolute top-4 right-4 p-1.5 rounded text-red-400/70 hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
-                      title="Delete agent"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
                   {/* Top row: name + status */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -397,6 +387,16 @@ export default function AgentsPage() {
                           >
                             <Key className="w-3.5 h-3.5" />
                             {rotating === card!['x-veridion'].agent_id ? 'Rotating...' : 'Rotate Key'}
+                          </button>
+                        )}
+                        {card?.['x-veridion']?.agent_id && (
+                          <button
+                            onClick={() => handleDeleteAgent(card!['x-veridion'].agent_id, agent.name)}
+                            disabled={deleting === card!['x-veridion'].agent_id}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-red-500/50 text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50 ml-auto"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            Delete Agent
                           </button>
                         )}
                       </>
