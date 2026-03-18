@@ -72,11 +72,14 @@ pub struct EvaluateRequest {
     pub agent_id: Option<String>,
     #[serde(alias = "agent_api_key")]
     pub agent_api_key: Option<String>,
+    #[serde(alias = "source_system")]
+    pub source_system: Option<String>,
 }
 
 #[derive(sqlx::FromRow)]
 struct AgentPolicyRow {
     id: String,
+    name: String,
     allowed_data_categories: serde_json::Value,
     allowed_destination_countries: serde_json::Value,
     allowed_partners: serde_json::Value,
@@ -237,9 +240,10 @@ pub async fn evaluate(
 
     // Agent policy enforcement
     let unregistered_agent = body.agent_id.is_none();
+    let mut resolved_source_system: Option<String> = body.source_system.clone();
     if let Some(ref agent_id) = body.agent_id {
         let agent_row: Option<AgentPolicyRow> = sqlx::query_as(
-            "SELECT id, allowed_data_categories, allowed_destination_countries, allowed_partners, api_key_hash FROM agents WHERE id = $1 AND tenant_id = $2 AND status = 'active' AND deleted_at IS NULL"
+            "SELECT id, name, allowed_data_categories, allowed_destination_countries, allowed_partners, api_key_hash FROM agents WHERE id = $1 AND tenant_id = $2 AND status = 'active' AND deleted_at IS NULL"
         )
         .bind(agent_id)
         .bind(tenant.tenant_id)
@@ -256,6 +260,7 @@ pub async fn evaluate(
                 }));
             }
             Some(ref agent) => {
+                resolved_source_system = Some(agent.name.clone());
                 // Validate agent API key if the agent has one set
                 if agent.api_key_hash.is_some() {
                     match &body.agent_api_key {
@@ -295,7 +300,7 @@ pub async fn evaluate(
                     let params = CreateEventParams {
                         event_type: "AGENT_POLICY_VIOLATION".into(),
                         severity: "HIGH".into(),
-                        source_system: "sovereign-shield".into(),
+                        source_system: agent.name.clone(),
                         regulatory_tags: vec!["GDPR".into()],
                         articles: vec![],
                         payload: violation_payload,
@@ -330,7 +335,7 @@ pub async fn evaluate(
                             let params = CreateEventParams {
                                 event_type: "AGENT_POLICY_VIOLATION".into(),
                                 severity: "HIGH".into(),
-                                source_system: "sovereign-shield".into(),
+                                source_system: agent.name.clone(),
                                 regulatory_tags: vec!["GDPR".into()],
                                 articles: vec![],
                                 payload: violation_payload,
@@ -366,7 +371,7 @@ pub async fn evaluate(
                             let params = CreateEventParams {
                                 event_type: "AGENT_POLICY_VIOLATION".into(),
                                 severity: "HIGH".into(),
-                                source_system: "sovereign-shield".into(),
+                                source_system: agent.name.clone(),
                                 regulatory_tags: vec!["GDPR".into()],
                                 articles: vec![],
                                 payload: violation_payload,
@@ -462,10 +467,11 @@ pub async fn evaluate(
         (decision.decision.clone(), decision.reason.clone())
     };
 
+    let source_system_for_event: String = resolved_source_system.unwrap_or_else(|| "sovereign-shield".into());
     let params = CreateEventParams {
         event_type: event_type.clone(),
         severity: decision.severity.clone(),
-        source_system: "sovereign-shield".into(),
+        source_system: source_system_for_event,
         regulatory_tags: vec!["GDPR".into()],
         articles: decision.articles.clone(),
         payload: payload.clone(),

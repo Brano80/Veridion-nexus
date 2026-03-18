@@ -88,7 +88,7 @@ function mergeAgents(events: EvidenceEvent[], registeredCards: AgentCard[]): Age
       allowCount: stats?.allowCount ?? 0,
       reviewCount: stats?.reviewCount ?? 0,
       blockCount: stats?.blockCount ?? 0,
-      isActive: stats?.lastActivity ? new Date(stats.lastActivity).getTime() > twentyFourHoursAgo : false,
+      isActive: true, // registered agents always ACTIVE
     });
   }
 
@@ -310,6 +310,9 @@ export default function AgentsPage() {
                       </div>
                       <div>
                         <div className="text-sm font-semibold text-white">{agent.name}</div>
+                        {registered && card?.['x-veridion']?.agent_id && (
+                          <div className="text-[10px] font-mono text-slate-500 mt-0.5">{card['x-veridion'].agent_id}</div>
+                        )}
                         <div className="text-xs text-slate-500">
                           Last active: {agent.lastActivity ? formatTimeAgo(agent.lastActivity) : (registered ? 'No activity yet' : '—')}
                         </div>
@@ -327,11 +330,11 @@ export default function AgentsPage() {
                         </span>
                       )}
                       <span className={`px-2 py-0.5 rounded text-[11px] font-medium border ${
-                        agent.isActive
+                        (registered || agent.isActive)
                           ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25'
                           : 'bg-slate-500/15 text-slate-400 border-slate-500/25'
                       }`}>
-                        {agent.isActive ? 'ACTIVE' : 'INACTIVE'}
+                        {(registered || agent.isActive) ? 'ACTIVE' : 'INACTIVE'}
                       </span>
                     </div>
                   </div>
