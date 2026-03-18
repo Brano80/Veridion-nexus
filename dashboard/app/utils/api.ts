@@ -638,6 +638,70 @@ export async function patchSettings(data: {
   return JSON.parse(text);
 }
 
+// --- Agent Registry ---
+
+export interface AgentCard {
+  name: string;
+  description: string;
+  version: string;
+  url: string | null;
+  provider: { organization: string | null; url: string | null };
+  capabilities: { streaming: boolean; pushNotifications: boolean };
+  skills: unknown[];
+  authentication: { schemes: string[] };
+  'x-veridion': {
+    agent_id: string;
+    policy_version: string;
+    policy_version_hash: string;
+    trust_level: number;
+    allowed_data_categories: string[];
+    allowed_destination_countries: string[];
+    allowed_partners: string[];
+    gdpr_enforcement_mode: string;
+    policy_history_url: string;
+    policy_history?: unknown[];
+  };
+}
+
+export async function fetchAgents(): Promise<{ agents: AgentCard[]; total: number }> {
+  const res = await fetch(`${API_BASE}/api/v1/agents`, { headers: getAuthHeaders() });
+  checkUnauthorized(res);
+  checkTrialExpired(res);
+  if (!res.ok) throw new Error('Failed to fetch agents');
+  return res.json();
+}
+
+export async function registerAgent(data: {
+  name: string;
+  description: string;
+  version?: string;
+  url?: string;
+  provider_org?: string;
+  provider_url?: string;
+  allowed_data_categories: string[];
+  allowed_destination_countries: string[];
+  allowed_partners: string[];
+}): Promise<AgentCard> {
+  const res = await fetch(`${API_BASE}/api/v1/agents`, {
+    method: 'POST',
+    headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  checkUnauthorized(res);
+  checkTrialExpired(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: 'Registration failed' }));
+    throw new Error(err.message || 'Registration failed');
+  }
+  return res.json();
+}
+
+export async function fetchAgentCard(agentId: string): Promise<AgentCard> {
+  const res = await fetch(`${API_BASE}/api/v1/agents/${agentId}/card`);
+  if (!res.ok) throw new Error('Failed to fetch agent card');
+  return res.json();
+}
+
 export async function verifyIntegrity(): Promise<{ status: 'VALID' | 'TAMPERED'; verified?: boolean }> {
   const res = await fetch(`${API_BASE}/api/v1/evidence/verify-integrity`, {
     method: 'POST',

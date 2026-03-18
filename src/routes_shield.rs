@@ -68,6 +68,16 @@ pub struct EvaluateRequest {
     pub user_agent: Option<String>,
     #[serde(alias = "request_path")]
     pub request_path: Option<String>,
+    #[serde(alias = "agent_id")]
+    pub agent_id: Option<String>,
+}
+
+#[derive(sqlx::FromRow)]
+struct AgentPolicyRow {
+    id: String,
+    allowed_data_categories: serde_json::Value,
+    allowed_destination_countries: serde_json::Value,
+    allowed_partners: serde_json::Value,
 }
 
 #[derive(Deserialize)]
@@ -221,6 +231,139 @@ pub async fn evaluate(
         Ok(t) => t,
         Err(e) => return HttpResponse::from_error(e),
     };
+
+    // Agent policy enforcement
+    let unregistered_agent = body.agent_id.is_none();
+    if let Some(ref agent_id) = body.agent_id {
+        let agent_row: Option<AgentPolicyRow> = sqlx::query_as(
+            "SELECT id, allowed_data_categories, allowed_destination_countries, allowed_partners FROM agents WHERE id = $1 AND tenant_id = $2 AND status = 'active'"
+        )
+        .bind(agent_id)
+        .bind(tenant.tenant_id)
+        .fetch_optional(pool.get_ref())
+        .await
+        .ok()
+        .flatten();
+
+        match agent_row {
+            None => {
+                return HttpResponse::BadRequest().json(serde_json::json!({
+                    "error": "AGENT_NOT_REGISTERED",
+                    "message": "Agent not registered. Register this agent at app.veridion-nexus.eu/agents",
+                }));
+            }
+            Some(agent) => {
+                let dest_code = body.destination_country_code.clone().unwrap_or_default().to_uppercase();
+                let allowed_countries: Vec<String> = serde_json::from_value(agent.allowed_destination_countries.clone()).unwrap_or_default();
+                if !dest_code.is_empty() && !allowed_countries.is_empty() && !allowed_countries.iter().any(|c| c.eq_ignore_ascii_case(&dest_code)) {
+                    let dest_name = if dest_code.is_empty() { "Unknown".to_string() } else { country_name(&dest_code) };
+                    let violation_payload = serde_json::json!({
+                        "agent_id": agent_id,
+                        "violation": "destination_country",
+                        "destination_country_code": dest_code,
+                        "destination_country": dest_name,
+                        "reason": "Destination country not in agent policy",
+                    });
+                    let params = CreateEventParams {
+                        event_type: "AGENT_POLICY_VIOLATION".into(),
+                        severity: "HIGH".into(),
+                        source_system: "sovereign-shield".into(),
+                        regulatory_tags: vec!["GDPR".into()],
+                        articles: vec![],
+                        payload: violation_payload,
+                        correlation_id: Some(Uuid::new_v4().to_string()),
+                        causation_id: None,
+                        source_ip: body.source_ip.clone(),
+                        source_user_agent: body.user_agent.clone(),
+                        tenant_id: tenant.tenant_id,
+                    };
+                    let _ = evidence::create_event(pool.get_ref(), params).await;
+                    return HttpResponse::Ok().json(serde_json::json!({
+                        "decision": "BLOCK",
+                        "reason": "Destination country not in agent policy",
+                        "severity": "HIGH",
+                        "articles": [],
+                        "country_status": "agent_policy_violation",
+                        "timestamp": Utc::now().to_rfc3339(),
+                    }));
+                }
+
+                let allowed_categories: Vec<String> = serde_json::from_value(agent.allowed_data_categories.clone()).unwrap_or_default();
+                if !allowed_categories.is_empty() {
+                    if let Some(ref cats) = body.data_categories {
+                        let violation: Vec<&String> = cats.iter().filter(|c| !allowed_categories.iter().any(|ac| ac.eq_ignore_ascii_case(c))).collect();
+                        if !violation.is_empty() {
+                            let violation_payload = serde_json::json!({
+                                "agent_id": agent_id,
+                                "violation": "data_categories",
+                                "disallowed_categories": violation,
+                                "reason": "Data category not permitted by agent policy",
+                            });
+                            let params = CreateEventParams {
+                                event_type: "AGENT_POLICY_VIOLATION".into(),
+                                severity: "HIGH".into(),
+                                source_system: "sovereign-shield".into(),
+                                regulatory_tags: vec!["GDPR".into()],
+                                articles: vec![],
+                                payload: violation_payload,
+                                correlation_id: Some(Uuid::new_v4().to_string()),
+                                causation_id: None,
+                                source_ip: body.source_ip.clone(),
+                                source_user_agent: body.user_agent.clone(),
+                                tenant_id: tenant.tenant_id,
+                            };
+                            let _ = evidence::create_event(pool.get_ref(), params).await;
+                            return HttpResponse::Ok().json(serde_json::json!({
+                                "decision": "BLOCK",
+                                "reason": "Data category not permitted by agent policy",
+                                "severity": "HIGH",
+                                "articles": [],
+                                "country_status": "agent_policy_violation",
+                                "timestamp": Utc::now().to_rfc3339(),
+                            }));
+                        }
+                    }
+                }
+
+                let allowed_partners: Vec<String> = serde_json::from_value(agent.allowed_partners.clone()).unwrap_or_default();
+                if !allowed_partners.is_empty() {
+                    if let Some(ref partner) = body.partner_name {
+                        if !partner.is_empty() && !allowed_partners.iter().any(|p| p.eq_ignore_ascii_case(partner)) {
+                            let violation_payload = serde_json::json!({
+                                "agent_id": agent_id,
+                                "violation": "partner",
+                                "partner_name": partner,
+                                "reason": "Partner not permitted by agent policy",
+                            });
+                            let params = CreateEventParams {
+                                event_type: "AGENT_POLICY_VIOLATION".into(),
+                                severity: "HIGH".into(),
+                                source_system: "sovereign-shield".into(),
+                                regulatory_tags: vec!["GDPR".into()],
+                                articles: vec![],
+                                payload: violation_payload,
+                                correlation_id: Some(Uuid::new_v4().to_string()),
+                                causation_id: None,
+                                source_ip: body.source_ip.clone(),
+                                source_user_agent: body.user_agent.clone(),
+                                tenant_id: tenant.tenant_id,
+                            };
+                            let _ = evidence::create_event(pool.get_ref(), params).await;
+                            return HttpResponse::Ok().json(serde_json::json!({
+                                "decision": "BLOCK",
+                                "reason": "Partner not permitted by agent policy",
+                                "severity": "HIGH",
+                                "articles": [],
+                                "country_status": "agent_policy_violation",
+                                "timestamp": Utc::now().to_rfc3339(),
+                            }));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     let ctx = TransferContext {
         destination_country_code: body.destination_country_code.clone(),
         destination_country: body.destination_country.clone(),
@@ -275,12 +418,16 @@ pub async fn evaluate(
     if is_shadow {
         payload["shadow_mode"] = serde_json::json!(true);
     }
+    if unregistered_agent {
+        payload["unregistered_agent"] = serde_json::json!(true);
+    }
+    if let Some(ref aid) = body.agent_id {
+        payload["agent_id"] = serde_json::json!(aid);
+    }
 
-    // Use real event type and decision - shadow mode only affects API response, not evidence
     let event_type = decision.event_type.clone();
     let create_review = decision.decision == Decision::REVIEW;
     
-    // In shadow mode, always return ALLOW to caller; otherwise return real decision
     let (response_decision, response_reason) = if is_shadow {
         (Decision::ALLOW, format!("SHADOW MODE — would have been {}: {}", decision.decision.to_string(), decision.reason))
     } else {

@@ -1,4 +1,4 @@
-use veridion_api::{routes_evidence, routes_shield, routes_review_queue, routes_admin, routes_auth, review_queue, middleware_tenant};
+use veridion_api::{routes_evidence, routes_shield, routes_review_queue, routes_admin, routes_auth, routes_agents, review_queue, middleware_tenant};
 
 use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer, get};
 use actix_cors::Cors;
@@ -298,6 +298,10 @@ async fn main() -> std::io::Result<()> {
     println!("  Login:           POST /api/v1/auth/login");
     println!("  Logout:          POST /api/v1/auth/logout");
     println!("  Dev reset pwd:   POST /api/v1/auth/dev-reset-password (dev only)");
+    println!("  Agents register: POST /api/v1/agents");
+    println!("  Agents list:     GET  /api/v1/agents");
+    println!("  Agent detail:    GET  /api/v1/agents/{{id}}");
+    println!("  Agent card:      GET  /api/v1/agents/{{id}}/card (public)");
 
     let signup_rate_limiter = web::Data::new(routes_auth::SignupRateLimiter::new());
 
@@ -326,6 +330,7 @@ async fn main() -> std::io::Result<()> {
             .configure(routes_review_queue::configure)
             .configure(routes_admin::configure)
             .configure(routes_auth::configure)
+            .configure(routes_agents::configure)
     })
     .bind((server_host.as_str(), server_port))?
     .run()
