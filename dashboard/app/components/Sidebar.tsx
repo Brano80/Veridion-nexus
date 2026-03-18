@@ -7,7 +7,6 @@ import { Globe, FileText, Shield, ClipboardCheck, List, MapPin, Settings, LogOut
 import { getCurrentUser, isAdmin, getAuthHeaders, clearAuthState, CurrentUser } from '../utils/api';
 
 const navItems = [
-  { href: '/agents', label: 'Agents', icon: Cpu },
   { href: '/', label: 'Sovereign Shield', icon: Globe },
   { href: '/review-queue', label: 'Review Queue', icon: ClipboardCheck },
   { href: '/scc-registry', label: 'SCC Registry', icon: FileText },
@@ -64,26 +63,35 @@ export default function Sidebar() {
               </Link>
             );
           })}
+          <div className="border-t border-slate-700 my-1.5" />
+          <div className="px-2 py-0.5">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+              System
+            </span>
+          </div>
+          <Link
+            href="/agents"
+            className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              pathname === '/agents'
+                ? 'bg-slate-700 text-white'
+                : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+            }`}
+          >
+            <Cpu className="w-3.5 h-3.5" />
+            Agents
+          </Link>
           {isAdmin(currentUser) && (
-            <>
-              <div className="border-t border-slate-700 my-1.5" />
-              <div className="px-2 py-0.5">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                  System
-                </span>
-              </div>
-              <Link
-                href="/admin"
-                className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                  pathname?.startsWith('/admin')
-                    ? 'bg-slate-700 text-white'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
-                }`}
-              >
-                <Settings className="w-3.5 h-3.5" />
-                Admin Panel
-              </Link>
-            </>
+            <Link
+              href="/admin"
+              className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                pathname?.startsWith('/admin')
+                  ? 'bg-slate-700 text-white'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+              }`}
+            >
+              <Settings className="w-3.5 h-3.5" />
+              Admin Panel
+            </Link>
           )}
         </nav>
       </div>
