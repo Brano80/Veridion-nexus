@@ -31,15 +31,14 @@ function formatTimeAgo(dateStr: string): string {
   return `${days}d ago`;
 }
 
-function buildAgents(events: EvidenceEvent[]): AgentInfo[] {
+function buildStatsFromEvents(events: EvidenceEvent[]): Map<string, AgentInfo> {
   const map = new Map<string, AgentInfo>();
-  const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
 
   for (const e of events) {
     const source = (e.sourceSystem || '').trim();
     if (!source || INTERNAL_SOURCES.includes(source.toLowerCase())) continue;
 
-    let agent = map.get(source);
+    let agent = map.get(source.toLowerCase());
     if (!agent) {
       agent = {
         name: source,
@@ -50,7 +49,7 @@ function buildAgents(events: EvidenceEvent[]): AgentInfo[] {
         blockCount: 0,
         isActive: false,
       };
-      map.set(source, agent);
+      map.set(source.toLowerCase(), agent);
     }
 
     agent.totalTransfers++;
@@ -70,13 +69,38 @@ function buildAgents(events: EvidenceEvent[]): AgentInfo[] {
     }
   }
 
-  for (const agent of map.values()) {
-    if (agent.lastActivity) {
-      agent.isActive = new Date(agent.lastActivity).getTime() > twentyFourHoursAgo;
+  return map;
+}
+
+function mergeAgents(events: EvidenceEvent[], registeredCards: AgentCard[]): AgentInfo[] {
+  const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
+  const statsMap = buildStatsFromEvents(events);
+  const merged = new Map<string, AgentInfo>();
+
+  // Add all registered agents first (by name, case-insensitive key)
+  for (const card of registeredCards) {
+    const key = card.name.toLowerCase();
+    const stats = statsMap.get(key);
+    merged.set(key, {
+      name: card.name,
+      totalTransfers: stats?.totalTransfers ?? 0,
+      lastActivity: stats?.lastActivity ?? '',
+      allowCount: stats?.allowCount ?? 0,
+      reviewCount: stats?.reviewCount ?? 0,
+      blockCount: stats?.blockCount ?? 0,
+      isActive: stats?.lastActivity ? new Date(stats.lastActivity).getTime() > twentyFourHoursAgo : false,
+    });
+  }
+
+  // Add unregistered agents from events that aren't already in the map
+  for (const [key, stats] of statsMap) {
+    if (!merged.has(key)) {
+      stats.isActive = stats.lastActivity ? new Date(stats.lastActivity).getTime() > twentyFourHoursAgo : false;
+      merged.set(key, stats);
     }
   }
 
-  return Array.from(map.values()).sort((a, b) => {
+  return Array.from(merged.values()).sort((a, b) => {
     if (a.isActive !== b.isActive) return a.isActive ? -1 : 1;
     return b.totalTransfers - a.totalTransfers;
   });
@@ -98,8 +122,8 @@ export default function AgentsPage() {
         fetchEvidenceEventsWithMeta({ limit: 5000 }),
         fetchAgents(),
       ]);
-      setAgents(buildAgents(events));
       setRegisteredAgents(regAgents);
+      setAgents(mergeAgents(events, regAgents));
     } catch (err) {
       console.error('Failed to load agents:', err);
     } finally {
@@ -122,17 +146,17 @@ export default function AgentsPage() {
   }
 
   function isRegistered(agentName: string): boolean {
-    return registeredAgents.some(r => r.name === agentName);
+    return registeredAgents.some(r => r.name.toLowerCase() === agentName.toLowerCase());
   }
 
   function getRegisteredCard(agentName: string): AgentCard | undefined {
-    return registeredAgents.find(r => r.name === agentName);
+    return registeredAgents.find(r => r.name.toLowerCase() === agentName.toLowerCase());
   }
 
   const totalAgents = agents.length;
   const activeAgents = agents.filter(a => a.isActive).length;
-  const registeredCount = agents.filter(a => isRegistered(a.name)).length;
-  const unregisteredCount = totalAgents - registeredCount;
+  const registeredCount = registeredAgents.length;
+  const unregisteredCount = totalAgents - agents.filter(a => isRegistered(a.name)).length;
 
   return (
     <DashboardLayout>
@@ -245,7 +269,7 @@ export default function AgentsPage() {
                       <div>
                         <div className="text-sm font-semibold text-white">{agent.name}</div>
                         <div className="text-xs text-slate-500">
-                          Last active: {agent.lastActivity ? formatTimeAgo(agent.lastActivity) : '—'}
+                          Last active: {agent.lastActivity ? formatTimeAgo(agent.lastActivity) : (registered ? 'No activity yet' : '—')}
                         </div>
                       </div>
                     </div>
