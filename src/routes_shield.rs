@@ -239,7 +239,7 @@ pub async fn evaluate(
     let unregistered_agent = body.agent_id.is_none();
     if let Some(ref agent_id) = body.agent_id {
         let agent_row: Option<AgentPolicyRow> = sqlx::query_as(
-            "SELECT id, allowed_data_categories, allowed_destination_countries, allowed_partners, api_key_hash FROM agents WHERE id = $1 AND tenant_id = $2 AND status = 'active'"
+            "SELECT id, allowed_data_categories, allowed_destination_countries, allowed_partners, api_key_hash FROM agents WHERE id = $1 AND tenant_id = $2 AND status = 'active' AND deleted_at IS NULL"
         )
         .bind(agent_id)
         .bind(tenant.tenant_id)

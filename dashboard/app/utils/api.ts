@@ -718,6 +718,19 @@ export async function rotateAgentKey(agentId: string): Promise<{ agent_id: strin
   return res.json();
 }
 
+export async function deleteAgent(agentId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/v1/agents/${agentId}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(),
+  });
+  checkUnauthorized(res);
+  checkTrialExpired(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: 'Delete failed' }));
+    throw new Error(err.message || 'Delete failed');
+  }
+}
+
 export async function verifyIntegrity(): Promise<{ status: 'VALID' | 'TAMPERED'; verified?: boolean }> {
   const res = await fetch(`${API_BASE}/api/v1/evidence/verify-integrity`, {
     method: 'POST',

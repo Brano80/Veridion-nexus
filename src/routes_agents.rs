@@ -1,4 +1,4 @@
-use actix_web::{web, HttpRequest, HttpResponse, get, post};
+use actix_web::{web, HttpRequest, HttpResponse, delete, get, post};
 use serde::Deserialize;
 use sha2::{Sha256, Digest};
 use sqlx::PgPool;
@@ -73,6 +73,8 @@ struct AgentRow {
     status: String,
     #[sqlx(default)]
     api_key_hash: Option<String>,
+    #[sqlx(default)]
+    deleted_at: Option<chrono::DateTime<chrono::Utc>>,
     created_at: chrono::DateTime<chrono::Utc>,
     updated_at: chrono::DateTime<chrono::Utc>,
 }
@@ -226,7 +228,7 @@ pub async fn list_agents(
     };
 
     let agents: Vec<AgentRow> = match sqlx::query_as(
-        "SELECT * FROM agents WHERE tenant_id = $1 AND status != 'deleted' ORDER BY created_at DESC"
+        "SELECT * FROM agents WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC"
     )
     .bind(tenant.tenant_id)
     .fetch_all(pool.get_ref())
@@ -282,7 +284,7 @@ pub async fn get_agent(
     };
 
     let agent: Option<AgentRow> = sqlx::query_as(
-        "SELECT * FROM agents WHERE id = $1 AND tenant_id = $2"
+        "SELECT * FROM agents WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL"
     )
     .bind(&path.agent_id)
     .bind(tenant.tenant_id)
@@ -388,7 +390,7 @@ pub async fn rotate_agent_key(
     };
 
     let exists: Option<(String,)> = sqlx::query_as(
-        "SELECT id FROM agents WHERE id = $1 AND tenant_id = $2 AND status = 'active'"
+        "SELECT id FROM agents WHERE id = $1 AND tenant_id = $2 AND status = 'active' AND deleted_at IS NULL"
     )
     .bind(&path.agent_id)
     .bind(tenant.tenant_id)
@@ -428,10 +430,39 @@ pub async fn rotate_agent_key(
     }))
 }
 
+#[delete("/api/v1/agents/{agent_id}")]
+pub async fn delete_agent(
+    req: HttpRequest,
+    pool: web::Data<PgPool>,
+    path: web::Path<AgentPath>,
+) -> HttpResponse {
+    let tenant = match get_tenant_context(&req) {
+        Ok(t) => t,
+        Err(e) => return HttpResponse::from_error(e),
+    };
+
+    let result = sqlx::query(
+        "UPDATE agents SET deleted_at = NOW(), updated_at = NOW() WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL"
+    )
+    .bind(&path.agent_id)
+    .bind(tenant.tenant_id)
+    .execute(pool.get_ref())
+    .await;
+
+    match result {
+        Ok(r) if r.rows_affected() > 0 => HttpResponse::Ok().json(serde_json::json!({ "ok": true })),
+        _ => HttpResponse::NotFound().json(serde_json::json!({
+            "error": "NOT_FOUND",
+            "message": "Agent not found",
+        })),
+    }
+}
+
 pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(register_agent)
        .service(list_agents)
        .service(get_agent)
        .service(get_agent_card)
-       .service(rotate_agent_key);
+       .service(rotate_agent_key)
+       .service(delete_agent);
 }

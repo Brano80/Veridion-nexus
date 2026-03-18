@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import DashboardLayout from '../components/DashboardLayout';
-import { fetchEvidenceEventsWithMeta, fetchAgents, rotateAgentKey, EvidenceEvent, AgentCard } from '../utils/api';
-import { Cpu, AlertTriangle, RefreshCw, Shield, X, FileText, Eye, Plus, Key, Copy } from 'lucide-react';
+import { fetchEvidenceEventsWithMeta, fetchAgents, rotateAgentKey, deleteAgent, EvidenceEvent, AgentCard } from '../utils/api';
+import { Cpu, AlertTriangle, RefreshCw, Shield, X, FileText, Eye, Plus, Key, Copy, Trash2 } from 'lucide-react';
 import RegisterAgentModal from './RegisterAgentModal';
 
 const INTERNAL_SOURCES = ['human-oversight', 'sovereign-shield'];
@@ -118,6 +118,7 @@ export default function AgentsPage() {
   const [rotatedKey, setRotatedKey] = useState('');
   const [rotatedKeyCopied, setRotatedKeyCopied] = useState(false);
   const [rotating, setRotating] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   async function loadAll() {
     try {
@@ -168,6 +169,22 @@ export default function AgentsPage() {
       setRotatedKeyCopied(true);
       setTimeout(() => setRotatedKeyCopied(false), 2000);
     } catch { /* ignore */ }
+  }
+
+  async function handleDeleteAgent(agentId: string, agentName: string) {
+    if (!confirm(`Delete agent ${agentName}? This will permanently remove the agent registration and invalidate its API key. Existing evidence events are not affected.`)) return;
+    setDeleting(agentId);
+    try {
+      await deleteAgent(agentId);
+      await loadAll();
+      setToast('Agent deleted');
+      setTimeout(() => setToast(''), 4000);
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : 'Delete failed');
+      setTimeout(() => setToast(''), 4000);
+    } finally {
+      setDeleting(null);
+    }
   }
 
   function isRegistered(agentName: string): boolean {
@@ -279,10 +296,20 @@ export default function AgentsPage() {
               return (
                 <div
                   key={agent.name}
-                  className={`bg-slate-800 border rounded-lg p-5 flex flex-col gap-4 ${
+                  className={`relative bg-slate-800 border rounded-lg p-5 flex flex-col gap-4 ${
                     registered ? 'border-emerald-500/30' : 'border-slate-700'
                   }`}
                 >
+                  {registered && card?.['x-veridion']?.agent_id && (
+                    <button
+                      onClick={() => handleDeleteAgent(card!['x-veridion'].agent_id, agent.name)}
+                      disabled={deleting === card!['x-veridion'].agent_id}
+                      className="absolute top-4 right-4 p-1.5 rounded text-red-400/70 hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                      title="Delete agent"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                   {/* Top row: name + status */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
