@@ -5,6 +5,8 @@ import DashboardLayout from '../components/DashboardLayout';
 import { fetchEvidenceEventsWithMeta, EvidenceEvent } from '../utils/api';
 import { Cpu, AlertTriangle, RefreshCw } from 'lucide-react';
 
+const INTERNAL_SOURCES = ['human-oversight'];
+
 interface AgentInfo {
   name: string;
   totalTransfers: number;
@@ -34,7 +36,7 @@ function buildAgents(events: EvidenceEvent[]): AgentInfo[] {
 
   for (const e of events) {
     const source = (e.sourceSystem || '').trim();
-    if (!source) continue;
+    if (!source || INTERNAL_SOURCES.includes(source.toLowerCase())) continue;
 
     let agent = map.get(source);
     if (!agent) {
@@ -119,7 +121,7 @@ export default function AgentsPage() {
               Agents
             </h1>
             <p className="text-sm text-slate-400 mt-1">
-              AI agents and systems interacting with Sovereign Shield
+              AI agents and systems interacting with Veridion Nexus
             </p>
           </div>
           <button
