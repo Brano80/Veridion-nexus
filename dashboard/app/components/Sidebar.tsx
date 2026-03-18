@@ -3,11 +3,12 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import { Globe, FileText, Shield, ClipboardCheck, List, MapPin, Settings, LogOut } from 'lucide-react';
+import { Globe, FileText, Shield, ClipboardCheck, List, MapPin, Settings, LogOut, Cpu } from 'lucide-react';
 import { getCurrentUser, isAdmin, getAuthHeaders, clearAuthState, CurrentUser } from '../utils/api';
 
 const navItems = [
   { href: '/', label: 'Sovereign Shield', icon: Globe },
+  { href: '/agents', label: 'Agents', icon: Cpu },
   { href: '/review-queue', label: 'Review Queue', icon: ClipboardCheck },
   { href: '/scc-registry', label: 'SCC Registry', icon: FileText },
   { href: '/adequate-countries', label: 'Adequate Countries', icon: MapPin },
