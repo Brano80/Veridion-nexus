@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { X, Plus, Search, Check } from 'lucide-react';
+import { X, Plus, Search, Check, Copy, AlertTriangle, Key } from 'lucide-react';
 import { registerAgent } from '../utils/api';
 import { COUNTRY_NAMES } from '../config/countries';
 
@@ -35,6 +35,8 @@ export default function RegisterAgentModal({ open, agentName, onClose, onSuccess
   const [countryDropdownOpen, setCountryDropdownOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [revealedKey, setRevealedKey] = useState('');
+  const [keyCopied, setKeyCopied] = useState(false);
   const countryRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -52,6 +54,69 @@ export default function RegisterAgentModal({ open, agentName, onClose, onSuccess
   }, []);
 
   if (!open) return null;
+
+  function handleKeyClose() {
+    setRevealedKey('');
+    setKeyCopied(false);
+    onSuccess();
+    onClose();
+  }
+
+  async function copyKey() {
+    try {
+      await navigator.clipboard.writeText(revealedKey);
+      setKeyCopied(true);
+      setTimeout(() => setKeyCopied(false), 2000);
+    } catch { /* ignore */ }
+  }
+
+  if (revealedKey) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <div className="bg-slate-800 border border-slate-700 rounded-xl w-full max-w-lg shadow-2xl">
+          <div className="flex items-center justify-between p-5 border-b border-slate-700">
+            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <Key className="w-5 h-5 text-emerald-400" />
+              Agent API Key
+            </h2>
+          </div>
+          <div className="p-5 space-y-4">
+            <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
+                <p className="text-xs text-amber-400">
+                  This key will only be shown once. Store it securely — it cannot be recovered. If lost, rotate the key from the Agents page.
+                </p>
+              </div>
+            </div>
+            <div className="relative">
+              <pre className="bg-slate-900 border border-slate-600 rounded-lg p-3 text-sm text-emerald-400 font-mono break-all pr-12">
+                {revealedKey}
+              </pre>
+              <button
+                onClick={copyKey}
+                className="absolute top-2 right-2 p-1.5 rounded bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors"
+                title="Copy to clipboard"
+              >
+                <Copy className="w-4 h-4" />
+              </button>
+            </div>
+            {keyCopied && (
+              <p className="text-xs text-emerald-400">Copied to clipboard</p>
+            )}
+          </div>
+          <div className="flex items-center justify-end p-5 border-t border-slate-700">
+            <button
+              onClick={handleKeyClose}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors"
+            >
+              I have saved this key
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   function toggleCategory(cat: string) {
     setCategories(prev => prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]);
@@ -88,7 +153,7 @@ export default function RegisterAgentModal({ open, agentName, onClose, onSuccess
 
     setSubmitting(true);
     try {
-      await registerAgent({
+      const result = await registerAgent({
         name: name.trim(),
         description: description.trim(),
         version: version.trim() || '1.0.0',
@@ -98,8 +163,13 @@ export default function RegisterAgentModal({ open, agentName, onClose, onSuccess
         allowed_destination_countries: countries,
         allowed_partners: partners,
       });
-      onSuccess();
-      onClose();
+      const key = result?.['x-veridion']?.agent_api_key;
+      if (key) {
+        setRevealedKey(key as string);
+      } else {
+        onSuccess();
+        onClose();
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Registration failed');
     } finally {

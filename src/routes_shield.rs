@@ -70,6 +70,8 @@ pub struct EvaluateRequest {
     pub request_path: Option<String>,
     #[serde(alias = "agent_id")]
     pub agent_id: Option<String>,
+    #[serde(alias = "agent_api_key")]
+    pub agent_api_key: Option<String>,
 }
 
 #[derive(sqlx::FromRow)]
@@ -78,6 +80,7 @@ struct AgentPolicyRow {
     allowed_data_categories: serde_json::Value,
     allowed_destination_countries: serde_json::Value,
     allowed_partners: serde_json::Value,
+    api_key_hash: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -236,7 +239,7 @@ pub async fn evaluate(
     let unregistered_agent = body.agent_id.is_none();
     if let Some(ref agent_id) = body.agent_id {
         let agent_row: Option<AgentPolicyRow> = sqlx::query_as(
-            "SELECT id, allowed_data_categories, allowed_destination_countries, allowed_partners FROM agents WHERE id = $1 AND tenant_id = $2 AND status = 'active'"
+            "SELECT id, allowed_data_categories, allowed_destination_countries, allowed_partners, api_key_hash FROM agents WHERE id = $1 AND tenant_id = $2 AND status = 'active'"
         )
         .bind(agent_id)
         .bind(tenant.tenant_id)
@@ -252,7 +255,32 @@ pub async fn evaluate(
                     "message": "Agent not registered. Register this agent at app.veridion-nexus.eu/agents",
                 }));
             }
-            Some(agent) => {
+            Some(ref agent) => {
+                // Validate agent API key if the agent has one set
+                if agent.api_key_hash.is_some() {
+                    match &body.agent_api_key {
+                        None => {
+                            return HttpResponse::Unauthorized().json(serde_json::json!({
+                                "error": "AGENT_KEY_REQUIRED",
+                                "message": "Agent API key required for registered agents",
+                            }));
+                        }
+                        Some(provided_key) => {
+                            let provided_hash = {
+                                use sha2::{Sha256, Digest};
+                                let mut hasher = Sha256::new();
+                                hasher.update(provided_key.as_bytes());
+                                format!("{:x}", hasher.finalize())
+                            };
+                            if Some(&provided_hash) != agent.api_key_hash.as_ref() {
+                                return HttpResponse::Unauthorized().json(serde_json::json!({
+                                    "error": "AGENT_KEY_INVALID",
+                                    "message": "Agent API key does not match registered agent",
+                                }));
+                            }
+                        }
+                    }
+                }
                 let dest_code = body.destination_country_code.clone().unwrap_or_default().to_uppercase();
                 let allowed_countries: Vec<String> = serde_json::from_value(agent.allowed_destination_countries.clone()).unwrap_or_default();
                 if !dest_code.is_empty() && !allowed_countries.is_empty() && !allowed_countries.iter().any(|c| c.eq_ignore_ascii_case(&dest_code)) {

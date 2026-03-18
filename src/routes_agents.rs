@@ -12,6 +12,19 @@ fn generate_agent_id() -> String {
     format!("agt_{}", hex)
 }
 
+fn generate_agent_api_key() -> String {
+    use rand::Rng;
+    let mut rng = rand::thread_rng();
+    let hex: String = (0..32).map(|_| format!("{:x}", rng.gen::<u8>() % 16)).collect();
+    format!("agt_key_{}", hex)
+}
+
+fn sha256_hex(input: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(input.as_bytes());
+    format!("{:x}", hasher.finalize())
+}
+
 fn compute_policy_hash(categories: &serde_json::Value, countries: &serde_json::Value, partners: &serde_json::Value) -> String {
     let combined = serde_json::json!({
         "allowed_data_categories": categories,
@@ -58,6 +71,8 @@ struct AgentRow {
     allowed_partners: serde_json::Value,
     trust_level: i32,
     status: String,
+    #[sqlx(default)]
+    api_key_hash: Option<String>,
     created_at: chrono::DateTime<chrono::Utc>,
     updated_at: chrono::DateTime<chrono::Utc>,
 }
@@ -120,6 +135,8 @@ pub async fn register_agent(
     };
 
     let agent_id = generate_agent_id();
+    let plaintext_key = generate_agent_api_key();
+    let key_hash = sha256_hex(&plaintext_key);
     let categories_json = serde_json::to_value(&body.allowed_data_categories).unwrap_or_default();
     let countries_json = serde_json::to_value(&body.allowed_destination_countries).unwrap_or_default();
     let partners_json = serde_json::to_value(&body.allowed_partners).unwrap_or_default();
@@ -137,8 +154,8 @@ pub async fn register_agent(
 
     let agent: AgentRow = match sqlx::query_as(
         r#"INSERT INTO agents (id, tenant_id, name, description, version, url, provider_org, provider_url,
-            allowed_data_categories, allowed_destination_countries, allowed_partners, trust_level, status)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 1, 'active')
+            allowed_data_categories, allowed_destination_countries, allowed_partners, trust_level, status, api_key_hash)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 1, 'active', $12)
            RETURNING *"#
     )
     .bind(&agent_id)
@@ -152,6 +169,7 @@ pub async fn register_agent(
     .bind(&categories_json)
     .bind(&countries_json)
     .bind(&partners_json)
+    .bind(&key_hash)
     .fetch_one(&mut *tx)
     .await {
         Ok(a) => a,
@@ -191,7 +209,9 @@ pub async fn register_agent(
         }));
     }
 
-    let card = build_agent_card(&agent, &policy_hash, 1);
+    let mut card = build_agent_card(&agent, &policy_hash, 1);
+    card["x-veridion"]["agent_api_key"] = serde_json::json!(plaintext_key);
+    card["x-veridion"]["WARNING"] = serde_json::json!("Store this key securely. It will not be shown again.");
     HttpResponse::Created().json(card)
 }
 
@@ -356,9 +376,62 @@ pub async fn get_agent_card(
     HttpResponse::Ok().json(build_agent_card(&agent, &hash, ver))
 }
 
+#[post("/api/v1/agents/{agent_id}/rotate-key")]
+pub async fn rotate_agent_key(
+    req: HttpRequest,
+    pool: web::Data<PgPool>,
+    path: web::Path<AgentPath>,
+) -> HttpResponse {
+    let tenant = match get_tenant_context(&req) {
+        Ok(t) => t,
+        Err(e) => return HttpResponse::from_error(e),
+    };
+
+    let exists: Option<(String,)> = sqlx::query_as(
+        "SELECT id FROM agents WHERE id = $1 AND tenant_id = $2 AND status = 'active'"
+    )
+    .bind(&path.agent_id)
+    .bind(tenant.tenant_id)
+    .fetch_optional(pool.get_ref())
+    .await
+    .ok()
+    .flatten();
+
+    if exists.is_none() {
+        return HttpResponse::NotFound().json(serde_json::json!({
+            "error": "NOT_FOUND",
+            "message": "Agent not found",
+        }));
+    }
+
+    let new_key = generate_agent_api_key();
+    let new_hash = sha256_hex(&new_key);
+
+    if let Err(e) = sqlx::query(
+        "UPDATE agents SET api_key_hash = $1, updated_at = NOW() WHERE id = $2 AND tenant_id = $3"
+    )
+    .bind(&new_hash)
+    .bind(&path.agent_id)
+    .bind(tenant.tenant_id)
+    .execute(pool.get_ref())
+    .await {
+        return HttpResponse::InternalServerError().json(serde_json::json!({
+            "error": "ROTATE_FAILED",
+            "message": format!("Failed to rotate key: {}", e),
+        }));
+    }
+
+    HttpResponse::Ok().json(serde_json::json!({
+        "agent_id": path.agent_id,
+        "agent_api_key": new_key,
+        "WARNING": "Store this key securely. It will not be shown again.",
+    }))
+}
+
 pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(register_agent)
        .service(list_agents)
        .service(get_agent)
-       .service(get_agent_card);
+       .service(get_agent_card)
+       .service(rotate_agent_key);
 }

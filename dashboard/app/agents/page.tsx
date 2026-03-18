@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import DashboardLayout from '../components/DashboardLayout';
-import { fetchEvidenceEventsWithMeta, fetchAgents, EvidenceEvent, AgentCard } from '../utils/api';
-import { Cpu, AlertTriangle, RefreshCw, Shield, X, FileText, Eye, Plus } from 'lucide-react';
+import { fetchEvidenceEventsWithMeta, fetchAgents, rotateAgentKey, EvidenceEvent, AgentCard } from '../utils/api';
+import { Cpu, AlertTriangle, RefreshCw, Shield, X, FileText, Eye, Plus, Key, Copy } from 'lucide-react';
 import RegisterAgentModal from './RegisterAgentModal';
 
 const INTERNAL_SOURCES = ['human-oversight', 'sovereign-shield'];
@@ -115,6 +115,9 @@ export default function AgentsPage() {
   const [registerModalName, setRegisterModalName] = useState('');
   const [toast, setToast] = useState('');
   const [cardPanel, setCardPanel] = useState<AgentCard | null>(null);
+  const [rotatedKey, setRotatedKey] = useState('');
+  const [rotatedKeyCopied, setRotatedKeyCopied] = useState(false);
+  const [rotating, setRotating] = useState<string | null>(null);
 
   async function loadAll() {
     try {
@@ -143,6 +146,28 @@ export default function AgentsPage() {
     setToast('Agent registered successfully');
     loadAll();
     setTimeout(() => setToast(''), 4000);
+  }
+
+  async function handleRotateKey(agentId: string) {
+    if (!confirm('This will invalidate the current API key. Continue?')) return;
+    setRotating(agentId);
+    try {
+      const result = await rotateAgentKey(agentId);
+      setRotatedKey(result.agent_api_key);
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : 'Key rotation failed');
+      setTimeout(() => setToast(''), 4000);
+    } finally {
+      setRotating(null);
+    }
+  }
+
+  async function copyRotatedKey() {
+    try {
+      await navigator.clipboard.writeText(rotatedKey);
+      setRotatedKeyCopied(true);
+      setTimeout(() => setRotatedKeyCopied(false), 2000);
+    } catch { /* ignore */ }
   }
 
   function isRegistered(agentName: string): boolean {
@@ -337,6 +362,16 @@ export default function AgentsPage() {
                           <FileText className="w-3.5 h-3.5" />
                           Policy History
                         </button>
+                        {card?.['x-veridion']?.agent_id && (
+                          <button
+                            onClick={() => handleRotateKey(card!['x-veridion'].agent_id)}
+                            disabled={rotating === card!['x-veridion'].agent_id}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors disabled:opacity-50"
+                          >
+                            <Key className="w-3.5 h-3.5" />
+                            {rotating === card!['x-veridion'].agent_id ? 'Rotating...' : 'Rotate Key'}
+                          </button>
+                        )}
                       </>
                     ) : (
                       <button
@@ -379,6 +414,53 @@ export default function AgentsPage() {
               <pre className="bg-slate-900 border border-slate-700 rounded-lg p-4 text-xs text-slate-300 overflow-x-auto whitespace-pre-wrap">
                 {JSON.stringify(cardPanel, null, 2)}
               </pre>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rotated Key Reveal Modal */}
+      {rotatedKey && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-slate-800 border border-slate-700 rounded-xl w-full max-w-lg shadow-2xl">
+            <div className="flex items-center justify-between p-5 border-b border-slate-700">
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                <Key className="w-5 h-5 text-emerald-400" />
+                New Agent API Key
+              </h2>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
+                  <p className="text-xs text-amber-400">
+                    This key will only be shown once. Store it securely — it cannot be recovered. The previous key has been invalidated.
+                  </p>
+                </div>
+              </div>
+              <div className="relative">
+                <pre className="bg-slate-900 border border-slate-600 rounded-lg p-3 text-sm text-emerald-400 font-mono break-all pr-12">
+                  {rotatedKey}
+                </pre>
+                <button
+                  onClick={copyRotatedKey}
+                  className="absolute top-2 right-2 p-1.5 rounded bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors"
+                  title="Copy to clipboard"
+                >
+                  <Copy className="w-4 h-4" />
+                </button>
+              </div>
+              {rotatedKeyCopied && (
+                <p className="text-xs text-emerald-400">Copied to clipboard</p>
+              )}
+            </div>
+            <div className="flex items-center justify-end p-5 border-t border-slate-700">
+              <button
+                onClick={() => { setRotatedKey(''); setRotatedKeyCopied(false); }}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                I have saved this key
+              </button>
             </div>
           </div>
         </div>

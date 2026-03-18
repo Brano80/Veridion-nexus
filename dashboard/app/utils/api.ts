@@ -702,6 +702,20 @@ export async function fetchAgentCard(agentId: string): Promise<AgentCard> {
   return res.json();
 }
 
+export async function rotateAgentKey(agentId: string): Promise<{ agent_id: string; agent_api_key: string }> {
+  const res = await fetch(`${API_BASE}/api/v1/agents/${agentId}/rotate-key`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+  });
+  checkUnauthorized(res);
+  checkTrialExpired(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: 'Key rotation failed' }));
+    throw new Error(err.message || 'Key rotation failed');
+  }
+  return res.json();
+}
+
 export async function verifyIntegrity(): Promise<{ status: 'VALID' | 'TAMPERED'; verified?: boolean }> {
   const res = await fetch(`${API_BASE}/api/v1/evidence/verify-integrity`, {
     method: 'POST',

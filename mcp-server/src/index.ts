@@ -7,6 +7,8 @@ import { z } from "zod";
 const API_KEY = process.env.VERIDION_NEXUS_API_KEY;
 const API_URL =
   process.env.VERIDION_NEXUS_API_URL || "https://api.veridion-nexus.eu";
+const AGENT_ID = process.env.VERIDION_NEXUS_AGENT_ID || null;
+const AGENT_API_KEY = process.env.VERIDION_NEXUS_AGENT_API_KEY || null;
 
 if (!API_KEY) {
   console.error(
@@ -135,6 +137,8 @@ server.registerTool(
       if (args.partner_name) body.partnerName = args.partner_name;
       if (args.protocol) body.protocol = args.protocol;
       if (args.request_path) body.requestPath = args.request_path;
+      if (AGENT_ID) body.agent_id = AGENT_ID;
+      if (AGENT_API_KEY) body.agent_api_key = AGENT_API_KEY;
 
       const data = (await apiRequest(
         "POST",
