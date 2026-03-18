@@ -25,15 +25,14 @@ export default function TransferLogPage() {
       if (showLoading) {
         setLoading(true);
       }
-      // Filter to only transfer events from sovereign-shield
-      // Pass source_system filter to backend to reduce payload size
+      // Fetch all transfer events (sovereign-shield and agent-named) for consistent display
       const { events: data, total } = await fetchEvidenceEventsPaginated(
-        currentPage, 
-        ITEMS_PER_PAGE, 
-        undefined, // eventType filter handled client-side for ALL filter
-        'sovereign-shield' // source_system filter
+        currentPage,
+        ITEMS_PER_PAGE,
+        undefined // eventType filter handled client-side for ALL filter
+        // No source_system filter — include agent-named events so AGENT column shows agent names
       );
-      
+
       // Filter to only transfer event types
       const transferEventTypes = [
         'DATA_TRANSFER',
@@ -41,15 +40,10 @@ export default function TransferLogPage() {
         'DATA_TRANSFER_REVIEW',
         'TRANSFER_EVALUATION',
         'TRANSFER_EVALUATION_BLOCKED',
-        'TRANSFER_EVALUATION_REVIEW'
+        'TRANSFER_EVALUATION_REVIEW',
       ];
-      
+
       const filtered = (Array.isArray(data) ? data : []).filter((e) => {
-        // Check source system (both camelCase and snake_case)
-        const sourceSystem = e.sourceSystem || (e as any).source_system;
-        if (sourceSystem !== 'sovereign-shield') return false;
-        
-        // Check event type
         const eventType = (e.eventType || '').toUpperCase();
         return transferEventTypes.includes(eventType);
       });
@@ -152,9 +146,8 @@ export default function TransferLogPage() {
   async function exportCsv() {
     // For CSV export, fetch all events matching the current filter
     try {
-      // Fetch all transfer events from sovereign-shield
-      const { events: allEvents } = await fetchEvidenceEventsPaginated(1, 10000, undefined, 'sovereign-shield');
-      
+      const { events: allEvents } = await fetchEvidenceEventsPaginated(1, 10000, undefined);
+
       // Filter to transfer event types
       const transferEventTypes = [
         'DATA_TRANSFER',
@@ -166,8 +159,6 @@ export default function TransferLogPage() {
       ];
       
       let exportEvents = allEvents.filter((e) => {
-        const sourceSystem = e.sourceSystem || (e as any).source_system;
-        if (sourceSystem !== 'sovereign-shield') return false;
         const eventType = (e.eventType || '').toUpperCase();
         return transferEventTypes.includes(eventType);
       });

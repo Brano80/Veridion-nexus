@@ -75,12 +75,32 @@ function buildStatsFromEvents(events: EvidenceEvent[]): Map<string, AgentInfo> {
 function mergeAgents(events: EvidenceEvent[], registeredCards: AgentCard[]): AgentInfo[] {
   const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
   const statsMap = buildStatsFromEvents(events);
+  // Build agent_id -> stats map for fallback when source_system differs from registered name
+  const statsByAgentId = new Map<string, AgentInfo>();
+  for (const e of events) {
+    const agentId = e.payload?.agent_id || e.payload?.agentId;
+    if (!agentId) continue;
+    const source = (e.sourceSystem || '').trim();
+    if (!source || INTERNAL_SOURCES.includes(source.toLowerCase())) continue;
+    const stats = statsMap.get(source.toLowerCase());
+    if (stats) {
+      const existing = statsByAgentId.get(agentId);
+      if (!existing || (stats.totalTransfers > (existing?.totalTransfers ?? 0))) {
+        statsByAgentId.set(agentId, { ...stats });
+      }
+    }
+  }
   const merged = new Map<string, AgentInfo>();
 
-  // Add all registered agents first (by name, case-insensitive key)
+  // Add all registered agents first (by name, case-insensitive key; fallback to agent_id match)
   for (const card of registeredCards) {
-    const key = card.name.toLowerCase();
-    const stats = statsMap.get(key);
+    const key = card.name.toLowerCase().trim();
+    const agentId = card['x-veridion']?.agent_id;
+    let stats = statsMap.get(key);
+    if (!stats && agentId) {
+      const byId = statsByAgentId.get(agentId);
+      if (byId) stats = byId;
+    }
     merged.set(key, {
       name: card.name,
       totalTransfers: stats?.totalTransfers ?? 0,

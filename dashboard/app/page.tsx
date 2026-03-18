@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import DashboardLayout from './components/DashboardLayout';
 import SovereignMap from './components/SovereignMap';
 import { RefreshCw, Shield, AlertTriangle, CheckCircle } from 'lucide-react';
-import { fetchEvidenceEvents, fetchSCCRegistries, fetchReviewQueuePending, fetchReviewQueueAll, fetchDecidedEvidenceIds, createReviewQueueItem, fetchSettings, patchSettings, EvidenceEvent, SCCRegistry } from './utils/api';
+import { fetchEvidenceEventsPaginated, fetchSCCRegistries, fetchReviewQueuePending, fetchReviewQueueAll, fetchDecidedEvidenceIds, createReviewQueueItem, fetchSettings, patchSettings, EvidenceEvent, SCCRegistry } from './utils/api';
 import { getCountryCodeFromName, getLegalBasis, EU_EEA_COUNTRIES, ADEQUATE_COUNTRIES, COUNTRY_NAMES } from './config/countries';
 
 export default function SovereignShieldPage() {
@@ -63,7 +63,7 @@ export default function SovereignShieldPage() {
       }
       
       const [eventsData, sccData, reviewData, reviewAllData, decidedIds] = await Promise.all([
-        fetchEvidenceEvents().catch(() => []),
+        fetchEvidenceEventsPaginated(1, 5000).then((r) => r.events).catch(() => []),
         fetchSCCRegistries().catch(() => []),
         fetchReviewQueuePending().catch(() => []),
         fetchReviewQueueAll().catch(() => []),

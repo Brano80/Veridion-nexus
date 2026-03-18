@@ -468,6 +468,9 @@ pub async fn evaluate(
     };
 
     let source_system_for_event: String = resolved_source_system.unwrap_or_else(|| "sovereign-shield".into());
+    if body.agent_id.is_some() {
+        log::info!("Evidence event source_system (agent_id provided): {}", source_system_for_event);
+    }
     let params = CreateEventParams {
         event_type: event_type.clone(),
         severity: decision.severity.clone(),
