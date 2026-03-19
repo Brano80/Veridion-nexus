@@ -24,6 +24,10 @@ pub async fn get_enforcement_mode(pool: &PgPool, tenant_id: uuid::Uuid) -> Resul
 
 #[derive(Deserialize)]
 pub struct IngestLogEntry {
+    #[serde(alias = "agentId", alias = "agent_id")]
+    pub agent_id: Option<String>,
+    #[serde(alias = "agentApiKey", alias = "agent_api_key")]
+    pub agent_api_key: Option<String>,
     #[serde(alias = "sourceIp", alias = "source_ip")]
     pub source_ip: Option<String>,
     #[serde(alias = "destIp", alias = "dest_ip")]
@@ -237,6 +241,16 @@ pub async fn evaluate(
         Ok(t) => t,
         Err(e) => return HttpResponse::from_error(e),
     };
+
+    // Require agent registration for all evaluate calls
+    let has_agent_id = body.agent_id.as_ref().map_or(false, |s| !s.trim().is_empty());
+    let has_agent_key = body.agent_api_key.as_ref().map_or(false, |s| !s.trim().is_empty());
+    if !has_agent_id || !has_agent_key {
+        return HttpResponse::BadRequest().json(serde_json::json!({
+            "error": "AGENT_REQUIRED",
+            "message": "All transfers must originate from a registered agent. Register your agent at app.veridion-nexus.eu/agents",
+        }));
+    }
 
     // Agent policy enforcement
     let unregistered_agent = body.agent_id.is_none();
@@ -547,11 +561,25 @@ pub async fn ingest_logs(
         Ok(t) => t,
         Err(e) => return HttpResponse::from_error(e),
     };
+
+    // Require agent registration for all ingest-logs entries
+    let entries = body.into_inner();
+    let missing_agent = entries.iter().any(|e| {
+        e.agent_id.as_ref().map_or(true, |s| s.trim().is_empty())
+            || e.agent_api_key.as_ref().map_or(true, |s| s.trim().is_empty())
+    });
+    if missing_agent {
+        return HttpResponse::BadRequest().json(serde_json::json!({
+            "error": "AGENT_REQUIRED",
+            "message": "All transfers must originate from a registered agent. Register your agent at app.veridion-nexus.eu/agents",
+        }));
+    }
+
     let mut processed = 0u64;
     let enforcement_mode = get_enforcement_mode(pool.get_ref(), tenant.tenant_id).await.unwrap_or_else(|_| "shadow".into());
     let is_shadow = enforcement_mode.eq_ignore_ascii_case("shadow");
 
-    for entry in body.into_inner() {
+    for entry in entries {
         let ctx = TransferContext {
             destination_country_code: entry.destination_country_code.clone(),
             destination_country: entry.destination_country.clone(),
