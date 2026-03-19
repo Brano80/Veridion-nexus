@@ -519,7 +519,23 @@ pub async fn evaluate(
                     &event_row.event_id,
                     tenant.tenant_id,
                 ).await {
-                    Ok(seal_id) => Some(seal_id),
+                    Ok(seal_id) => {
+                        if let Err(e) = evidence::attach_review_seal_to_event(
+                            pool.get_ref(),
+                            tenant.tenant_id,
+                            &event_row.event_id,
+                            &seal_id,
+                        )
+                        .await
+                        {
+                            log::error!(
+                                "Failed to attach seal to evidence event {}: {}",
+                                event_row.event_id,
+                                e
+                            );
+                        }
+                        Some(seal_id)
+                    }
                     Err(e) => {
                         log::error!("Failed to create review for event {}: {}", event_row.event_id, e);
                         None
@@ -652,7 +668,7 @@ pub async fn ingest_logs(
             Ok(event_row) => {
                 if create_review {
                     let action = format!("transfer_data_to_{}", dest_code.to_lowercase());
-                    if let Err(e) = review_queue::create_review(
+                    match review_queue::create_review(
                         pool.get_ref(),
                         "sovereign-shield",
                         &action,
@@ -667,8 +683,28 @@ pub async fn ingest_logs(
                         }),
                         &event_row.event_id,
                         tenant.tenant_id,
-                    ).await {
-                        log::error!("Failed to create review for event {}: {}", event_row.event_id, e);
+                    )
+                    .await
+                    {
+                        Ok(seal_id) => {
+                            if let Err(e) = evidence::attach_review_seal_to_event(
+                                pool.get_ref(),
+                                tenant.tenant_id,
+                                &event_row.event_id,
+                                &seal_id,
+                            )
+                            .await
+                            {
+                                log::error!(
+                                    "Failed to attach seal to evidence event {}: {}",
+                                    event_row.event_id,
+                                    e
+                                );
+                            }
+                        }
+                        Err(e) => {
+                            log::error!("Failed to create review for event {}: {}", event_row.event_id, e);
+                        }
                     }
                 }
                 processed += 1;

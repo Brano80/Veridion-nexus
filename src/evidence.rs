@@ -139,6 +139,35 @@ pub async fn create_event(pool: &PgPool, params: CreateEventParams) -> Result<Ev
     })
 }
 
+/// After `create_review` returns a SEAL-XXXXXXXX, link the Transfer — Review evidence row so Evidence Vault search finds it.
+pub async fn attach_review_seal_to_event(
+    pool: &PgPool,
+    tenant_id: uuid::Uuid,
+    event_id: &str,
+    seal_id: &str,
+) -> Result<(), String> {
+    let result = sqlx::query(
+        r#"UPDATE evidence_events
+           SET payload = payload || jsonb_build_object('seal_id', $1::text, 'review_id', $1::text),
+               correlation_id = $1
+           WHERE tenant_id = $2 AND event_id = $3"#,
+    )
+    .bind(seal_id)
+    .bind(tenant_id)
+    .bind(event_id)
+    .execute(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    if result.rows_affected() == 0 {
+        return Err(format!(
+            "No evidence event updated for event_id={} tenant={}",
+            event_id, tenant_id
+        ));
+    }
+    Ok(())
+}
+
 /// Count distinct source_system chains that have at least one event with nexus_seal (sealed chain roots)
 pub async fn count_sealed_chain_roots(pool: &PgPool, tenant_id: uuid::Uuid) -> Result<i64, String> {
     let count: Option<i64> = sqlx::query_scalar(
@@ -188,7 +217,7 @@ pub async fn list_events(
     if search.is_some() {
         bind_idx += 1;
         conditions.push(format!(
-            "(event_id ILIKE '%' || ${idx} || '%' OR correlation_id ILIKE '%' || ${idx} || '%' OR event_type ILIKE '%' || ${idx} || '%' OR nexus_seal ILIKE '%' || ${idx} || '%' OR CAST(payload AS TEXT) ILIKE '%' || ${idx} || '%')",
+            "(event_id ILIKE '%' || ${idx} || '%' OR correlation_id ILIKE '%' || ${idx} || '%' OR causation_id ILIKE '%' || ${idx} || '%' OR event_type ILIKE '%' || ${idx} || '%' OR nexus_seal ILIKE '%' || ${idx} || '%' OR CAST(payload AS TEXT) ILIKE '%' || ${idx} || '%')",
             idx = bind_idx
         ));
     }

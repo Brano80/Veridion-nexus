@@ -101,6 +101,7 @@ export interface EvidenceEvent {
   id: string;
   eventId: string;
   correlationId?: string;
+  causationId?: string;
   occurredAt: string;
   recordedAt: string;
   eventType: string;
