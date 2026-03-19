@@ -739,8 +739,8 @@ function EvidenceVaultPageContent() {
                             <div className="flex items-center gap-2 flex-wrap">
                               {formatEventTypeLabel(event.eventType, event.payload)}
                               {event.payload?.shadow_mode === true && (
-                                <span className="px-2 py-0.5 bg-amber-500/15 text-amber-400 border border-amber-500/25 rounded text-xs font-medium">
-                                  SHADOW
+                                <span className="px-1.5 py-0.5 bg-amber-500/15 text-amber-400 border border-amber-500/25 rounded text-[10px] font-medium">
+                                  Shadow mode
                                 </span>
                               )}
                             </div>
@@ -944,8 +944,8 @@ function EvidenceVaultPageContent() {
                           {formatEventTypeLabel(e.eventType, e.payload)}
                         </span>
                         {e.payload?.shadow_mode === true && (
-                          <span className="px-2 py-0.5 bg-amber-500/15 text-amber-400 border border-amber-500/25 rounded text-xs font-medium">
-                            SHADOW
+                          <span className="px-1.5 py-0.5 bg-amber-500/15 text-amber-400 border border-amber-500/25 rounded text-[10px] font-medium">
+                            Shadow mode
                           </span>
                         )}
                         <span className={`px-2 py-1 rounded text-xs font-medium border ${

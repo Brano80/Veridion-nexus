@@ -971,7 +971,7 @@ export default function SovereignShieldPage() {
                             <div className="flex items-center gap-1.5 flex-shrink-0">
                               {isShadow ? (
                                 <span className="px-1.5 py-0.5 bg-amber-500/15 text-amber-400 border border-amber-500/25 rounded text-[10px] font-medium whitespace-nowrap">
-                                  SHADOW
+                                  Shadow mode
                                 </span>
                               ) : (
                                 <span className="px-1.5 py-0.5 bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 rounded text-[10px] font-medium whitespace-nowrap">

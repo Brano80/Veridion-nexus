@@ -203,7 +203,7 @@ export default function TransferLogPage() {
       const purpose = e.payload?.purpose ?? '—';
       const legalBasis = getLegalBasis(countryCode);
       const isShadow = e.payload?.shadow_mode === true;
-      const mode = isShadow ? 'SHADOW' : 'ENFORCING';
+      const mode = isShadow ? 'Shadow mode' : 'ENFORCING';
       // Real decision from event type
       const realStatus = e.eventType === 'DATA_TRANSFER_BLOCKED' || e.verificationStatus === 'BLOCK'
         ? 'BLOCK'
@@ -423,7 +423,7 @@ export default function TransferLogPage() {
                         <td className="px-4 py-3 whitespace-nowrap overflow-hidden text-ellipsis">
                           {event.payload?.shadow_mode === true ? (
                             <span className="px-1.5 py-0.5 bg-amber-500/15 text-amber-400 border border-amber-500/25 rounded text-[10px] font-medium whitespace-nowrap">
-                              SHADOW
+                              Shadow mode
                             </span>
                           ) : (
                             <span className="px-1 py-0.5 bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 rounded text-[9px] font-medium whitespace-nowrap">
