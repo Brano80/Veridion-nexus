@@ -22,24 +22,6 @@ function formatEventTypeLabel(eventType: string, payload?: { shadow_mode?: boole
   return 'Unknown';
 }
 
-function getEventTypeBadgeClasses(eventType: string, payload?: { shadow_mode?: boolean }): string {
-  const et = (eventType || '').toUpperCase();
-  const label = formatEventTypeLabel(eventType, payload).toLowerCase();
-  // Blocked (red)
-  if (et.includes('DATA_TRANSFER_BLOCKED') || et.includes('TRANSFER_EVALUATION_BLOCKED') || et.includes('HUMAN_OVERSIGHT_REJECTED') || label.includes('blocked')) {
-    return 'bg-red-500/15 text-red-400 border border-red-500/25';
-  }
-  // Review (orange)
-  if (et.includes('DATA_TRANSFER_REVIEW') || et.includes('TRANSFER_EVALUATION_REVIEW') || label.includes('review')) {
-    return 'bg-orange-500/15 text-orange-400 border border-orange-500/25';
-  }
-  // Approved / Allowed / Evaluation (green)
-  if (et.includes('HUMAN_OVERSIGHT_APPROVED') || label.includes('approved') || label.includes('evaluation') || et.includes('DATA_TRANSFER') || et.includes('TRANSFER_EVALUATION')) {
-    return 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25';
-  }
-  return 'bg-slate-500/15 text-slate-400 border border-slate-500/25';
-}
-
 function getRetentionYear(createdAt: string): string {
   if (!createdAt) return '—';
   const d = new Date(createdAt);
@@ -226,13 +208,18 @@ function EvidenceVaultPageContent() {
       }
       if (filters.search) {
         const searchLower = filters.search.toLowerCase();
-        filtered = filtered.filter(e =>
-          e.id.toLowerCase().includes(searchLower) ||
-          e.eventId?.toLowerCase().includes(searchLower) ||
-          e.correlationId?.toLowerCase().includes(searchLower) ||
-          e.eventType?.toLowerCase().includes(searchLower) ||
-          e.payloadHash?.toLowerCase().includes(searchLower)
-        );
+        filtered = filtered.filter(e => {
+          const matchesBase =
+            e.id.toLowerCase().includes(searchLower) ||
+            e.eventId?.toLowerCase().includes(searchLower) ||
+            e.correlationId?.toLowerCase().includes(searchLower) ||
+            e.eventType?.toLowerCase().includes(searchLower) ||
+            e.payloadHash?.toLowerCase().includes(searchLower);
+          if (matchesBase) return true;
+          // Also match nexusSeal, seal_id, review_id (SEAL-XXXXXXXX) for Transfer — Review + Human Decision linkage
+          const sealId = (e.nexusSeal || e.payload?.seal_id || e.payload?.sealId || e.payload?.review_id || e.payload?.reviewId || '').toString().toLowerCase();
+          return sealId.includes(searchLower);
+        });
       }
 
       // Exclude only HUMAN_OVERSIGHT_REVIEW (noisy), keep HUMAN_OVERSIGHT_REJECTED and HUMAN_OVERSIGHT_APPROVED
@@ -666,7 +653,7 @@ function EvidenceVaultPageContent() {
                   type="text"
                   value={filters.search}
                   onChange={(e) => handleFilterChange('search', e.target.value)}
-                  placeholder="Event ID, type, or content..."
+                  placeholder="Event ID, SEAL-XXXXXXXX, type, or content..."
                   className="w-full pl-10 pr-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
@@ -956,9 +943,25 @@ function EvidenceVaultPageContent() {
                     {/* Header — Event Label, Verification, Close */}
                     <div className="p-5 border-b border-slate-700 flex items-start justify-between gap-3">
                       <div className="flex flex-wrap gap-2 items-center min-w-0">
-                        <span className={`px-2 py-0.5 rounded text-xs font-medium border ${getEventTypeBadgeClasses(e.eventType, e.payload)}`}>
-                          {formatEventTypeLabel(e.eventType, e.payload)}
-                        </span>
+                        {(() => {
+                          const et = (e.eventType || '').toUpperCase();
+                          const label = formatEventTypeLabel(e.eventType, e.payload).toLowerCase();
+                          const isBlocked = et.includes('DATA_TRANSFER_BLOCKED') || et.includes('TRANSFER_EVALUATION_BLOCKED') || et.includes('HUMAN_OVERSIGHT_REJECTED') || label.includes('blocked');
+                          const isReview = et.includes('DATA_TRANSFER_REVIEW') || et.includes('TRANSFER_EVALUATION_REVIEW') || label.includes('review');
+                          const isGreen = et.includes('HUMAN_OVERSIGHT_APPROVED') || label.includes('approved') || label.includes('evaluation') || et.includes('DATA_TRANSFER') || et.includes('TRANSFER_EVALUATION');
+                          const badgeClass = isBlocked
+                            ? 'px-2 py-0.5 rounded text-xs font-medium border bg-red-500/15 text-red-400 border-red-500/25'
+                            : isReview
+                            ? 'px-2 py-0.5 rounded text-xs font-medium border bg-orange-500/15 text-orange-400 border-orange-500/25'
+                            : isGreen
+                            ? 'px-2 py-0.5 rounded text-xs font-medium border bg-emerald-500/15 text-emerald-400 border-emerald-500/25'
+                            : 'px-2 py-0.5 rounded text-xs font-medium border bg-slate-500/15 text-slate-400 border-slate-500/25';
+                          return (
+                            <span className={badgeClass}>
+                              {formatEventTypeLabel(e.eventType, e.payload)}
+                            </span>
+                          );
+                        })()}
                         {e.payload?.shadow_mode === true && (
                           <span className="px-1.5 py-0.5 bg-amber-500/15 text-amber-400 border border-amber-500/25 rounded text-[10px] font-medium">
                             Shadow mode

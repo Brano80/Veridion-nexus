@@ -188,7 +188,7 @@ pub async fn list_events(
     if search.is_some() {
         bind_idx += 1;
         conditions.push(format!(
-            "(event_id ILIKE '%' || ${idx} || '%' OR correlation_id ILIKE '%' || ${idx} || '%' OR event_type ILIKE '%' || ${idx} || '%' OR CAST(payload AS TEXT) ILIKE '%' || ${idx} || '%')",
+            "(event_id ILIKE '%' || ${idx} || '%' OR correlation_id ILIKE '%' || ${idx} || '%' OR event_type ILIKE '%' || ${idx} || '%' OR nexus_seal ILIKE '%' || ${idx} || '%' OR CAST(payload AS TEXT) ILIKE '%' || ${idx} || '%')",
             idx = bind_idx
         ));
     }
