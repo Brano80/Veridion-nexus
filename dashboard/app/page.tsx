@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from './components/DashboardLayout';
 import SovereignMap from './components/SovereignMap';
@@ -341,8 +341,20 @@ export default function SovereignShieldPage() {
     const eventType = (e.eventType || '').toUpperCase();
     return transferEventTypes.includes(eventType);
   });
-  
-  // BLOCKED (24H): policy blocks + human rejections (REGULUS: human REJECT = sealed block decision, GDPR Art. 30 / EU AI Act Art. 14)
+
+  // Map: pre-filtered events (sovereign-shield transfer events in last 24h only)
+  const mapEvents = useMemo(() => {
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const types = ['DATA_TRANSFER', 'DATA_TRANSFER_BLOCKED', 'DATA_TRANSFER_REVIEW', 'TRANSFER_EVALUATION', 'TRANSFER_EVALUATION_BLOCKED', 'TRANSFER_EVALUATION_REVIEW'];
+    return events.filter((e) => {
+      const eventDate = new Date(e.occurredAt);
+      if (eventDate < cutoff) return false;
+      const sourceSystem = e.sourceSystem || (e as any).source_system;
+      if (sourceSystem !== 'sovereign-shield') return false;
+      const eventType = (e.eventType || '').toUpperCase();
+      return types.includes(eventType);
+    });
+  }, [events]);// BLOCKED (24H): policy blocks + human rejections (REGULUS: human REJECT = sealed block decision, GDPR Art. 30 / EU AI Act Art. 14)
   // Only count explicit BLOCKED or REJECTED events, NOT REVIEW events
   // Include HUMAN_OVERSIGHT_REJECTED even though it's not a transfer event type
   const blockedTransferEvents = last24HoursTransferEvents.filter((e) => {
@@ -703,7 +715,7 @@ export default function SovereignShieldPage() {
               {/* World Map - Takes 7 columns */}
               <div className="col-span-7 bg-slate-800 border border-slate-700 rounded-lg p-3">
                 <SovereignMap
-                  evidenceEvents={events}
+                  evidenceEvents={mapEvents}
                   sccRegistries={sccRegistries}
                   decidedEvidenceIds={decidedEvidenceIds}
                   isLoading={loading}

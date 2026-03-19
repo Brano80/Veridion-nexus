@@ -99,12 +99,15 @@ const SovereignMap: React.FC<SovereignMapProps> = ({
       const eventTime = event.occurredAt || event.recordedAt || event.createdAt;
       if (!eventTime) return;
       const eventTimestamp = new Date(eventTime).getTime();
+      // For orange border (decided/SCC covered): use decision time (recordedAt/updatedAt) not transfer time
+      const decisionTimeRaw = event.recordedAt || event.recorded_at || event.updatedAt || event.updated_at || event.occurredAt || event.createdAt;
+      const decisionTimestamp = decisionTimeRaw ? new Date(decisionTimeRaw).getTime() : eventTimestamp;
       const eventId = event.id || event.eventId;
       const isDecided = eventId && decidedEvidenceIds.has(eventId);
 
       const eventType = (event.eventType || '').toUpperCase();
       const isBlocked = eventType.includes('BLOCK') || (event.verificationStatus || '').toUpperCase() === 'BLOCK';
-      const isReview = eventType === 'DATA_TRANSFER_REVIEW' || (event.verificationStatus || '').toUpperCase() === 'REVIEW';
+      const isReview = eventType === 'DATA_TRANSFER_REVIEW' || eventType === 'TRANSFER_EVALUATION_REVIEW' || (event.verificationStatus || '').toUpperCase() === 'REVIEW';
       const isAllow = eventType === 'DATA_TRANSFER' || eventType === 'TRANSFER_EVALUATION' || (event.verificationStatus || '').toUpperCase() === 'ALLOW';
 
       const countryStatus = (payload.country_status || payload.countryStatus || '').toLowerCase();
@@ -124,16 +127,16 @@ const SovereignMap: React.FC<SovereignMapProps> = ({
         }
       }
 
-      // Orange fill: unresolved REVIEW transfers (no valid SCC for partner, not decided)
-      if (isReview && !isDecided && isSccRequiredCountry(countryCode)) {
+      // Orange fill: unresolved REVIEW transfers (no valid SCC for partner, not decided) in last 24h
+      if (isReview && !isDecided && isSccRequiredCountry(countryCode) && eventTimestamp >= twentyFourHoursAgo) {
         const hasValidSCC = hasValidSCCForPartner(sccRegistries, partnerName, countryCode);
         if (!hasValidSCC) {
           orangeFillCountries.add(countryCode);
         }
       }
 
-      // Orange border: SCC-covered (ALLOW + scc_required) OR resolved (decided) in last 24h, for SCC-required countries, NOT in orangeFill
-      if (eventTimestamp >= twentyFourHoursAgo && isSccRequiredCountry(countryCode) && !orangeFillCountries.has(countryCode)) {
+      // Orange border: SCC-covered (ALLOW + scc_required) OR resolved (decided) in last 24h from action time, for SCC-required countries, NOT in orangeFill
+      if (decisionTimestamp >= twentyFourHoursAgo && isSccRequiredCountry(countryCode) && !orangeFillCountries.has(countryCode)) {
         if (isSccCovered || isDecided) {
           orangeBorderCountries.add(countryCode);
         }
