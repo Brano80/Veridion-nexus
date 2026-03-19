@@ -409,19 +409,22 @@ export default function SovereignShieldPage() {
   }
   const adequateCountriesCount = adequateCountryCodes.size;
 
-  // ACTIVE AGENTS (24H): distinct agent identifiers from transfer events in last 24h
+  // ACTIVE AGENTS (24H): distinct registered vs unregistered agent identifiers
   const skipValues = ['sovereign-shield', 'sovereign_shield'];
-  const activeAgents = new Set(
-    last24HoursTransferEvents.map(e => {
-      const agentId = e.payload?.agent_id || e.payload?.agentId;
-      if (agentId && !skipValues.includes(agentId.toLowerCase()))
-        return agentId;
-      const endpoint = e.payload?.endpoint;
-      if (endpoint && !skipValues.includes(endpoint.toLowerCase()))
-        return endpoint;
-      return 'unregistered-agent';
-    })
+  const agentIdentifiers = last24HoursTransferEvents.map(e => {
+    const agentId = e.payload?.agent_id || e.payload?.agentId;
+    if (agentId && !skipValues.includes(agentId.toLowerCase()))
+      return { id: agentId, registered: true };
+    const endpoint = e.payload?.endpoint;
+    if (endpoint && !skipValues.includes(endpoint.toLowerCase()))
+      return { id: endpoint, registered: true };
+    return { id: 'unregistered-agent', registered: false };
+  });
+  const registeredAgents = new Set(
+    agentIdentifiers.filter(a => a.registered).map(a => a.id)
   ).size;
+  const hasUnregistered = agentIdentifiers.some(a => !a.registered);
+  const unregisteredCount = hasUnregistered ? 1 : 0;
 
   // HIGH RISK DESTINATIONS (24H): distinct blocked countries in last 24h (GDPR Art. 49 — no legal basis)
   const highRiskDestinations = new Set(
@@ -640,7 +643,7 @@ export default function SovereignShieldPage() {
           <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
             <div className="flex items-center justify-between mb-1.5">
               <div className="text-xs text-slate-400 font-medium">TRANSFERS (24H)</div>
-              <Shield className={`w-3.5 h-3.5 ${activeAgents === 0 ? 'text-slate-500' : 'text-green-500'}`} />
+              <Shield className={`w-3.5 h-3.5 ${total === 0 ? 'text-slate-500' : 'text-green-500'}`} />
             </div>
             <div className={`text-xl font-bold ${total === 0 ? 'text-slate-400' : 'text-white'}`}>{total}</div>
             <div className="text-[10px] text-slate-500 mt-0.5">Last 24 hours</div>
@@ -701,11 +704,15 @@ export default function SovereignShieldPage() {
           </div>
           <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
             <div className="flex items-center justify-between mb-1.5">
-              <div className="text-xs text-slate-400 font-medium">ACTIVE AGENTS</div>
-              <Shield className={`w-3.5 h-3.5 ${activeAgents === 0 ? 'text-slate-500' : 'text-green-500'}`} />
+              <div className="text-xs text-slate-400 font-medium">ACTIVE AGENTS (24H)</div>
+              <Shield className={`w-3.5 h-3.5 ${registeredAgents + unregisteredCount === 0 ? 'text-slate-500' : 'text-green-500'}`} />
             </div>
-            <div className={`text-xl font-bold ${activeAgents === 0 ? 'text-slate-400' : 'text-white'}`}>{activeAgents}</div>
-            <div className="text-[10px] text-slate-500 mt-0.5">Distinct agents active (24h)</div>
+            <div className="text-xl font-bold">
+              <span className="text-emerald-400">{registeredAgents}</span>
+              <span className="text-slate-500 mx-1">/</span>
+              <span className="text-slate-400">{unregisteredCount}</span>
+            </div>
+            <div className="text-[10px] text-slate-500 mt-0.5">Registered / Unregistered</div>
           </div>
         </div>
 
