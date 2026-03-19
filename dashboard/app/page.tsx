@@ -409,15 +409,18 @@ export default function SovereignShieldPage() {
   }
   const adequateCountriesCount = adequateCountryCodes.size;
 
-  // ACTIVE AGENTS (24H): distinct partner_name values from transfer events in last 24h
+  // ACTIVE AGENTS (24H): distinct agent identifiers from transfer events in last 24h
+  const skipValues = ['sovereign-shield', 'sovereign_shield'];
   const activeAgents = new Set(
-    last24HoursTransferEvents
-      .filter(e => {
-        const pn = e.payload?.partner_name || e.payload?.partnerName;
-        return pn && pn !== 'TestPartner'; // exclude test data
-      })
-      .map(e => e.payload?.partner_name || e.payload?.partnerName)
-      .filter(Boolean)
+    last24HoursTransferEvents.map(e => {
+      const agentId = e.payload?.agent_id || e.payload?.agentId;
+      if (agentId && !skipValues.includes(agentId.toLowerCase()))
+        return agentId;
+      const endpoint = e.payload?.endpoint;
+      if (endpoint && !skipValues.includes(endpoint.toLowerCase()))
+        return endpoint;
+      return 'unregistered-agent';
+    })
   ).size;
 
   // HIGH RISK DESTINATIONS (24H): distinct blocked countries in last 24h (GDPR Art. 49 — no legal basis)
@@ -702,7 +705,7 @@ export default function SovereignShieldPage() {
               <Shield className={`w-3.5 h-3.5 ${activeAgents === 0 ? 'text-slate-500' : 'text-green-500'}`} />
             </div>
             <div className={`text-xl font-bold ${activeAgents === 0 ? 'text-slate-400' : 'text-white'}`}>{activeAgents}</div>
-            <div className="text-[10px] text-slate-500 mt-0.5">Distinct data processors (24h)</div>
+            <div className="text-[10px] text-slate-500 mt-0.5">Distinct agents active (24h)</div>
           </div>
         </div>
 
