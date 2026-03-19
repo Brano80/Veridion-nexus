@@ -325,32 +325,35 @@ export default function SovereignShieldPage() {
     'DATA_TRANSFER_REVIEW',
     'TRANSFER_EVALUATION',
     'TRANSFER_EVALUATION_BLOCKED',
-    'TRANSFER_EVALUATION_REVIEW'
+    'TRANSFER_EVALUATION_REVIEW',
+    'AGENT_POLICY_VIOLATION',
   ];
   
-  // Filter to only transfer events from sovereign-shield in last 24 hours
+  // Filter to only transfer events in last 24 hours (exclude internal/system sources like human-oversight)
+  const excludedSources = ['human-oversight', 'human_oversight'];
   const last24HoursTransferEvents = events.filter((e) => {
     const eventDate = new Date(e.occurredAt);
     if (eventDate < twentyFourHoursAgo) return false;
     
-    // Must be from sovereign-shield source system
-    const sourceSystem = e.sourceSystem || (e as any).source_system;
-    if (sourceSystem !== 'sovereign-shield') return false;
+    // Exclude internal/system sources; allow sovereign-shield and agent-named sources
+    const sourceSystem = (e.sourceSystem || (e as any).source_system || '').trim();
+    if (sourceSystem && excludedSources.includes(sourceSystem.toLowerCase())) return false;
     
     // Must be a transfer event type (exclude HUMAN_OVERSIGHT_REJECTED, HUMAN_OVERSIGHT_APPROVED, GDPR_ERASURE_COMPLETED, etc.)
     const eventType = (e.eventType || '').toUpperCase();
     return transferEventTypes.includes(eventType);
   });
 
-  // Map: pre-filtered events (sovereign-shield transfer events in last 24h only)
+  // Map: pre-filtered events (transfer events in last 24h, exclude internal sources)
   const mapEvents = useMemo(() => {
     const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const types = ['DATA_TRANSFER', 'DATA_TRANSFER_BLOCKED', 'DATA_TRANSFER_REVIEW', 'TRANSFER_EVALUATION', 'TRANSFER_EVALUATION_BLOCKED', 'TRANSFER_EVALUATION_REVIEW'];
+    const types = ['DATA_TRANSFER', 'DATA_TRANSFER_BLOCKED', 'DATA_TRANSFER_REVIEW', 'TRANSFER_EVALUATION', 'TRANSFER_EVALUATION_BLOCKED', 'TRANSFER_EVALUATION_REVIEW', 'AGENT_POLICY_VIOLATION'];
+    const excludedSources = ['human-oversight', 'human_oversight'];
     return events.filter((e) => {
       const eventDate = new Date(e.occurredAt);
       if (eventDate < cutoff) return false;
-      const sourceSystem = e.sourceSystem || (e as any).source_system;
-      if (sourceSystem !== 'sovereign-shield') return false;
+      const sourceSystem = (e.sourceSystem || (e as any).source_system || '').trim();
+      if (sourceSystem && excludedSources.includes(sourceSystem.toLowerCase())) return false;
       const eventType = (e.eventType || '').toUpperCase();
       return types.includes(eventType);
     });
@@ -409,22 +412,13 @@ export default function SovereignShieldPage() {
   }
   const adequateCountriesCount = adequateCountryCodes.size;
 
-  // ACTIVE AGENTS (24H): distinct registered vs unregistered agent identifiers
+  // ACTIVE AGENTS (24H): distinct agents (all transfers now require registered agents)
   const skipValues = ['sovereign-shield', 'sovereign_shield'];
-  const agentIdentifiers = last24HoursTransferEvents.map(e => {
-    const agentId = e.payload?.agent_id || e.payload?.agentId;
-    if (agentId && !skipValues.includes(agentId.toLowerCase()))
-      return { id: agentId, registered: true };
-    const endpoint = e.payload?.endpoint;
-    if (endpoint && !skipValues.includes(endpoint.toLowerCase()))
-      return { id: endpoint, registered: true };
-    return { id: 'unregistered-agent', registered: false };
-  });
   const registeredAgents = new Set(
-    agentIdentifiers.filter(a => a.registered).map(a => a.id)
+    last24HoursTransferEvents
+      .map(e => e.payload?.agent_id || e.payload?.agentId || e.payload?.endpoint)
+      .filter((id): id is string => !!id && !skipValues.includes(id.toLowerCase()))
   ).size;
-  const hasUnregistered = agentIdentifiers.some(a => !a.registered);
-  const unregisteredCount = hasUnregistered ? 1 : 0;
 
   // HIGH RISK DESTINATIONS (24H): distinct blocked countries in last 24h (GDPR Art. 49 — no legal basis)
   const highRiskDestinations = new Set(
@@ -705,14 +699,10 @@ export default function SovereignShieldPage() {
           <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
             <div className="flex items-center justify-between mb-1.5">
               <div className="text-xs text-slate-400 font-medium">ACTIVE AGENTS (24H)</div>
-              <Shield className={`w-3.5 h-3.5 ${registeredAgents + unregisteredCount === 0 ? 'text-slate-500' : 'text-green-500'}`} />
+              <Shield className={`w-3.5 h-3.5 ${registeredAgents === 0 ? 'text-slate-500' : 'text-green-500'}`} />
             </div>
-            <div className="text-xl font-bold">
-              <span className="text-emerald-400">{registeredAgents}</span>
-              <span className="text-slate-500 mx-1">/</span>
-              <span className="text-slate-400">{unregisteredCount}</span>
-            </div>
-            <div className="text-[10px] text-slate-500 mt-0.5">Registered / Unregistered</div>
+            <div className={`text-xl font-bold ${registeredAgents === 0 ? 'text-slate-400' : 'text-emerald-400'}`}>{registeredAgents}</div>
+            <div className="text-[10px] text-slate-500 mt-0.5">Distinct agents active (24h)</div>
           </div>
         </div>
 

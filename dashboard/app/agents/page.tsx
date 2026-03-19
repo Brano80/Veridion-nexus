@@ -218,7 +218,6 @@ export default function AgentsPage() {
   const totalAgents = agents.length;
   const activeAgents = agents.filter(a => a.isActive).length;
   const registeredCount = registeredAgents.length;
-  const unregisteredCount = totalAgents - agents.filter(a => isRegistered(a.name)).length;
 
   return (
     <DashboardLayout>
@@ -261,25 +260,8 @@ export default function AgentsPage() {
           </div>
         </div>
 
-        {/* Banner — only if unregistered agents exist */}
-        {unregisteredCount > 0 && (
-          <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-amber-400 mt-0.5 shrink-0" />
-              <div>
-                <p className="text-sm font-semibold text-amber-400">
-                  {unregisteredCount} unregistered agent{unregisteredCount !== 1 ? 's' : ''} detected
-                </p>
-                <p className="text-xs text-slate-400 mt-1">
-                  Register your agents to enforce per-agent data policies and generate A2A-compatible compliance documentation.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Summary */}
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-3 gap-4">
           <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
             <div className="text-2xl font-bold text-white">{totalAgents}</div>
             <div className="text-xs text-slate-400 mt-1">Agents Detected</div>
@@ -291,10 +273,6 @@ export default function AgentsPage() {
           <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
             <div className="text-2xl font-bold text-emerald-400">{registeredCount}</div>
             <div className="text-xs text-slate-400 mt-1">Registered</div>
-          </div>
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
-            <div className="text-2xl font-bold text-amber-400">{unregisteredCount}</div>
-            <div className="text-xs text-slate-400 mt-1">Unregistered</div>
           </div>
         </div>
 
