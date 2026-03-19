@@ -22,6 +22,24 @@ function formatEventTypeLabel(eventType: string, payload?: { shadow_mode?: boole
   return 'Unknown';
 }
 
+function getEventTypeBadgeClasses(eventType: string, payload?: { shadow_mode?: boolean }): string {
+  const et = (eventType || '').toUpperCase();
+  const label = formatEventTypeLabel(eventType, payload).toLowerCase();
+  // Blocked (red)
+  if (et.includes('DATA_TRANSFER_BLOCKED') || et.includes('TRANSFER_EVALUATION_BLOCKED') || et.includes('HUMAN_OVERSIGHT_REJECTED') || label.includes('blocked')) {
+    return 'bg-red-500/15 text-red-400 border border-red-500/25';
+  }
+  // Review (orange)
+  if (et.includes('DATA_TRANSFER_REVIEW') || et.includes('TRANSFER_EVALUATION_REVIEW') || label.includes('review')) {
+    return 'bg-orange-500/15 text-orange-400 border border-orange-500/25';
+  }
+  // Approved / Allowed / Evaluation (green)
+  if (et.includes('HUMAN_OVERSIGHT_APPROVED') || label.includes('approved') || label.includes('evaluation') || et.includes('DATA_TRANSFER') || et.includes('TRANSFER_EVALUATION')) {
+    return 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25';
+  }
+  return 'bg-slate-500/15 text-slate-400 border border-slate-500/25';
+}
+
 function getRetentionYear(createdAt: string): string {
   if (!createdAt) return '—';
   const d = new Date(createdAt);
@@ -484,8 +502,6 @@ function EvidenceVaultPageContent() {
     return `${diffDays}d ago`;
   };
 
-  const getEventTypeColor = () => 'text-slate-400 bg-slate-500/10';
-
   return (
     <DashboardLayout>
       <div className="space-y-6 min-w-0 overflow-x-hidden">
@@ -940,7 +956,7 @@ function EvidenceVaultPageContent() {
                     {/* Header — Event Label, Verification, Close */}
                     <div className="p-5 border-b border-slate-700 flex items-start justify-between gap-3">
                       <div className="flex flex-wrap gap-2 items-center min-w-0">
-                        <span className={`px-3 py-1.5 rounded text-sm font-medium ${getEventTypeColor()}`}>
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium border ${getEventTypeBadgeClasses(e.eventType, e.payload)}`}>
                           {formatEventTypeLabel(e.eventType, e.payload)}
                         </span>
                         {e.payload?.shadow_mode === true && (
