@@ -175,8 +175,11 @@ function EvidenceVaultPageContent() {
 
   async function loadEvents() {
     try {
-      // Map event type filter to API event_type when it maps to a single value
-      const eventTypeApi = filters.eventType === 'Human Decision — Blocked' ? 'HUMAN_OVERSIGHT_REJECTED'
+      // When searching by SEAL ID, skip event_type filter so we get BOTH Transfer — Review and Human Decision
+      const searchTrimmed = (filters.search || '').trim();
+      const isSealSearch = /SEAL-/i.test(searchTrimmed);
+      const eventTypeApi = isSealSearch ? undefined
+        : filters.eventType === 'Human Decision — Blocked' ? 'HUMAN_OVERSIGHT_REJECTED'
         : filters.eventType === 'Human Decision — Approved' ? 'HUMAN_OVERSIGHT_APPROVED'
         : undefined;
       const { events: rawEvents, merkleRoots, totalSealed } = await fetchEvidenceEventsWithMeta({

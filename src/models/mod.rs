@@ -8,7 +8,8 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct EvidenceEventRow {
     pub event_id: String,
-    pub correlation_id: String,
+    #[sqlx(default)]
+    pub correlation_id: Option<String>,
     pub causation_id: Option<String>,
     pub sequence_number: i64,
     pub occurred_at: DateTime<Utc>,
@@ -74,7 +75,7 @@ impl From<EvidenceEventRow> for EvidenceEventResponse {
         Self {
             id: r.event_id.clone(),
             event_id: r.event_id,
-            correlation_id: Some(r.correlation_id),
+            correlation_id: r.correlation_id,
             causation_id: r.causation_id,
             sequence_number: r.sequence_number,
             occurred_at: r.occurred_at.to_rfc3339(),
