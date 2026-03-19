@@ -209,13 +209,16 @@ function EvidenceVaultPageContent() {
       if (filters.search) {
         const searchLower = filters.search.toLowerCase();
         filtered = filtered.filter(e => {
+          const correlationStr = String(
+            e.correlationId ?? (e as { correlation_id?: string }).correlation_id ?? ''
+          );
           const causationStr = String(
             e.causationId ?? (e as { causation_id?: string }).causation_id ?? ''
           );
           const matchesBase =
-            e.id.toLowerCase().includes(searchLower) ||
+            e.id?.toLowerCase().includes(searchLower) ||
             e.eventId?.toLowerCase().includes(searchLower) ||
-            e.correlationId?.toLowerCase().includes(searchLower) ||
+            correlationStr.toLowerCase().includes(searchLower) ||
             causationStr.toLowerCase().includes(searchLower) ||
             e.eventType?.toLowerCase().includes(searchLower) ||
             e.payloadHash?.toLowerCase().includes(searchLower);
