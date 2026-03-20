@@ -371,20 +371,23 @@ export default function SovereignShieldPage() {
   // Include HUMAN_OVERSIGHT_REJECTED even though it's not a transfer event type
   const blockedTransferEvents = last24HoursTransferEvents.filter((e) => {
     const eventType = (e.eventType || '').toUpperCase();
-    // Count explicit blocked events, but NOT review events
-    return eventType === 'DATA_TRANSFER_BLOCKED' || 
+    // Count explicit blocked events: DATA_TRANSFER_BLOCKED, TRANSFER_EVALUATION_BLOCKED, AGENT_POLICY_VIOLATION
+    // (HUMAN_OVERSIGHT_REJECTED counted separately below — not in transferEventTypes)
+    return eventType === 'DATA_TRANSFER_BLOCKED' ||
            eventType === 'TRANSFER_EVALUATION_BLOCKED' ||
+           eventType === 'AGENT_POLICY_VIOLATION' ||
            e.verificationStatus === 'BLOCK';
   });
   
-  // Also count HUMAN_OVERSIGHT_REJECTED events from last 24h (these are separate events created when rejecting a review)
+  // Also count HUMAN_OVERSIGHT_REJECTED events from last 24h (these are separate events created when rejecting a review;
+  // not in transferEventTypes, so must be counted from full events)
   const rejectedEvents = events.filter((e) => {
     const eventDate = new Date(e.occurredAt);
     if (eventDate < twentyFourHoursAgo) return false;
     const eventType = (e.eventType || '').toUpperCase();
     return eventType === 'HUMAN_OVERSIGHT_REJECTED';
   });
-  
+
   const blocked = blockedTransferEvents.length + rejectedEvents.length;
   
   const allowed = last24HoursTransferEvents.filter((e) => 
@@ -430,11 +433,13 @@ export default function SovereignShieldPage() {
   ).size;
 
   // HIGH RISK DESTINATIONS (24H): distinct blocked countries in last 24h (GDPR Art. 49 — no legal basis)
+  // Include: country_status blocked, or AGENT_POLICY_VIOLATION (destination violated agent policy)
   const highRiskDestinations = new Set(
     last24HoursTransferEvents
       .filter((e) => {
+        const eventType = (e.eventType || '').toUpperCase();
         const status = e.payload?.country_status ?? e.payload?.countryStatus;
-        return status === 'blocked';
+        return status === 'blocked' || eventType === 'AGENT_POLICY_VIOLATION';
       })
       .map((e) =>
         e.payload?.destination_country_code ??
@@ -942,9 +947,10 @@ export default function SovereignShieldPage() {
                         const dataCategory = event.payload?.data_categories?.[0] || event.payload?.dataCategories?.[0] || 'N/A';
                         const isShadow = event.payload?.shadow_mode === true;
                         // Real decision from event type (BLOCK/REVIEW/ALLOW)
-                        const decision = event.eventType === 'DATA_TRANSFER_BLOCKED' || event.verificationStatus === 'BLOCK'
+                        const et = (event.eventType || '').toUpperCase();
+                        const decision = et === 'DATA_TRANSFER_BLOCKED' || et === 'TRANSFER_EVALUATION_BLOCKED' || et === 'AGENT_POLICY_VIOLATION' || event.verificationStatus === 'BLOCK'
                           ? 'BLOCK'
-                          : event.eventType === 'DATA_TRANSFER_REVIEW' || event.verificationStatus === 'REVIEW'
+                          : et === 'DATA_TRANSFER_REVIEW' || et === 'TRANSFER_EVALUATION_REVIEW' || event.verificationStatus === 'REVIEW'
                           ? 'REVIEW'
                           : 'ALLOW';
                         
