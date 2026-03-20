@@ -7,8 +7,6 @@ import { z } from "zod";
 const API_KEY = process.env.VERIDION_NEXUS_API_KEY;
 const API_URL =
   process.env.VERIDION_NEXUS_API_URL || "https://api.veridion-nexus.eu";
-const AGENT_ID = process.env.VERIDION_NEXUS_AGENT_ID || null;
-const AGENT_API_KEY = process.env.VERIDION_NEXUS_AGENT_API_KEY || null;
 
 if (!API_KEY) {
   console.error(
@@ -58,6 +56,16 @@ async function apiRequest(
       "Trial expired. Upgrade to Pro at https://app.veridion-nexus.eu"
     );
   }
+  if (res.status === 400) {
+    const errData = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (errData.error === "AGENT_REQUIRED") {
+      throw new Error(
+        "Agent credentials required. Register your agent at app.veridion-nexus.eu/agents to get an agent_id and agent_api_key."
+      );
+    }
+    const msg = String(errData.message ?? errData.error ?? "Bad request");
+    throw new Error(`API error (400): ${msg}`);
+  }
   if (res.status >= 500) {
     const text = await res.text().catch(() => "Unknown error");
     throw new Error(
@@ -99,6 +107,16 @@ server.registerTool(
       "personal data outside the EU/EEA. Returns ALLOW, BLOCK, or REVIEW decision " +
       "with cryptographic evidence seal.",
     inputSchema: z.object({
+      agent_id: z
+        .string()
+        .describe(
+          "The registered agent ID (format: agt_XXXXXXXX). Register your agent at app.veridion-nexus.eu/agents"
+        ),
+      agent_api_key: z
+        .string()
+        .describe(
+          "The agent API key issued at registration (format: agt_key_XXXXXXXX). Shown once at registration."
+        ),
       destination_country_code: z
         .string()
         .describe(
@@ -131,14 +149,14 @@ server.registerTool(
     try {
       // Convert snake_case input to camelCase for API request
       const body: Record<string, unknown> = {
+        agent_id: args.agent_id,
+        agent_api_key: args.agent_api_key,
         destinationCountryCode: args.destination_country_code,
         dataCategories: args.data_categories,
       };
       if (args.partner_name) body.partnerName = args.partner_name;
       if (args.protocol) body.protocol = args.protocol;
       if (args.request_path) body.requestPath = args.request_path;
-      if (AGENT_ID) body.agent_id = AGENT_ID;
-      if (AGENT_API_KEY) body.agent_api_key = AGENT_API_KEY;
 
       const data = (await apiRequest(
         "POST",

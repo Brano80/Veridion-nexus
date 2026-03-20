@@ -37,6 +37,14 @@ async function apiRequest(method, path, body) {
     if (res.status === 402) {
         throw new Error("Trial expired. Upgrade to Pro at https://app.veridion-nexus.eu");
     }
+    if (res.status === 400) {
+        const errData = (await res.json().catch(() => ({})));
+        if (errData.error === "AGENT_REQUIRED") {
+            throw new Error("Agent credentials required. Register your agent at app.veridion-nexus.eu/agents to get an agent_id and agent_api_key.");
+        }
+        const msg = String(errData.message ?? errData.error ?? "Bad request");
+        throw new Error(`API error (400): ${msg}`);
+    }
     if (res.status >= 500) {
         const text = await res.text().catch(() => "Unknown error");
         throw new Error(`Sovereign Shield API error: ${text}. Check https://status.veridion-nexus.eu`);
@@ -68,6 +76,12 @@ server.registerTool("evaluate_transfer", {
         "personal data outside the EU/EEA. Returns ALLOW, BLOCK, or REVIEW decision " +
         "with cryptographic evidence seal.",
     inputSchema: z.object({
+        agent_id: z
+            .string()
+            .describe("The registered agent ID (format: agt_XXXXXXXX). Register your agent at app.veridion-nexus.eu/agents"),
+        agent_api_key: z
+            .string()
+            .describe("The agent API key issued at registration (format: agt_key_XXXXXXXX). Shown once at registration."),
         destination_country_code: z
             .string()
             .describe("ISO 3166-1 alpha-2 country code of the data recipient (e.g. 'US', 'CN', 'JP')"),
@@ -91,6 +105,8 @@ server.registerTool("evaluate_transfer", {
     try {
         // Convert snake_case input to camelCase for API request
         const body = {
+            agent_id: args.agent_id,
+            agent_api_key: args.agent_api_key,
             destinationCountryCode: args.destination_country_code,
             dataCategories: args.data_categories,
         };

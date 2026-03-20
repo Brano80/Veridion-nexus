@@ -1,6 +1,6 @@
 {
   "name": "veridion-nexus-mcp",
-  "version": "1.0.2",
+  "version": "1.0.5",
   "description": "Veridion Nexus MCP server - GDPR Art. 44-49 runtime compliance for AI agents",
   "type": "module",
   "main": "dist/index.js",
