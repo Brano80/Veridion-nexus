@@ -181,7 +181,7 @@ export default function LandingPage() {
           </div>
 
           <div className="grid md:grid-cols-2 gap-4">
-            <div className="bg-slate-50 rounded-xl p-6 shadow-sm">
+            <div className="bg-slate-50 rounded-xl p-6 shadow-sm border border-emerald-500/30">
               <AlertCircle className="w-10 h-10 text-red-500 mb-4" />
               <h3 className="text-lg font-semibold text-slate-900 mb-2">No Visibility</h3>
               <p className="text-sm text-slate-600">
@@ -189,7 +189,7 @@ export default function LandingPage() {
               </p>
             </div>
 
-            <div className="bg-slate-50 rounded-xl p-6 shadow-sm">
+            <div className="bg-slate-50 rounded-xl p-6 shadow-sm border border-emerald-500/30">
               <AlertCircle className="w-10 h-10 text-red-500 mb-4" />
               <h3 className="text-lg font-semibold text-slate-900 mb-2">Manual Audits Are Too Late</h3>
               <p className="text-sm text-slate-600">
@@ -197,7 +197,7 @@ export default function LandingPage() {
               </p>
             </div>
 
-            <div className="bg-slate-50 rounded-xl p-6 shadow-sm">
+            <div className="bg-slate-50 rounded-xl p-6 shadow-sm border border-emerald-500/30">
               <AlertCircle className="w-10 h-10 text-red-500 mb-4" />
               <h3 className="text-lg font-semibold text-slate-900 mb-2">A DPA Is Not Enough</h3>
               <p className="text-sm text-slate-600">
@@ -205,7 +205,7 @@ export default function LandingPage() {
               </p>
             </div>
 
-            <div className="bg-slate-50 rounded-xl p-6 shadow-sm">
+            <div className="bg-slate-50 rounded-xl p-6 shadow-sm border border-emerald-500/30">
               <AlertCircle className="w-10 h-10 text-red-500 mb-4" />
               <h3 className="text-lg font-semibold text-slate-900 mb-2">No Enforcement Without Observability</h3>
               <p className="text-sm text-slate-600">
@@ -433,7 +433,7 @@ export default function LandingPage() {
               },
               {
                 q: 'How long does evaluation take?',
-                a: 'Veridion Nexus returns a decision in under 100ms. The evaluation is synchronous — your application receives ALLOW, BLOCK, or REVIEW before the transfer proceeds.',
+                a: 'Sub-50ms response time for EU-based integrations. The evaluation is synchronous — your application receives ALLOW, BLOCK, or REVIEW before the transfer proceeds.',
               },
               {
                 q: 'What happens when a transfer is REVIEW?',

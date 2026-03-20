@@ -445,14 +445,6 @@ app.use('/api/ai', shieldMiddleware);`}
                 <li>Complete the 5-step wizard (identity, data policy, transfer policy, autonomy &amp; oversight, review)</li>
                 <li>Copy your <code className="bg-slate-200 px-1.5 py-0.5 rounded text-sm font-mono">agent_id</code> and <code className="bg-slate-200 px-1.5 py-0.5 rounded text-sm font-mono">agent_api_key</code> — the key is shown only once</li>
               </ol>
-              <a
-                href="https://app.veridion-nexus.eu/agents"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-colors"
-              >
-                Register your first agent →
-              </a>
             </section>
 
             {/* Evaluate Transfer */}
