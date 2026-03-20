@@ -663,7 +663,7 @@ function EvidenceVaultPageContent() {
                   type="text"
                   value={filters.search}
                   onChange={(e) => handleFilterChange('search', e.target.value)}
-                  placeholder="Event ID, SEAL-XXXXXXXX, type, or content..."
+                  placeholder="Event ID, Review ID (SEAL-XXXXXXXX), type, or content..."
                   className="w-full pl-10 pr-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
@@ -1163,7 +1163,14 @@ function EvidenceVaultPageContent() {
                         <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">Cryptographic Evidence</h3>
                         <div className="space-y-0">
                           <CopyRow label="Event ID" value={e.eventId || e.id} />
-                          <CopyRow label="Seal ID" value={e.nexusSeal || ''} />
+                          <CopyRow label="Nexus Seal" value={e.nexusSeal || ''} />
+                          {(() => {
+                            const reviewId = (e.correlationId ?? (e as { correlation_id?: string }).correlation_id ?? e.payload?.seal_id ?? e.payload?.sealId ?? '').toString().trim();
+                            if (reviewId && reviewId.startsWith('SEAL-')) {
+                              return <CopyRow key="review-id" label="Review ID" value={reviewId} />;
+                            }
+                            return null;
+                          })()}
                           <CopyRow label="Payload Hash" value={e.payloadHash || ''} />
                           <CopyRow label="Previous Hash" value={e.previousHash || ''} />
                         </div>
@@ -1238,6 +1245,8 @@ function EvidenceVaultPageContent() {
                                   ? validArticles.join(', ')
                                   : getLegalBasisFullText(countryCode);
                               })();
+                          const reviewIdForPdf = (e.correlationId ?? (e as { correlation_id?: string }).correlation_id ?? '').toString();
+                          const reviewIdPdfHtml = reviewIdForPdf.startsWith('SEAL-') ? `<p>Review ID: <code>${reviewIdForPdf}</code></p>` : '';
                           const html = `<html><head><title>Evidence - ${e.eventId || e.id}</title>
 <style>body{font-family:system-ui,sans-serif;color:#1e293b;padding:2rem;max-width:600px}
 h3{font-size:0.7rem;text-transform:uppercase;letter-spacing:0.1em;color:#64748b;margin:1.5rem 0 0.5rem}
@@ -1246,7 +1255,7 @@ code{font-family:monospace;font-size:0.75rem;color:#059669;word-break:break-all}
 </style></head><body>
 <h2>Evidence Vault — Event Detail</h2>
 <h3>Transfer Details</h3><p>Destination: ${countryName || '—'}</p><p>GDPR Basis: ${gdprBasisForPdf}</p>
-<h3>Cryptographic Evidence</h3><p>Event ID: <code>${e.eventId || e.id}</code></p><p>Seal ID: <code>${e.nexusSeal || '—'}</code></p>
+<h3>Cryptographic Evidence</h3><p>Event ID: <code>${e.eventId || e.id}</code></p><p>Nexus Seal: <code>${e.nexusSeal || '—'}</code></p>${reviewIdPdfHtml}
 <h3>Timestamps</h3><p>Occurred: ${e.occurredAt || '—'}</p><p>Retention: ${getRetentionYear(e.createdAt)}</p>
 </body></html>`;
                           const w = window.open('', '_blank');

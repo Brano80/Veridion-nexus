@@ -151,8 +151,7 @@ pub async fn attach_review_seal_to_event(
 ) -> Result<(), String> {
     let result = sqlx::query(
         r#"UPDATE evidence_events
-           SET payload = payload || jsonb_build_object('seal_id', $1::text, 'review_id', $1::text),
-               correlation_id = $1
+           SET correlation_id = $1
            WHERE tenant_id = $2 AND event_id = $3"#,
     )
     .bind(seal_id)
