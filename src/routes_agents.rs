@@ -25,11 +25,17 @@ fn sha256_hex(input: &str) -> String {
     format!("{:x}", hasher.finalize())
 }
 
-fn compute_policy_hash(categories: &serde_json::Value, countries: &serde_json::Value, partners: &serde_json::Value) -> String {
+fn compute_policy_hash(
+    categories: &serde_json::Value,
+    countries: &serde_json::Value,
+    partners: &serde_json::Value,
+    policy_metadata: &serde_json::Value,
+) -> String {
     let combined = serde_json::json!({
         "allowed_data_categories": categories,
         "allowed_destination_countries": countries,
         "allowed_partners": partners,
+        "policy_metadata": policy_metadata,
     });
     let canonical = serde_json::to_string(&combined).unwrap_or_default();
     let mut hasher = Sha256::new();
@@ -52,6 +58,9 @@ pub struct RegisterAgentRequest {
     pub allowed_destination_countries: Vec<String>,
     #[serde(default)]
     pub allowed_partners: Vec<String>,
+    /// Extended Art. 30 / AEPD fields (JSON object)
+    #[serde(default)]
+    pub policy_metadata: serde_json::Value,
 }
 
 fn default_version() -> String { "1.0.0".to_string() }
@@ -69,6 +78,8 @@ struct AgentRow {
     allowed_data_categories: serde_json::Value,
     allowed_destination_countries: serde_json::Value,
     allowed_partners: serde_json::Value,
+    #[sqlx(default)]
+    policy_metadata: serde_json::Value,
     trust_level: i32,
     status: String,
     #[sqlx(default)]
@@ -88,6 +99,8 @@ struct PolicyVersionRow {
     allowed_data_categories: serde_json::Value,
     allowed_destination_countries: serde_json::Value,
     allowed_partners: serde_json::Value,
+    #[sqlx(default)]
+    policy_metadata: serde_json::Value,
     changed_by: Option<String>,
     change_reason: Option<String>,
     created_at: chrono::DateTime<chrono::Utc>,
@@ -119,6 +132,7 @@ fn build_agent_card(agent: &AgentRow, policy_hash: &str, policy_version: i32) ->
             "allowed_data_categories": agent.allowed_data_categories,
             "allowed_destination_countries": agent.allowed_destination_countries,
             "allowed_partners": agent.allowed_partners,
+            "policy_metadata": agent.policy_metadata,
             "gdpr_enforcement_mode": "shadow",
             "policy_history_url": format!("https://api.veridion-nexus.eu/api/v1/agents/{}/card", agent.id),
         },
@@ -142,7 +156,17 @@ pub async fn register_agent(
     let categories_json = serde_json::to_value(&body.allowed_data_categories).unwrap_or_default();
     let countries_json = serde_json::to_value(&body.allowed_destination_countries).unwrap_or_default();
     let partners_json = serde_json::to_value(&body.allowed_partners).unwrap_or_default();
-    let policy_hash = compute_policy_hash(&categories_json, &countries_json, &partners_json);
+    let policy_metadata_json = if body.policy_metadata.is_null() {
+        serde_json::json!({})
+    } else {
+        body.policy_metadata.clone()
+    };
+    let policy_hash = compute_policy_hash(
+        &categories_json,
+        &countries_json,
+        &partners_json,
+        &policy_metadata_json,
+    );
 
     let mut tx = match pool.begin().await {
         Ok(tx) => tx,
@@ -156,8 +180,8 @@ pub async fn register_agent(
 
     let agent: AgentRow = match sqlx::query_as(
         r#"INSERT INTO agents (id, tenant_id, name, description, version, url, provider_org, provider_url,
-            allowed_data_categories, allowed_destination_countries, allowed_partners, trust_level, status, api_key_hash)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 1, 'active', $12)
+            allowed_data_categories, allowed_destination_countries, allowed_partners, policy_metadata, trust_level, status, api_key_hash)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 1, 'active', $13)
            RETURNING *"#
     )
     .bind(&agent_id)
@@ -171,6 +195,7 @@ pub async fn register_agent(
     .bind(&categories_json)
     .bind(&countries_json)
     .bind(&partners_json)
+    .bind(&policy_metadata_json)
     .bind(&key_hash)
     .fetch_one(&mut *tx)
     .await {
@@ -186,8 +211,8 @@ pub async fn register_agent(
 
     if let Err(e) = sqlx::query(
         r#"INSERT INTO policy_versions (agent_id, tenant_id, version_number, policy_hash,
-            allowed_data_categories, allowed_destination_countries, allowed_partners, changed_by, change_reason)
-           VALUES ($1, $2, 1, $3, $4, $5, $6, 'system', 'Initial registration')"#
+            allowed_data_categories, allowed_destination_countries, allowed_partners, policy_metadata, changed_by, change_reason)
+           VALUES ($1, $2, 1, $3, $4, $5, $6, $7, 'system', 'Initial registration')"#
     )
     .bind(&agent_id)
     .bind(tenant.tenant_id)
@@ -195,6 +220,7 @@ pub async fn register_agent(
     .bind(&categories_json)
     .bind(&countries_json)
     .bind(&partners_json)
+    .bind(&policy_metadata_json)
     .execute(&mut *tx)
     .await {
         let _ = tx.rollback().await;
@@ -326,6 +352,7 @@ pub async fn get_agent(
             "allowed_data_categories": pv.allowed_data_categories,
             "allowed_destination_countries": pv.allowed_destination_countries,
             "allowed_partners": pv.allowed_partners,
+            "policy_metadata": pv.policy_metadata,
             "changed_by": pv.changed_by,
             "change_reason": pv.change_reason,
             "created_at": pv.created_at.to_rfc3339(),

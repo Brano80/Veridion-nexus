@@ -20,6 +20,18 @@ export const BLOCKED_COUNTRIES = new Set<string>([
   'CN', 'RU', 'KP', 'IR', 'SY', 'BY', 'VE',
 ]);
 
+/** Transfer tier for agent registration UI (aligned with Adequate Countries page) */
+export type CountryTransferTier = 'eu' | 'adequate' | 'scc' | 'blocked';
+
+export function getCountryTransferStatus(code: string): CountryTransferTier {
+  const c = (code || '').toUpperCase();
+  if (BLOCKED_COUNTRIES.has(c)) return 'blocked';
+  if (EU_EEA_COUNTRIES.has(c)) return 'eu';
+  if (ADEQUATE_COUNTRIES.has(c)) return 'adequate';
+  if (SCC_REQUIRED_COUNTRIES.has(c)) return 'scc';
+  return 'scc';
+}
+
 /**
  * Maps ISO code → exact name used in world-atlas TopoJSON (for map highlighting).
  * TopoJSON uses "United States of America" not "United States".

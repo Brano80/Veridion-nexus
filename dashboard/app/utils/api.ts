@@ -684,6 +684,8 @@ export async function registerAgent(data: {
   allowed_data_categories: string[];
   allowed_destination_countries: string[];
   allowed_partners: string[];
+  /** Art. 30 / AEPD extended fields (stored server-side, included in policy hash) */
+  policy_metadata?: Record<string, unknown>;
 }): Promise<AgentCard> {
   const res = await fetch(`${API_BASE}/api/v1/agents`, {
     method: 'POST',
