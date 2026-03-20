@@ -140,6 +140,9 @@ pub async fn create_event(pool: &PgPool, params: CreateEventParams) -> Result<Ev
 }
 
 /// After `create_review` returns a SEAL-XXXXXXXX, link the Transfer — Review evidence row so Evidence Vault search finds it.
+///
+/// `evidence_events.event_id` is `VARCHAR(64)` (see `010_evidence_vault_and_sovereign_shield.sql`); bind as `&str`, not `Uuid`.
+/// The UPDATE must match `tenant_id` and `event_id` (the logical row key used at insert time), not `id` (surrogate PK).
 pub async fn attach_review_seal_to_event(
     pool: &PgPool,
     tenant_id: uuid::Uuid,
@@ -160,6 +163,10 @@ pub async fn attach_review_seal_to_event(
     .map_err(|e| e.to_string())?;
 
     if result.rows_affected() == 0 {
+        log::warn!(
+            "attach_review_seal: 0 rows updated for event_id={}",
+            event_id
+        );
         return Err(format!(
             "No evidence event updated for event_id={} tenant={}",
             event_id, tenant_id

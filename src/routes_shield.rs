@@ -520,7 +520,7 @@ pub async fn evaluate(
                     tenant.tenant_id,
                 ).await {
                     Ok(seal_id) => {
-                        if let Err(e) = evidence::attach_review_seal_to_event(
+                        match evidence::attach_review_seal_to_event(
                             pool.get_ref(),
                             tenant.tenant_id,
                             &event_row.event_id,
@@ -528,11 +528,17 @@ pub async fn evaluate(
                         )
                         .await
                         {
-                            log::error!(
-                                "Failed to attach seal to evidence event {}: {}",
+                            Ok(_) => log::info!(
+                                "attach_review_seal: OK for event {} seal {}",
                                 event_row.event_id,
+                                seal_id
+                            ),
+                            Err(e) => log::error!(
+                                "attach_review_seal: FAILED for event {} seal {} err {}",
+                                event_row.event_id,
+                                seal_id,
                                 e
-                            );
+                            ),
                         }
                         Some(seal_id)
                     }
@@ -687,7 +693,7 @@ pub async fn ingest_logs(
                     .await
                     {
                         Ok(seal_id) => {
-                            if let Err(e) = evidence::attach_review_seal_to_event(
+                            match evidence::attach_review_seal_to_event(
                                 pool.get_ref(),
                                 tenant.tenant_id,
                                 &event_row.event_id,
@@ -695,11 +701,17 @@ pub async fn ingest_logs(
                             )
                             .await
                             {
-                                log::error!(
-                                    "Failed to attach seal to evidence event {}: {}",
+                                Ok(_) => log::info!(
+                                    "attach_review_seal: OK for event {} seal {}",
                                     event_row.event_id,
+                                    seal_id
+                                ),
+                                Err(e) => log::error!(
+                                    "attach_review_seal: FAILED for event {} seal {} err {}",
+                                    event_row.event_id,
+                                    seal_id,
                                     e
-                                );
+                                ),
                             }
                         }
                         Err(e) => {
