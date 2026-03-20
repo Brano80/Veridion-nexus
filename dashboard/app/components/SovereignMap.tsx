@@ -99,11 +99,16 @@ const SovereignMap: React.FC<SovereignMapProps> = ({
 
       const eventTime = event.occurredAt || event.recordedAt || event.createdAt;
       if (!eventTime) return;
+
+      // Decided (approved/rejected) evidence: do not paint the map — no orange fill, border, green, or red from this row
+      if (evidenceEventIsDecided(event, decidedEvidenceIds)) {
+        return;
+      }
+
       const eventTimestamp = new Date(eventTime).getTime();
-      // For orange border (decided/SCC covered): use decision time (recordedAt/updatedAt) not transfer time
+      // Orange border (SCC covered): use decision time when available
       const decisionTimeRaw = event.recordedAt || event.recorded_at || event.updatedAt || event.updated_at || event.occurredAt || event.createdAt;
       const decisionTimestamp = decisionTimeRaw ? new Date(decisionTimeRaw).getTime() : eventTimestamp;
-      const isDecided = evidenceEventIsDecided(event, decidedEvidenceIds);
 
       const eventType = (event.eventType || '').toUpperCase();
       const isBlocked = eventType === 'DATA_TRANSFER_BLOCKED' || eventType === 'TRANSFER_EVALUATION_BLOCKED' || eventType === 'AGENT_POLICY_VIOLATION' || eventType.includes('BLOCK') || (event.verificationStatus || '').toUpperCase() === 'BLOCK';
@@ -127,17 +132,17 @@ const SovereignMap: React.FC<SovereignMapProps> = ({
         }
       }
 
-      // Orange fill: unresolved REVIEW transfers (no valid SCC for partner, not decided) in last 24h
-      if (isReview && !isDecided && isSccRequiredCountry(countryCode) && eventTimestamp >= twentyFourHoursAgo) {
+      // Orange fill: unresolved REVIEW transfers (no valid SCC for partner) in last 24h
+      if (isReview && isSccRequiredCountry(countryCode) && eventTimestamp >= twentyFourHoursAgo) {
         const hasValidSCC = hasValidSCCForPartner(sccRegistries, partnerName, countryCode);
         if (!hasValidSCC) {
           orangeFillCountries.add(countryCode);
         }
       }
 
-      // Orange border: SCC-covered (ALLOW + scc_required) OR resolved (decided) in last 24h from action time, for SCC-required countries, NOT in orangeFill
+      // Orange border: ALLOW + country_status scc_required (valid SCC path) only — not human-decided rows
       if (decisionTimestamp >= twentyFourHoursAgo && isSccRequiredCountry(countryCode) && !orangeFillCountries.has(countryCode)) {
-        if (isSccCovered || isDecided) {
+        if (isSccCovered) {
           orangeBorderCountries.add(countryCode);
         }
       }
@@ -146,6 +151,7 @@ const SovereignMap: React.FC<SovereignMapProps> = ({
     // Add to redCountries: any country where decision was BLOCK (includes unknown countries)
     evidenceEvents
       .filter((e) => {
+        if (evidenceEventIsDecided(e, decidedEvidenceIds)) return false;
         const isRecent = new Date(e.occurredAt || e.recordedAt || e.createdAt).getTime() >= twentyFourHoursAgo;
         const payload = e.payload || {};
         const decision = payload.decision || (e as any).decision;
