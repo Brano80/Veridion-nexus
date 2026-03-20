@@ -8,6 +8,7 @@ const sections = [
   { id: 'quick-start', label: 'Quick Start' },
   { id: 'integration-patterns', label: 'Integration Patterns' },
   { id: 'authentication', label: 'Authentication' },
+  { id: 'agent-registration', label: 'Agent Registration' },
   { id: 'evaluate-transfer', label: 'Evaluate Transfer' },
   { id: 'response-reference', label: 'Response Reference' },
   { id: 'error-codes', label: 'Error Codes' },
@@ -202,7 +203,9 @@ export default function DocsPage() {
   -d '{
     "destination_country_code": "US",
     "data_categories": ["email", "name"],
-    "partner_name": "OpenAI"
+    "partner_name": "OpenAI",
+    "agent_id": "agt_your_agent_id",
+    "agent_api_key": "agt_key_your_agent_api_key"
   }'`}
                   />
                 </div>
@@ -281,6 +284,8 @@ if (decision === 'REVIEW') {
                     code={`def call_openai(messages, user_data):
     # Evaluate before every external AI call
     shield = evaluate_transfer(
+        agent_id="agt_your_agent_id",
+        agent_api_key="agt_key_your_agent_api_key",
         destination_country_code="US",
         data_categories=["email", "name"],
         partner_name="OpenAI"
@@ -311,6 +316,8 @@ if (decision === 'REVIEW') {
 class SovereignShieldCallback(BaseCallbackHandler):
     def on_llm_start(self, serialized, prompts, **kwargs):
         result = evaluate_transfer(
+            agent_id="agt_your_agent_id",
+            agent_api_key="agt_key_your_agent_api_key",
             destination_country_code="US",
             data_categories=["email"],
             partner_name="OpenAI"
@@ -334,6 +341,8 @@ llm = ChatOpenAI(callbacks=[SovereignShieldCallback()])`}
                     language="javascript"
                     code={`const shieldMiddleware = async (req, res, next) => {
     const result = await shield.evaluate({
+        agentId: 'agt_your_agent_id',
+        agentApiKey: 'agt_key_your_agent_api_key',
         destinationCountryCode: 'US',
         dataCategories: req.body.dataCategories || [],
         partnerName: req.body.partnerName
@@ -405,6 +414,47 @@ app.use('/api/ai', shieldMiddleware);`}
               </p>
             </section>
 
+            {/* Agent Registration */}
+            <section
+              id="agent-registration"
+              ref={(el) => { sectionRefs.current['agent-registration'] = el; }}
+              className="mb-16"
+            >
+              <h2 className="text-3xl font-bold text-slate-900 mb-4">Agent Registration</h2>
+              <p className="text-slate-700 mb-6">
+                All evaluate() calls must originate from a registered agent. Register your agents at{' '}
+                <a href="https://app.veridion-nexus.eu/agents" target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:text-emerald-700 underline">
+                  app.veridion-nexus.eu/agents
+                </a>
+                {' '}before integrating the API.
+              </p>
+              <p className="text-slate-700 mb-4">
+                Each registered agent receives:
+              </p>
+              <ul className="list-disc list-inside text-slate-700 mb-6 space-y-2">
+                <li><code className="bg-slate-200 px-1.5 py-0.5 rounded text-sm font-mono">agent_id</code> — unique identifier (format: agt_XXXXXXXX)</li>
+                <li><code className="bg-slate-200 px-1.5 py-0.5 rounded text-sm font-mono">agent_api_key</code> — secret key shown once at registration (format: agt_key_XXXXXXXX)</li>
+              </ul>
+              <p className="text-slate-700 mb-6">
+                Both are required on every evaluate() call alongside your tenant API key.
+              </p>
+              <h3 className="text-xl font-semibold text-slate-800 mb-3">Quick registration steps</h3>
+              <ol className="list-decimal list-inside text-slate-700 mb-6 space-y-2">
+                <li>Go to <a href="https://app.veridion-nexus.eu/agents" target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:text-emerald-700 underline">app.veridion-nexus.eu/agents</a></li>
+                <li>Click &quot;Register New Agent&quot;</li>
+                <li>Complete the 5-step wizard (identity, data policy, transfer policy, autonomy &amp; oversight, review)</li>
+                <li>Copy your <code className="bg-slate-200 px-1.5 py-0.5 rounded text-sm font-mono">agent_id</code> and <code className="bg-slate-200 px-1.5 py-0.5 rounded text-sm font-mono">agent_api_key</code> — the key is shown only once</li>
+              </ol>
+              <a
+                href="https://app.veridion-nexus.eu/agents"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                Register your first agent →
+              </a>
+            </section>
+
             {/* Evaluate Transfer */}
             <section
               id="evaluate-transfer"
@@ -429,6 +479,18 @@ app.use('/api/ai', shieldMiddleware);`}
                     </tr>
                   </thead>
                   <tbody>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 font-mono text-sm">agent_id</td>
+                      <td className="border border-slate-300 px-4 py-2">string</td>
+                      <td className="border border-slate-300 px-4 py-2">Yes</td>
+                      <td className="border border-slate-300 px-4 py-2">Registered agent ID. Format: agt_XXXXXXXX. Register at app.veridion-nexus.eu/agents</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 font-mono text-sm">agent_api_key</td>
+                      <td className="border border-slate-300 px-4 py-2">string</td>
+                      <td className="border border-slate-300 px-4 py-2">Yes</td>
+                      <td className="border border-slate-300 px-4 py-2">Agent API key issued at registration. Format: agt_key_XXXXXXXX. Shown once at registration.</td>
+                    </tr>
                     <tr>
                       <td className="border border-slate-300 px-4 py-2 font-mono text-sm">destination_country_code</td>
                       <td className="border border-slate-300 px-4 py-2">string</td>
@@ -483,6 +545,8 @@ app.use('/api/ai', shieldMiddleware);`}
   "destination_country_code": "US",
   "data_categories": ["email", "name", "user_id"],
   "partner_name": "OpenAI",
+  "agent_id": "agt_your_agent_id",
+  "agent_api_key": "agt_key_your_agent_api_key",
   "protocol": "HTTPS",
   "request_path": "/v1/chat/completions"
 }`}
@@ -694,6 +758,11 @@ app.use('/api/ai', shieldMiddleware);`}
                   <tbody>
                     <tr>
                       <td className="border border-slate-300 px-4 py-2">400</td>
+                      <td className="border border-slate-300 px-4 py-2 font-mono text-sm">AGENT_REQUIRED</td>
+                      <td className="border border-slate-300 px-4 py-2">Missing agent_id or agent_api_key. Register at app.veridion-nexus.eu/agents</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2">400</td>
                       <td className="border border-slate-300 px-4 py-2 font-mono text-sm">bad_request</td>
                       <td className="border border-slate-300 px-4 py-2">Missing or invalid request body</td>
                     </tr>
@@ -824,7 +893,9 @@ curl -X POST https://api.veridion-nexus.eu/api/v1/shield/evaluate \\
   -d '{
     "destination_country_code": "US",
     "data_categories": ["email", "name"],
-    "partner_name": "OpenAI"
+    "partner_name": "OpenAI",
+    "agent_id": "agt_your_agent_id",
+    "agent_api_key": "agt_key_your_agent_api_key"
   }'`}
                       />
                     </div>
@@ -840,7 +911,9 @@ curl -X POST https://api.veridion-nexus.eu/api/v1/shield/evaluate \\
   -d '{
     "destination_country_code": "DE",
     "data_categories": ["email"],
-    "partner_name": "AWS Frankfurt"
+    "partner_name": "AWS Frankfurt",
+    "agent_id": "agt_your_agent_id",
+    "agent_api_key": "agt_key_your_agent_api_key"
   }'`}
                       />
                     </div>
@@ -860,6 +933,8 @@ class SovereignShield:
     
     def evaluate(
         self, 
+        agent_id: str,
+        agent_api_key: str,
         destination_country_code: str,
         data_categories: list[str],
         partner_name: str = None
@@ -871,6 +946,8 @@ class SovereignShield:
                 "Content-Type": "application/json"
             },
             json={
+                "agent_id": agent_id,
+                "agent_api_key": agent_api_key,
                 "destination_country_code": destination_country_code,
                 "data_categories": data_categories,
                 "partner_name": partner_name
@@ -884,6 +961,8 @@ shield = SovereignShield(api_key="ss_test_your_key")
 
 # Before calling OpenAI
 result = shield.evaluate(
+    agent_id="agt_your_agent_id",
+    agent_api_key="agt_key_your_agent_api_key",
     destination_country_code="US",
     data_categories=["email", "name"],
     partner_name="OpenAI"
@@ -909,7 +988,7 @@ else:
     this.baseUrl = 'https://api.veridion-nexus.eu';
   }
 
-  async evaluate({ destinationCountryCode, dataCategories, partnerName }) {
+  async evaluate({ agentId, agentApiKey, destinationCountryCode, dataCategories, partnerName }) {
     const res = await fetch(\`\${this.baseUrl}/api/v1/shield/evaluate\`, {
       method: 'POST',
       headers: {
@@ -917,6 +996,8 @@ else:
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
+        agent_id: agentId,
+        agent_api_key: agentApiKey,
         destination_country_code: destinationCountryCode,
         data_categories: dataCategories,
         partner_name: partnerName
@@ -933,6 +1014,8 @@ const shield = new SovereignShield('ss_test_your_key');
 
 async function callOpenAI(userData) {
   const { decision, reason, seal_id } = await shield.evaluate({
+    agentId: 'agt_your_agent_id',
+    agentApiKey: 'agt_key_your_agent_api_key',
     destinationCountryCode: 'US',
     dataCategories: ['email', 'name'],
     partnerName: 'OpenAI'
@@ -962,6 +1045,9 @@ async function callOpenAI(userData) {
               <h2 className="text-3xl font-bold text-slate-900 mb-4">MCP Server</h2>
               <p className="text-slate-700 mb-6">
                 Veridion Nexus is available as an MCP (Model Context Protocol) server. This makes GDPR transfer evaluation available as a tool in Claude and Cursor workflows, without manual API integration.
+              </p>
+              <p className="text-slate-600 text-sm mb-6">
+                Latest version: <code className="bg-slate-200 px-1.5 py-0.5 rounded text-xs font-mono">veridion-nexus-mcp@1.0.5</code>. The <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">evaluate_transfer</code> tool requires <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">agent_id</code> and <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">agent_api_key</code> as parameters on every call.
               </p>
 
               <div className="grid md:grid-cols-2 gap-6 mb-8">
@@ -1032,29 +1118,39 @@ async function callOpenAI(userData) {
               </p>
 
               <h3 className="text-xl font-semibold text-slate-900 mb-3 mt-8">Available tools</h3>
-              <div className="overflow-x-auto">
+              <p className="text-slate-700 mb-3 text-sm">
+                The <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">evaluate_transfer</code> tool now requires <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">agent_id</code> and <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">agent_api_key</code> parameters on every call. Register your agent at app.veridion-nexus.eu/agents first.
+              </p>
+              <div className="overflow-x-auto mb-6">
                 <table className="w-full border-collapse min-w-[600px]">
                   <thead>
                     <tr className="bg-slate-200">
                       <th className="border border-slate-300 px-4 py-2 text-left">Tool</th>
+                      <th className="border border-slate-300 px-4 py-2 text-left">Parameters</th>
                       <th className="border border-slate-300 px-4 py-2 text-left">When to use</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr>
                       <td className="border border-slate-300 px-4 py-2 font-mono text-sm">evaluate_transfer</td>
+                      <td className="border border-slate-300 px-4 py-2 text-sm">
+                        <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">agent_id</code>, <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">agent_api_key</code> (required), destination_country_code, data_categories, partner_name, …
+                      </td>
                       <td className="border border-slate-300 px-4 py-2">Before any external API call with personal data</td>
                     </tr>
                     <tr>
                       <td className="border border-slate-300 px-4 py-2 font-mono text-sm">check_scc_coverage</td>
+                      <td className="border border-slate-300 px-4 py-2 text-sm">destination_country_code, partner_name</td>
                       <td className="border border-slate-300 px-4 py-2">To verify SCC exists for a partner/country</td>
                     </tr>
                     <tr>
                       <td className="border border-slate-300 px-4 py-2 font-mono text-sm">get_compliance_status</td>
+                      <td className="border border-slate-300 px-4 py-2 text-sm">—</td>
                       <td className="border border-slate-300 px-4 py-2">To get account overview and pending reviews</td>
                     </tr>
                     <tr>
                       <td className="border border-slate-300 px-4 py-2 font-mono text-sm">list_adequate_countries</td>
+                      <td className="border border-slate-300 px-4 py-2 text-sm">filter (optional)</td>
                       <td className="border border-slate-300 px-4 py-2">To check a country{"'"}s GDPR transfer status</td>
                     </tr>
                   </tbody>
