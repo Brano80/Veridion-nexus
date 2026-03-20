@@ -6,6 +6,7 @@ import DashboardLayout from './components/DashboardLayout';
 import SovereignMap from './components/SovereignMap';
 import { RefreshCw, Shield, AlertTriangle, CheckCircle } from 'lucide-react';
 import { fetchEvidenceEventsPaginated, fetchSCCRegistries, fetchReviewQueuePending, fetchReviewQueueAll, fetchDecidedEvidenceIds, createReviewQueueItem, fetchSettings, patchSettings, EvidenceEvent, SCCRegistry } from './utils/api';
+import { buildDecidedEvidenceSet } from './utils/evidenceDecided';
 import { getCountryCodeFromName, getLegalBasis, EU_EEA_COUNTRIES, ADEQUATE_COUNTRIES, COUNTRY_NAMES } from './config/countries';
 
 export default function SovereignShieldPage() {
@@ -28,6 +29,7 @@ export default function SovereignShieldPage() {
   const [settingsLoading, setSettingsLoading] = useState(true);
   const [settingsError, setSettingsError] = useState(false);
   const sccRegistriesRef = useRef<SCCRegistry[]>([]);
+  const lastDecidedIdsLogRef = useRef<string>('');
 
   useEffect(() => {
     loadData();
@@ -71,11 +73,18 @@ export default function SovereignShieldPage() {
       ]);
       
       setEnforcementMode((settingsData?.enforcement_mode === 'enforce' ? 'enforce' : 'shadow') as 'shadow' | 'enforce');
-      setDecidedEvidenceIds(new Set(decidedIds));
       const eventsArray = Array.isArray(eventsData) ? eventsData : [];
       const sccArray = Array.isArray(sccData) ? sccData : [];
       const reviewQueueArray = Array.isArray(reviewData) ? reviewData : [];
       const reviewQueueAll = Array.isArray(reviewAllData) ? reviewAllData : [];
+      // API IDs + causation/seal from HUMAN_OVERSIGHT_* + decided review-queue rows (seal/event alignment)
+      const decidedMerged = buildDecidedEvidenceSet(decidedIds, eventsArray, reviewQueueAll);
+      setDecidedEvidenceIds(decidedMerged);
+      const decidedSig = Array.from(decidedMerged).sort().join('|');
+      if (decidedSig !== lastDecidedIdsLogRef.current) {
+        lastDecidedIdsLogRef.current = decidedSig;
+        console.log('decidedEvidenceIds', Array.from(decidedMerged));
+      }
       setEvents(eventsArray);
       setSccRegistries(sccArray);
       sccRegistriesRef.current = sccArray; // Update ref with latest SCC registries
@@ -121,7 +130,7 @@ export default function SovereignShieldPage() {
       setReviewQueueMap(eventToReviewMap);
 
       // Automatically add events that need attention to review queue
-      await ensureEventsInReviewQueue(eventsArray, existingEvidenceIds, new Set(decidedIds), reviewQueueArray, reviewQueueAll);
+      await ensureEventsInReviewQueue(eventsArray, existingEvidenceIds, decidedMerged, reviewQueueArray, reviewQueueAll);
     } catch (error) {
       console.error('Failed to load data:', error);
       setEvents([]);

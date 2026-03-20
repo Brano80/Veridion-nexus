@@ -13,6 +13,7 @@ import {
   SMALL_COUNTRY_MARKERS,
   getCountryCodeFromName,
 } from '../config/countries';
+import { evidenceEventIsDecided } from '../utils/evidenceDecided';
 
 interface SovereignMapProps {
   evidenceEvents?: EvidenceEvent[];
@@ -102,11 +103,10 @@ const SovereignMap: React.FC<SovereignMapProps> = ({
       // For orange border (decided/SCC covered): use decision time (recordedAt/updatedAt) not transfer time
       const decisionTimeRaw = event.recordedAt || event.recorded_at || event.updatedAt || event.updated_at || event.occurredAt || event.createdAt;
       const decisionTimestamp = decisionTimeRaw ? new Date(decisionTimeRaw).getTime() : eventTimestamp;
-      const eventId = event.id || event.eventId;
-      const isDecided = eventId && decidedEvidenceIds.has(eventId);
+      const isDecided = evidenceEventIsDecided(event, decidedEvidenceIds);
 
       const eventType = (event.eventType || '').toUpperCase();
-      const isBlocked = eventType.includes('BLOCK') || (event.verificationStatus || '').toUpperCase() === 'BLOCK';
+      const isBlocked = eventType === 'DATA_TRANSFER_BLOCKED' || eventType === 'TRANSFER_EVALUATION_BLOCKED' || eventType === 'AGENT_POLICY_VIOLATION' || eventType.includes('BLOCK') || (event.verificationStatus || '').toUpperCase() === 'BLOCK';
       const isReview = eventType === 'DATA_TRANSFER_REVIEW' || eventType === 'TRANSFER_EVALUATION_REVIEW' || (event.verificationStatus || '').toUpperCase() === 'REVIEW';
       const isAllow = eventType === 'DATA_TRANSFER' || eventType === 'TRANSFER_EVALUATION' || (event.verificationStatus || '').toUpperCase() === 'ALLOW';
 
