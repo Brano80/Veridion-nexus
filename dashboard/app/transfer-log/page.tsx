@@ -33,7 +33,7 @@ export default function TransferLogPage() {
         // No source_system filter — include agent-named events so AGENT column shows agent names
       );
 
-      // Filter to only transfer event types
+      // Filter to only transfer event types (exclude internal sources like human-oversight)
       const transferEventTypes = [
         'DATA_TRANSFER',
         'DATA_TRANSFER_BLOCKED',
@@ -41,10 +41,14 @@ export default function TransferLogPage() {
         'TRANSFER_EVALUATION',
         'TRANSFER_EVALUATION_BLOCKED',
         'TRANSFER_EVALUATION_REVIEW',
+        'AGENT_POLICY_VIOLATION',
       ];
+      const excludedSources = ['human-oversight', 'human_oversight'];
 
       const filtered = (Array.isArray(data) ? data : []).filter((e) => {
-        const eventType = (e.eventType || '').toUpperCase();
+        const sourceSystem = (e.sourceSystem || (e as any).source_system || '').trim();
+        if (sourceSystem && excludedSources.includes(sourceSystem.toLowerCase())) return false;
+        const eventType = ((e as any).eventType || (e as any).event_type || '').toUpperCase();
         return transferEventTypes.includes(eventType);
       });
       
@@ -85,7 +89,7 @@ export default function TransferLogPage() {
   const filteredEvents = events.filter((event) => {
     if (filter === 'ALL') return true;
     
-    const eventType = (event.eventType || '').toUpperCase();
+    const eventType = ((event as any).eventType || (event as any).event_type || '').toUpperCase();
     const verificationStatus = (event.verificationStatus || '').toUpperCase();
     const payloadDecision = (event.payload?.decision || '').toUpperCase();
     
@@ -93,6 +97,7 @@ export default function TransferLogPage() {
     const isBlocked = (
       eventType === 'DATA_TRANSFER_BLOCKED' ||
       eventType === 'TRANSFER_EVALUATION_BLOCKED' ||
+      eventType === 'AGENT_POLICY_VIOLATION' ||
       eventType.includes('BLOCK') ||
       verificationStatus === 'BLOCK' ||
       payloadDecision === 'BLOCK'
@@ -148,30 +153,34 @@ export default function TransferLogPage() {
     try {
       const { events: allEvents } = await fetchEvidenceEventsPaginated(1, 10000, undefined);
 
-      // Filter to transfer event types
+      // Filter to transfer event types (exclude internal sources like human-oversight)
       const transferEventTypes = [
         'DATA_TRANSFER',
         'DATA_TRANSFER_BLOCKED',
         'DATA_TRANSFER_REVIEW',
         'TRANSFER_EVALUATION',
         'TRANSFER_EVALUATION_BLOCKED',
-        'TRANSFER_EVALUATION_REVIEW'
+        'TRANSFER_EVALUATION_REVIEW',
+        'AGENT_POLICY_VIOLATION',
       ];
-      
+      const excludedSources = ['human-oversight', 'human_oversight'];
+
       let exportEvents = allEvents.filter((e) => {
-        const eventType = (e.eventType || '').toUpperCase();
+        const sourceSystem = (e.sourceSystem || (e as any).source_system || '').trim();
+        if (sourceSystem && excludedSources.includes(sourceSystem.toLowerCase())) return false;
+        const eventType = ((e as any).eventType || (e as any).event_type || '').toUpperCase();
         return transferEventTypes.includes(eventType);
       });
       
       // Apply status filter
       if (filter !== 'ALL') {
         exportEvents = exportEvents.filter((event) => {
-          const eventType = (event.eventType || '').toUpperCase();
+          const eventType = ((event as any).eventType || (event as any).event_type || '').toUpperCase();
           const verificationStatus = (event.verificationStatus || '').toUpperCase();
           const payloadDecision = (event.payload?.decision || '').toUpperCase();
           
           if (filter === 'BLOCK') {
-            return eventType.includes('BLOCK') || verificationStatus === 'BLOCK' || payloadDecision === 'BLOCK';
+            return eventType === 'AGENT_POLICY_VIOLATION' || eventType.includes('BLOCK') || verificationStatus === 'BLOCK' || payloadDecision === 'BLOCK';
           }
           if (filter === 'PENDING') {
             return eventType.includes('REVIEW') || verificationStatus === 'REVIEW' || payloadDecision === 'REVIEW';
@@ -204,10 +213,10 @@ export default function TransferLogPage() {
       const legalBasis = getLegalBasis(countryCode);
       const isShadow = e.payload?.shadow_mode === true;
       const mode = isShadow ? 'Shadow mode' : 'ENFORCING';
-      // Real decision from event type
-      const realStatus = e.eventType === 'DATA_TRANSFER_BLOCKED' || e.verificationStatus === 'BLOCK'
+      const evT = (e as any).eventType || (e as any).event_type || '';
+      const realStatus = evT === 'DATA_TRANSFER_BLOCKED' || evT === 'TRANSFER_EVALUATION_BLOCKED' || evT === 'AGENT_POLICY_VIOLATION' || e.verificationStatus === 'BLOCK'
         ? 'BLOCK'
-        : e.eventType === 'DATA_TRANSFER_REVIEW' || e.verificationStatus === 'REVIEW'
+        : evT === 'DATA_TRANSFER_REVIEW' || evT === 'TRANSFER_EVALUATION_REVIEW' || e.verificationStatus === 'REVIEW'
         ? 'PENDING REVIEW'
         : 'ALLOW';
       const ts = new Date(e.occurredAt).toLocaleString('en-US', {
@@ -433,8 +442,9 @@ export default function TransferLogPage() {
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap overflow-hidden text-ellipsis">
                           {(() => {
-                            const isBlocked = event.eventType === 'DATA_TRANSFER_BLOCKED' || event.eventType === 'TRANSFER_EVALUATION_BLOCKED' || event.verificationStatus === 'BLOCK';
-                            const isReview = event.eventType === 'DATA_TRANSFER_REVIEW' || event.eventType === 'TRANSFER_EVALUATION_REVIEW' || event.verificationStatus === 'REVIEW';
+                            const evType = (event as any).eventType || (event as any).event_type || '';
+                            const isBlocked = evType === 'DATA_TRANSFER_BLOCKED' || evType === 'TRANSFER_EVALUATION_BLOCKED' || evType === 'AGENT_POLICY_VIOLATION' || event.verificationStatus === 'BLOCK';
+                            const isReview = evType === 'DATA_TRANSFER_REVIEW' || evType === 'TRANSFER_EVALUATION_REVIEW' || event.verificationStatus === 'REVIEW';
                             const realDecision = isBlocked ? 'BLOCK' : isReview ? 'REVIEW' : 'ALLOW';
                             return (
                               <span

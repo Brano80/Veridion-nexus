@@ -334,7 +334,9 @@ pub async fn evaluate(
                         source_user_agent: body.user_agent.clone(),
                         tenant_id: tenant.tenant_id,
                     };
-                    let _ = evidence::create_event(pool.get_ref(), params).await;
+                    if let Err(e) = evidence::create_event(pool.get_ref(), params).await {
+                        log::error!("Failed to create AGENT_POLICY_VIOLATION evidence (destination_country): {}", e);
+                    }
                     if is_shadow {
                         return HttpResponse::Ok().json(serde_json::json!({
                             "decision": "ALLOW",
@@ -388,7 +390,9 @@ pub async fn evaluate(
                                 source_user_agent: body.user_agent.clone(),
                                 tenant_id: tenant.tenant_id,
                             };
-                            let _ = evidence::create_event(pool.get_ref(), params).await;
+                            if let Err(e) = evidence::create_event(pool.get_ref(), params).await {
+                                log::error!("Failed to create AGENT_POLICY_VIOLATION evidence (data_categories): {}", e);
+                            }
                             if is_shadow {
                                 return HttpResponse::Ok().json(serde_json::json!({
                                     "decision": "ALLOW",
@@ -442,7 +446,9 @@ pub async fn evaluate(
                                 source_user_agent: body.user_agent.clone(),
                                 tenant_id: tenant.tenant_id,
                             };
-                            let _ = evidence::create_event(pool.get_ref(), params).await;
+                            if let Err(e) = evidence::create_event(pool.get_ref(), params).await {
+                                log::error!("Failed to create AGENT_POLICY_VIOLATION evidence (partner): {}", e);
+                            }
                             if is_shadow {
                                 return HttpResponse::Ok().json(serde_json::json!({
                                     "decision": "ALLOW",

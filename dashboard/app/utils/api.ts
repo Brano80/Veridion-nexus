@@ -192,6 +192,7 @@ export async function fetchEvidenceEventsPaginated(
   const events = rawEvents.map((e: any) => ({
     ...e,
     sourceSystem: e.source_system || e.sourceSystem || '',
+    eventType: e.eventType || e.event_type || '',
   }));
   return {
     events,
