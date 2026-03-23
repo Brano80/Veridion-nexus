@@ -100,11 +100,7 @@ const SovereignMap: React.FC<SovereignMapProps> = ({
       const eventTime = event.occurredAt || event.recordedAt || event.createdAt;
       if (!eventTime) return;
 
-      // Decided (approved/rejected) evidence: do not paint the map — no orange fill, border, green, or red from this row
-      if (evidenceEventIsDecided(event, decidedEvidenceIds)) {
-        return;
-      }
-
+      const isDecided = evidenceEventIsDecided(event, decidedEvidenceIds);
       const eventTimestamp = new Date(eventTime).getTime();
       // Orange border (SCC covered): use decision time when available
       const decisionTimeRaw = event.recordedAt || event.recorded_at || event.updatedAt || event.updated_at || event.occurredAt || event.createdAt;
@@ -120,21 +116,21 @@ const SovereignMap: React.FC<SovereignMapProps> = ({
 
       const partnerName = payload.partner_name || payload.partnerName || '';
 
-      // Red: blocked transfers in last 24h only (event-driven)
-      if (isBlocked && eventTimestamp >= twentyFourHoursAgo) {
+      // Red: blocked transfers in last 24h only (event-driven) — skip decided
+      if (!isDecided && isBlocked && eventTimestamp >= twentyFourHoursAgo) {
         redCountries.add(countryCode);
       }
 
-      // Green: adequate/EU countries with transfers in last 24h
+      // Green: adequate/EU countries with transfers in last 24h (include decided)
       if (eventTimestamp >= twentyFourHoursAgo && !isBlocked) {
         if (EU_EEA_COUNTRIES.has(countryCode) || ADEQUATE_COUNTRIES.has(countryCode)) {
           greenCountries.add(countryCode);
         }
       }
 
-      // Orange fill: unresolved REVIEW transfers (no valid SCC for partner) in last 24h
+      // Orange fill: unresolved REVIEW transfers (no valid SCC for partner) in last 24h — skip decided
       const hasValidSCC = hasValidSCCForPartner(sccRegistries, partnerName, countryCode);
-      if (isReview && isSccRequiredCountry(countryCode) && eventTimestamp >= twentyFourHoursAgo) {
+      if (!isDecided && isReview && isSccRequiredCountry(countryCode) && eventTimestamp >= twentyFourHoursAgo) {
         if (!hasValidSCC) {
           orangeFillCountries.add(countryCode);
         }

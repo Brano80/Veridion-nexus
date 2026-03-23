@@ -275,6 +275,9 @@ pub async fn evaluate(
             }
             Some(ref agent) => {
                 resolved_source_system = Some(agent.name.clone());
+                let is_shadow = get_enforcement_mode(pool.get_ref(), tenant.tenant_id).await
+                    .map(|m| m == "shadow")
+                    .unwrap_or(true);
                 // Validate agent API key if the agent has one set
                 if agent.api_key_hash.is_some() {
                     match &body.agent_api_key {
@@ -304,7 +307,7 @@ pub async fn evaluate(
                 let allowed_countries: Vec<String> = serde_json::from_value(agent.allowed_destination_countries.clone()).unwrap_or_default();
                 if !dest_code.is_empty() && !allowed_countries.is_empty() && !allowed_countries.iter().any(|c| c.eq_ignore_ascii_case(&dest_code)) {
                     let dest_name = if dest_code.is_empty() { "Unknown".to_string() } else { country_name(&dest_code) };
-                    let violation_payload = serde_json::json!({
+                    let mut violation_payload = serde_json::json!({
                         "agent_id": agent_id,
                         "violation": "destination_country",
                         "destination_country_code": dest_code,
@@ -315,6 +318,9 @@ pub async fn evaluate(
                         "country_status": "agent_policy_violation",
                         "reason": "Destination country not in agent policy",
                     });
+                    if is_shadow {
+                        violation_payload["shadow_mode"] = serde_json::json!(true);
+                    }
                     let params = CreateEventParams {
                         event_type: "AGENT_POLICY_VIOLATION".into(),
                         severity: "HIGH".into(),
@@ -329,6 +335,16 @@ pub async fn evaluate(
                         tenant_id: tenant.tenant_id,
                     };
                     let _ = evidence::create_event(pool.get_ref(), params).await;
+                    if is_shadow {
+                        return HttpResponse::Ok().json(serde_json::json!({
+                            "decision": "ALLOW",
+                            "reason": format!("SHADOW MODE — would have been BLOCK: {}", "Destination country not in agent policy"),
+                            "severity": "HIGH",
+                            "articles": [],
+                            "country_status": "agent_policy_violation",
+                            "timestamp": Utc::now().to_rfc3339(),
+                        }));
+                    }
                     return HttpResponse::Ok().json(serde_json::json!({
                         "decision": "BLOCK",
                         "reason": "Destination country not in agent policy",
@@ -344,7 +360,7 @@ pub async fn evaluate(
                     if let Some(ref cats) = body.data_categories {
                         let violation: Vec<&String> = cats.iter().filter(|c| !allowed_categories.iter().any(|ac| ac.eq_ignore_ascii_case(c))).collect();
                         if !violation.is_empty() {
-                            let violation_payload = serde_json::json!({
+                            let mut violation_payload = serde_json::json!({
                                 "agent_id": agent_id,
                                 "violation": "data_categories",
                                 "disallowed_categories": violation,
@@ -356,6 +372,9 @@ pub async fn evaluate(
                                 "country_status": "agent_policy_violation",
                                 "reason": "Data category not permitted by agent policy",
                             });
+                            if is_shadow {
+                                violation_payload["shadow_mode"] = serde_json::json!(true);
+                            }
                             let params = CreateEventParams {
                                 event_type: "AGENT_POLICY_VIOLATION".into(),
                                 severity: "HIGH".into(),
@@ -370,6 +389,16 @@ pub async fn evaluate(
                                 tenant_id: tenant.tenant_id,
                             };
                             let _ = evidence::create_event(pool.get_ref(), params).await;
+                            if is_shadow {
+                                return HttpResponse::Ok().json(serde_json::json!({
+                                    "decision": "ALLOW",
+                                    "reason": format!("SHADOW MODE — would have been BLOCK: {}", "Data category not permitted by agent policy"),
+                                    "severity": "HIGH",
+                                    "articles": [],
+                                    "country_status": "agent_policy_violation",
+                                    "timestamp": Utc::now().to_rfc3339(),
+                                }));
+                            }
                             return HttpResponse::Ok().json(serde_json::json!({
                                 "decision": "BLOCK",
                                 "reason": "Data category not permitted by agent policy",
@@ -386,7 +415,7 @@ pub async fn evaluate(
                 if !allowed_partners.is_empty() {
                     if let Some(ref partner) = body.partner_name {
                         if !partner.is_empty() && !allowed_partners.iter().any(|p| p.eq_ignore_ascii_case(partner)) {
-                            let violation_payload = serde_json::json!({
+                            let mut violation_payload = serde_json::json!({
                                 "agent_id": agent_id,
                                 "violation": "partner",
                                 "partner_name": partner,
@@ -397,6 +426,9 @@ pub async fn evaluate(
                                 "country_status": "agent_policy_violation",
                                 "reason": "Partner not permitted by agent policy",
                             });
+                            if is_shadow {
+                                violation_payload["shadow_mode"] = serde_json::json!(true);
+                            }
                             let params = CreateEventParams {
                                 event_type: "AGENT_POLICY_VIOLATION".into(),
                                 severity: "HIGH".into(),
@@ -411,6 +443,16 @@ pub async fn evaluate(
                                 tenant_id: tenant.tenant_id,
                             };
                             let _ = evidence::create_event(pool.get_ref(), params).await;
+                            if is_shadow {
+                                return HttpResponse::Ok().json(serde_json::json!({
+                                    "decision": "ALLOW",
+                                    "reason": format!("SHADOW MODE — would have been BLOCK: {}", "Partner not permitted by agent policy"),
+                                    "severity": "HIGH",
+                                    "articles": [],
+                                    "country_status": "agent_policy_violation",
+                                    "timestamp": Utc::now().to_rfc3339(),
+                                }));
+                            }
                             return HttpResponse::Ok().json(serde_json::json!({
                                 "decision": "BLOCK",
                                 "reason": "Partner not permitted by agent policy",
