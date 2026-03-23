@@ -10,6 +10,7 @@ const INTERNAL_SOURCES = ['human-oversight', 'sovereign-shield'];
 
 interface AgentInfo {
   name: string;
+  agentId?: string;
   totalTransfers: number;
   lastActivity: string;
   allowCount: number;
@@ -91,18 +92,21 @@ function mergeAgents(events: EvidenceEvent[], registeredCards: AgentCard[]): Age
     }
   }
   const merged = new Map<string, AgentInfo>();
+  const registeredNames = new Set<string>();
 
-  // Add all registered agents first (by name, case-insensitive key; fallback to agent_id match)
+  // Add all registered agents (key by agent_id so duplicates with same name stay separate)
   for (const card of registeredCards) {
-    const key = card.name.toLowerCase().trim();
     const agentId = card['x-veridion']?.agent_id;
-    let stats = statsMap.get(key);
+    const key = agentId ?? card.name.toLowerCase().trim();
+    registeredNames.add(card.name.toLowerCase().trim());
+    let stats = statsMap.get(card.name.toLowerCase().trim());
     if (!stats && agentId) {
       const byId = statsByAgentId.get(agentId);
       if (byId) stats = byId;
     }
     merged.set(key, {
       name: card.name,
+      agentId,
       totalTransfers: stats?.totalTransfers ?? 0,
       lastActivity: stats?.lastActivity ?? '',
       allowCount: stats?.allowCount ?? 0,
@@ -112,12 +116,11 @@ function mergeAgents(events: EvidenceEvent[], registeredCards: AgentCard[]): Age
     });
   }
 
-  // Add unregistered agents from events that aren't already in the map
+  // Add unregistered agents from events (skip if a registered agent already has that name)
   for (const [key, stats] of statsMap) {
-    if (!merged.has(key)) {
-      stats.isActive = stats.lastActivity ? new Date(stats.lastActivity).getTime() > twentyFourHoursAgo : false;
-      merged.set(key, stats);
-    }
+    if (registeredNames.has(key)) continue;
+    stats.isActive = stats.lastActivity ? new Date(stats.lastActivity).getTime() > twentyFourHoursAgo : false;
+    merged.set(`_unreg:${key}`, stats);
   }
 
   return Array.from(merged.values()).sort((a, b) => {
@@ -207,12 +210,16 @@ export default function AgentsPage() {
     }
   }
 
-  function isRegistered(agentName: string): boolean {
-    return registeredAgents.some(r => r.name.toLowerCase() === agentName.toLowerCase());
+  function isRegistered(agent: AgentInfo): boolean {
+    if (agent.agentId) return true;
+    return registeredAgents.some(r => r.name.toLowerCase() === agent.name.toLowerCase());
   }
 
-  function getRegisteredCard(agentName: string): AgentCard | undefined {
-    return registeredAgents.find(r => r.name.toLowerCase() === agentName.toLowerCase());
+  function getRegisteredCard(agent: AgentInfo): AgentCard | undefined {
+    if (agent.agentId) {
+      return registeredAgents.find(r => r['x-veridion']?.agent_id === agent.agentId);
+    }
+    return registeredAgents.find(r => r.name.toLowerCase() === agent.name.toLowerCase());
   }
 
   const totalAgents = agents.length;
@@ -287,13 +294,13 @@ export default function AgentsPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {agents.map((agent) => {
-              const registered = isRegistered(agent.name);
-              const card = getRegisteredCard(agent.name);
+              const registered = isRegistered(agent);
+              const card = getRegisteredCard(agent);
               const trustLevel = card?.['x-veridion']?.trust_level ?? 0;
 
               return (
                 <div
-                  key={agent.name}
+                  key={agent.agentId ?? `_unreg:${agent.name}`}
                   className={`bg-slate-800 border rounded-lg p-5 flex flex-col gap-4 ${
                     registered ? 'border-emerald-500/30' : 'border-slate-700'
                   }`}
