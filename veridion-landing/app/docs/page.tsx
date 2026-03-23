@@ -94,6 +94,9 @@ export default function DocsPage() {
               <Link href="/docs" className="text-slate-300 hover:text-white transition-colors text-sm">
                 Documentation
               </Link>
+              <Link href="/spec" className="text-slate-300 hover:text-white transition-colors text-sm">
+                Spec
+              </Link>
               <a 
                 href={process.env.NEXT_PUBLIC_DASHBOARD_URL && !process.env.NEXT_PUBLIC_DASHBOARD_URL.includes('localhost') 
                   ? `${process.env.NEXT_PUBLIC_DASHBOARD_URL}/login` 
@@ -116,6 +119,9 @@ export default function DocsPage() {
             <div className="md:hidden border-t border-slate-800 py-4 space-y-3">
               <Link href="/docs" className="block text-slate-300 hover:text-white transition-colors text-sm">
                 Documentation
+              </Link>
+              <Link href="/spec" className="block text-slate-300 hover:text-white transition-colors text-sm" onClick={() => setMobileMenuOpen(false)}>
+                Spec
               </Link>
               <a 
                 href={process.env.NEXT_PUBLIC_DASHBOARD_URL && !process.env.NEXT_PUBLIC_DASHBOARD_URL.includes('localhost') 
@@ -188,7 +194,7 @@ export default function DocsPage() {
                 <div>
                   <h3 className="text-xl font-semibold text-slate-900 mb-3">Step 1 — Get your API key</h3>
                   <p className="text-slate-700 mb-4">
-                    Sign up at veridion-nexus.eu. Your API key is displayed once on the success screen and emailed to you. It starts with <code className="bg-slate-200 px-1.5 py-0.5 rounded text-sm font-mono">ss_test_</code>
+                    <Link href="/signup" className="text-emerald-600 hover:text-emerald-700 underline">Sign up</Link> at veridion-nexus.eu. Your API key is displayed once on the success screen and emailed to you. It starts with <code className="bg-slate-200 px-1.5 py-0.5 rounded text-sm font-mono">ss_test_</code>
                   </p>
                 </div>
 
@@ -422,11 +428,11 @@ app.use('/api/ai', shieldMiddleware);`}
             >
               <h2 className="text-3xl font-bold text-slate-900 mb-4">Agent Registration</h2>
               <p className="text-slate-700 mb-6">
-                All evaluate() calls must originate from a registered agent. Register your agents at{' '}
-                <a href="https://app.veridion-nexus.eu/agents" target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:text-emerald-700 underline">
-                  app.veridion-nexus.eu/agents
+                All evaluate() calls must originate from a registered agent. Sign in to the{' '}
+                <a href={process.env.NEXT_PUBLIC_DASHBOARD_URL && !process.env.NEXT_PUBLIC_DASHBOARD_URL.includes('localhost') ? `${process.env.NEXT_PUBLIC_DASHBOARD_URL}/login` : 'https://app.veridion-nexus.eu/login'} target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:text-emerald-700 underline">
+                  dashboard
                 </a>
-                {' '}before integrating the API.
+                {' '}and open the Agents section before integrating the API.
               </p>
               <p className="text-slate-700 mb-4">
                 Each registered agent receives:
@@ -440,7 +446,7 @@ app.use('/api/ai', shieldMiddleware);`}
               </p>
               <h3 className="text-xl font-semibold text-slate-800 mb-3">Quick registration steps</h3>
               <ol className="list-decimal list-inside text-slate-700 mb-6 space-y-2">
-                <li>Go to <a href="https://app.veridion-nexus.eu/agents" target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:text-emerald-700 underline">app.veridion-nexus.eu/agents</a></li>
+                <li>Sign in to the <a href={process.env.NEXT_PUBLIC_DASHBOARD_URL && !process.env.NEXT_PUBLIC_DASHBOARD_URL.includes('localhost') ? `${process.env.NEXT_PUBLIC_DASHBOARD_URL}/login` : 'https://app.veridion-nexus.eu/login'} target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:text-emerald-700 underline">dashboard</a> and open the Agents section</li>
                 <li>Click &quot;Register New Agent&quot;</li>
                 <li>Complete the 5-step wizard (identity, data policy, transfer policy, autonomy &amp; oversight, review)</li>
                 <li>Copy your <code className="bg-slate-200 px-1.5 py-0.5 rounded text-sm font-mono">agent_id</code> and <code className="bg-slate-200 px-1.5 py-0.5 rounded text-sm font-mono">agent_api_key</code> — the key is shown only once</li>
@@ -474,14 +480,14 @@ app.use('/api/ai', shieldMiddleware);`}
                     <tr>
                       <td className="border border-slate-300 px-4 py-2 font-mono text-sm">agent_id</td>
                       <td className="border border-slate-300 px-4 py-2">string</td>
-                      <td className="border border-slate-300 px-4 py-2">Yes</td>
-                      <td className="border border-slate-300 px-4 py-2">Registered agent ID. Format: agt_XXXXXXXX. Register at app.veridion-nexus.eu/agents</td>
+                      <td className="border border-slate-300 px-4 py-2">Required</td>
+                      <td className="border border-slate-300 px-4 py-2">Registered agent ID (agt_...). Obtain from the Agents page in the dashboard.</td>
                     </tr>
                     <tr>
                       <td className="border border-slate-300 px-4 py-2 font-mono text-sm">agent_api_key</td>
                       <td className="border border-slate-300 px-4 py-2">string</td>
-                      <td className="border border-slate-300 px-4 py-2">Yes</td>
-                      <td className="border border-slate-300 px-4 py-2">Agent API key issued at registration. Format: agt_key_XXXXXXXX. Shown once at registration.</td>
+                      <td className="border border-slate-300 px-4 py-2">Required</td>
+                      <td className="border border-slate-300 px-4 py-2">Agent API key (agt_key_...). Shown once on registration; rotate via dashboard if lost.</td>
                     </tr>
                     <tr>
                       <td className="border border-slate-300 px-4 py-2 font-mono text-sm">destination_country_code</td>
@@ -529,18 +535,21 @@ app.use('/api/ai', shieldMiddleware);`}
                 </table>
               </div>
 
+              <p className="text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-6 text-sm">
+                Calls without <code className="font-mono">agent_id</code> and <code className="font-mono">agent_api_key</code> return 400 AGENT_REQUIRED. Register your agent in the dashboard before making your first transfer call.
+              </p>
+
               <h4 className="text-lg font-semibold text-slate-900 mb-3">Example request</h4>
               <CodeBlock
                 id="evaluate-request"
                 language="json"
                 code={`{
+  "source_system": "my-ai-agent",
   "destination_country_code": "US",
-  "data_categories": ["email", "name", "user_id"],
+  "data_categories": ["financial"],
   "partner_name": "OpenAI",
-  "agent_id": "agt_your_agent_id",
-  "agent_api_key": "agt_key_your_agent_api_key",
-  "protocol": "HTTPS",
-  "request_path": "/v1/chat/completions"
+  "agent_id": "agt_abc123def456",
+  "agent_api_key": "agt_key_abc123..."
 }`}
               />
 
@@ -751,7 +760,7 @@ app.use('/api/ai', shieldMiddleware);`}
                     <tr>
                       <td className="border border-slate-300 px-4 py-2">400</td>
                       <td className="border border-slate-300 px-4 py-2 font-mono text-sm">AGENT_REQUIRED</td>
-                      <td className="border border-slate-300 px-4 py-2">Missing agent_id or agent_api_key. Register at app.veridion-nexus.eu/agents</td>
+                      <td className="border border-slate-300 px-4 py-2">Missing agent_id or agent_api_key. Register in the dashboard Agents section</td>
                     </tr>
                     <tr>
                       <td className="border border-slate-300 px-4 py-2">400</td>
@@ -1039,7 +1048,7 @@ async function callOpenAI(userData) {
                 Veridion Nexus is available as an MCP (Model Context Protocol) server. This makes GDPR transfer evaluation available as a tool in Claude and Cursor workflows, without manual API integration.
               </p>
               <p className="text-slate-600 text-sm mb-6">
-                Latest version: <code className="bg-slate-200 px-1.5 py-0.5 rounded text-xs font-mono">veridion-nexus-mcp@1.0.5</code>. The <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">evaluate_transfer</code> tool requires <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">agent_id</code> and <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">agent_api_key</code> as parameters on every call.
+                Latest version: <code className="bg-slate-200 px-1.5 py-0.5 rounded text-xs font-mono">veridion-nexus-mcp@1.0.8</code>. The <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">evaluate_transfer</code> tool requires <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">agent_id</code> and <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">agent_api_key</code> as parameters on every call.
               </p>
 
               <div className="grid md:grid-cols-2 gap-6 mb-8">
@@ -1111,7 +1120,7 @@ async function callOpenAI(userData) {
 
               <h3 className="text-xl font-semibold text-slate-900 mb-3 mt-8">Available tools</h3>
               <p className="text-slate-700 mb-3 text-sm">
-                The <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">evaluate_transfer</code> tool now requires <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">agent_id</code> and <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">agent_api_key</code> parameters on every call. Register your agent at app.veridion-nexus.eu/agents first.
+                The <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">evaluate_transfer</code> tool now requires <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">agent_id</code> and <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">agent_api_key</code> parameters on every call. Sign in to the dashboard and register your agent in the Agents section first.
               </p>
               <div className="overflow-x-auto mb-6">
                 <table className="w-full border-collapse min-w-[600px]">
@@ -1228,18 +1237,18 @@ async function callOpenAI(userData) {
               </p>
             </div>
             <div className="space-y-2">
-              <Link
-                href="/docs"
-                className="block text-slate-400 hover:text-sky-400 transition-colors text-sm"
-              >
+              <Link href="/docs" className="block text-slate-400 hover:text-sky-400 transition-colors text-sm">
                 Documentation
               </Link>
-              <a
-                href="#"
-                className="block text-slate-400 hover:text-sky-400 transition-colors text-sm"
-              >
+              <Link href="/spec" className="block text-slate-400 hover:text-sky-400 transition-colors text-sm">
+                Spec
+              </Link>
+              <Link href="/privacy" className="block text-slate-400 hover:text-sky-400 transition-colors text-sm">
                 Privacy Policy
-              </a>
+              </Link>
+              <Link href="/terms" className="block text-slate-400 hover:text-sky-400 transition-colors text-sm">
+                Terms of Service
+              </Link>
             </div>
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-slate-400 text-sm">

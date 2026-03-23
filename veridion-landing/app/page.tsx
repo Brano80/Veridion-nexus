@@ -19,17 +19,20 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Left: Logo */}
-            <div className="flex items-center">
+            <Link href="/" className="flex items-center">
               <h1 className="flex items-baseline gap-1.5" style={{ fontFamily: "Inter, sans-serif" }}>
                 <span className="text-xl font-black italic uppercase text-white" style={{ letterSpacing: "-0.05em", lineHeight: 0.85 }}>VERIDION</span>
                 <span className="text-base font-semibold italic lowercase" style={{ color: "#10b981", letterSpacing: "-0.02em", filter: "drop-shadow(0 0 15px rgba(16, 185, 129, 0.3))" }}>nexus</span>
               </h1>
-            </div>
+            </Link>
 
             {/* Right: Desktop Nav */}
             <div className="hidden md:flex items-center gap-6">
               <Link href="/docs" className="text-slate-300 hover:text-white transition-colors text-sm">
                 Documentation
+              </Link>
+              <Link href="/spec" className="text-slate-300 hover:text-white transition-colors text-sm">
+                Spec
               </Link>
               <a 
                 href={process.env.NEXT_PUBLIC_DASHBOARD_URL && !process.env.NEXT_PUBLIC_DASHBOARD_URL.includes('localhost') 
@@ -57,6 +60,9 @@ export default function LandingPage() {
             <div className="md:hidden border-t border-slate-800 py-4 space-y-3">
               <Link href="/docs" className="block text-slate-300 hover:text-white transition-colors text-sm" onClick={() => setMobileMenuOpen(false)}>
                 Documentation
+              </Link>
+              <Link href="/spec" className="block text-slate-300 hover:text-white transition-colors text-sm" onClick={() => setMobileMenuOpen(false)}>
+                Spec
               </Link>
               <a 
                 href={process.env.NEXT_PUBLIC_DASHBOARD_URL && !process.env.NEXT_PUBLIC_DASHBOARD_URL.includes('localhost') 
@@ -492,17 +498,17 @@ export default function LandingPage() {
 
             {/* Center Links */}
             <div className="space-y-2">
-              <a
-                href="/docs"
-                className="block text-slate-400 hover:text-sky-400 transition-colors text-sm"
-              >
+              <Link href="/docs" className="block text-slate-400 hover:text-sky-400 transition-colors text-sm">
                 Documentation
-              </a>
-              <Link
-                href="/privacy"
-                className="block text-slate-400 hover:text-sky-400 transition-colors text-sm"
-              >
+              </Link>
+              <Link href="/spec" className="block text-slate-400 hover:text-sky-400 transition-colors text-sm">
+                Spec
+              </Link>
+              <Link href="/privacy" className="block text-slate-400 hover:text-sky-400 transition-colors text-sm">
                 Privacy Policy
+              </Link>
+              <Link href="/terms" className="block text-slate-400 hover:text-sky-400 transition-colors text-sm">
+                Terms of Service
               </Link>
             </div>
 
