@@ -63,7 +63,7 @@ export default function Sidebar() {
               </Link>
             );
           })}
-          <div className="border-t border-slate-700 mt-6 mb-1.5" />
+          <div className="border-t border-slate-700 mt-10 mb-1.5" />
           <div className="px-2 py-0.5">
             <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
               System

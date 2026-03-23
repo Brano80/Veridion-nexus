@@ -513,15 +513,16 @@ export default function SovereignShieldPage() {
 
   // Filter transfer events for Recent Activity (exclude human-oversight)
   const transferEvents = events.filter((event) => {
-    const eventType = event.eventType?.toLowerCase() || '';
+    const eventType = (event.eventType || '').toLowerCase();
     // Exclude human-oversight events
     if (eventType.includes('human-oversight') || eventType.includes('human_oversight')) {
       return false;
     }
-    // Include transfer/sovereign events or events with decision payload
+    // Include transfer events, sovereign events, AGENT_POLICY_VIOLATION (blocked transfers), or events with decision payload
     return (
       eventType.includes('transfer') ||
       eventType.includes('sovereign') ||
+      eventType === 'agent_policy_violation' ||
       event.payload?.decision !== undefined
     );
   });

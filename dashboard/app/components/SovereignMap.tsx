@@ -133,16 +133,18 @@ const SovereignMap: React.FC<SovereignMapProps> = ({
       }
 
       // Orange fill: unresolved REVIEW transfers (no valid SCC for partner) in last 24h
+      const hasValidSCC = hasValidSCCForPartner(sccRegistries, partnerName, countryCode);
       if (isReview && isSccRequiredCountry(countryCode) && eventTimestamp >= twentyFourHoursAgo) {
-        const hasValidSCC = hasValidSCCForPartner(sccRegistries, partnerName, countryCode);
         if (!hasValidSCC) {
           orangeFillCountries.add(countryCode);
         }
       }
 
-      // Orange border: ALLOW + country_status scc_required (valid SCC path) only — not human-decided rows
+      // Orange border: (1) ALLOW + country_status scc_required, or (2) REVIEW + valid SCC now registered
+      // Case 2: user registered SCC after the transfer; event was REVIEW but SCC now covers partner/country
       if (decisionTimestamp >= twentyFourHoursAgo && isSccRequiredCountry(countryCode) && !orangeFillCountries.has(countryCode)) {
-        if (isSccCovered) {
+        const sccNowCovers = isSccCovered || (isReview && hasValidSCC);
+        if (sccNowCovers) {
           orangeBorderCountries.add(countryCode);
         }
       }

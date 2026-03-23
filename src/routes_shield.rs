@@ -309,6 +309,10 @@ pub async fn evaluate(
                         "violation": "destination_country",
                         "destination_country_code": dest_code,
                         "destination_country": dest_name,
+                        "partner_name": body.partner_name,
+                        "data_categories": body.data_categories,
+                        "decision": "BLOCK",
+                        "country_status": "agent_policy_violation",
                         "reason": "Destination country not in agent policy",
                     });
                     let params = CreateEventParams {
@@ -344,6 +348,12 @@ pub async fn evaluate(
                                 "agent_id": agent_id,
                                 "violation": "data_categories",
                                 "disallowed_categories": violation,
+                                "destination_country_code": body.destination_country_code,
+                                "destination_country": body.destination_country,
+                                "partner_name": body.partner_name,
+                                "data_categories": body.data_categories,
+                                "decision": "BLOCK",
+                                "country_status": "agent_policy_violation",
                                 "reason": "Data category not permitted by agent policy",
                             });
                             let params = CreateEventParams {
@@ -380,6 +390,11 @@ pub async fn evaluate(
                                 "agent_id": agent_id,
                                 "violation": "partner",
                                 "partner_name": partner,
+                                "destination_country_code": body.destination_country_code,
+                                "destination_country": body.destination_country,
+                                "data_categories": body.data_categories,
+                                "decision": "BLOCK",
+                                "country_status": "agent_policy_violation",
                                 "reason": "Partner not permitted by agent policy",
                             });
                             let params = CreateEventParams {
