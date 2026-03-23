@@ -7,3 +7,11 @@
 # Next.js build output
 .next/
 dashboard/dashboard/
+
+# Cursor MCP config (contains API keys)
+.cursor/mcp.json
+
+# MCP registry publisher (secrets, binary)
+mcp-server/server.json
+mcp-server/mcp-publisher.exe
+mcp-publisher.exe
