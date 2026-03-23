@@ -7,7 +7,7 @@ import SovereignMap from './components/SovereignMap';
 import { RefreshCw, Shield, AlertTriangle, CheckCircle } from 'lucide-react';
 import { fetchEvidenceEventsPaginated, fetchSCCRegistries, fetchReviewQueuePending, fetchReviewQueueAll, fetchDecidedEvidenceIds, createReviewQueueItem, fetchSettings, patchSettings, EvidenceEvent, SCCRegistry } from './utils/api';
 import { buildDecidedEvidenceSet } from './utils/evidenceDecided';
-import { getCountryCodeFromName, getLegalBasis, EU_EEA_COUNTRIES, ADEQUATE_COUNTRIES, COUNTRY_NAMES } from './config/countries';
+import { getCountryCodeFromName, getLegalBasis, EU_EEA_COUNTRIES, ADEQUATE_COUNTRIES, BLOCKED_COUNTRIES, COUNTRY_NAMES } from './config/countries';
 
 export default function SovereignShieldPage() {
   const router = useRouter();
@@ -432,22 +432,17 @@ export default function SovereignShieldPage() {
       .filter((id): id is string => !!id && !skipValues.includes(id.toLowerCase()))
   ).size;
 
-  // HIGH RISK DESTINATIONS (24H): distinct blocked countries in last 24h (GDPR Art. 49 — no legal basis)
-  // Include: country_status blocked, or AGENT_POLICY_VIOLATION (destination violated agent policy)
+  // HIGH RISK DESTINATIONS (24H): distinct destinations on the Blocked countries list only (GDPR Art. 49 — no legal basis).
+  // Excludes agent policy violations (e.g. Slovakia blocked by agent policy); only counts BLOCKED_COUNTRIES.
   const highRiskDestinations = new Set(
     last24HoursTransferEvents
-      .filter((e) => {
-        const eventType = (e.eventType || '').toUpperCase();
-        const status = e.payload?.country_status ?? e.payload?.countryStatus;
-        return status === 'blocked' || eventType === 'AGENT_POLICY_VIOLATION';
-      })
       .map((e) =>
         e.payload?.destination_country_code ??
         e.payload?.destinationCountryCode ??
         e.payload?.destination_country ??
         e.payload?.destinationCountry
       )
-      .filter(Boolean)
+      .filter((code): code is string => !!code && BLOCKED_COUNTRIES.has(String(code).toUpperCase()))
   ).size;
 
   // Transfers in Review Queue awaiting human decision
