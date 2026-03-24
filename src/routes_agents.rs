@@ -1,4 +1,4 @@
-use actix_web::{web, HttpRequest, HttpResponse, delete, get, post};
+use actix_web::{web, HttpRequest, HttpResponse, delete, get, patch, post};
 use serde::Deserialize;
 use sha2::{Sha256, Digest};
 use sqlx::PgPool;
@@ -88,6 +88,12 @@ struct AgentRow {
     deleted_at: Option<chrono::DateTime<chrono::Utc>>,
     created_at: chrono::DateTime<chrono::Utc>,
     updated_at: chrono::DateTime<chrono::Utc>,
+    #[sqlx(default)]
+    public_registry_listed: Option<bool>,
+    #[sqlx(default)]
+    public_registry_description: Option<String>,
+    #[sqlx(default)]
+    public_registry_contact_email: Option<String>,
 }
 
 #[derive(sqlx::FromRow)]
@@ -135,6 +141,9 @@ fn build_agent_card(agent: &AgentRow, policy_hash: &str, policy_version: i32) ->
             "policy_metadata": agent.policy_metadata,
             "gdpr_enforcement_mode": "shadow",
             "policy_history_url": format!("https://api.veridion-nexus.eu/api/v1/agents/{}/card", agent.id),
+            "public_registry_listed": agent.public_registry_listed.unwrap_or(false),
+            "public_registry_description": agent.public_registry_description,
+            "public_registry_contact_email": agent.public_registry_contact_email,
         },
     })
 }
@@ -457,6 +466,89 @@ pub async fn rotate_agent_key(
     }))
 }
 
+#[derive(Deserialize)]
+pub struct PatchAgentRequest {
+    pub public_registry_listed: Option<bool>,
+    pub public_registry_description: Option<String>,
+    pub public_registry_contact_email: Option<String>,
+}
+
+#[patch("/api/v1/agents/{agent_id}")]
+pub async fn patch_agent(
+    req: HttpRequest,
+    pool: web::Data<PgPool>,
+    path: web::Path<AgentPath>,
+    body: web::Json<PatchAgentRequest>,
+) -> HttpResponse {
+    let tenant = match get_tenant_context(&req) {
+        Ok(t) => t,
+        Err(e) => return HttpResponse::from_error(e),
+    };
+
+    let mut sets: Vec<String> = vec!["updated_at = NOW()".to_string()];
+    let mut bind_values_text: Vec<Option<String>> = Vec::new();
+    let mut bind_values_bool: Vec<Option<bool>> = Vec::new();
+    let mut idx = 2u32; // $1 = agent_id, $2 = tenant_id, dynamic starts at $3
+
+    if let Some(listed) = body.public_registry_listed {
+        idx += 1;
+        sets.push(format!("public_registry_listed = ${}", idx));
+        bind_values_bool.push(Some(listed));
+        if listed {
+            sets.push("public_registry_listed_at = COALESCE(public_registry_listed_at, NOW())".to_string());
+        }
+    }
+
+    if let Some(ref desc) = body.public_registry_description {
+        idx += 1;
+        sets.push(format!("public_registry_description = ${}", idx));
+        bind_values_text.push(Some(desc.clone()));
+    }
+
+    if let Some(ref email) = body.public_registry_contact_email {
+        idx += 1;
+        sets.push(format!("public_registry_contact_email = ${}", idx));
+        bind_values_text.push(Some(email.clone()));
+    }
+
+    if sets.len() <= 1 {
+        return HttpResponse::BadRequest().json(serde_json::json!({
+            "error": "No fields to update"
+        }));
+    }
+
+    let sql = format!(
+        "UPDATE agents SET {} WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
+        sets.join(", ")
+    );
+
+    let mut query = sqlx::query(&sql)
+        .bind(&path.agent_id)
+        .bind(tenant.tenant_id);
+
+    // Bind in the order they were added: bools first, then texts
+    for b in &bind_values_bool {
+        query = query.bind(*b);
+    }
+    for t in &bind_values_text {
+        query = query.bind(t.clone());
+    }
+
+    match query.execute(pool.get_ref()).await {
+        Ok(r) if r.rows_affected() > 0 => {
+            HttpResponse::Ok().json(serde_json::json!({ "ok": true }))
+        }
+        Ok(_) => HttpResponse::NotFound().json(serde_json::json!({
+            "error": "NOT_FOUND",
+            "message": "Agent not found",
+        })),
+        Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({
+            "error": "UPDATE_FAILED",
+            "message": format!("Failed to update agent: {}", e),
+        })),
+    }
+}
+
 #[delete("/api/v1/agents/{agent_id}")]
 pub async fn delete_agent(
     req: HttpRequest,
@@ -490,6 +582,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
        .service(list_agents)
        .service(get_agent)
        .service(get_agent_card)
+       .service(patch_agent)
        .service(rotate_agent_key)
        .service(delete_agent);
 }

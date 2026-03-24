@@ -1,4 +1,4 @@
-use veridion_api::{routes_evidence, routes_shield, routes_review_queue, routes_admin, routes_auth, routes_agents, routes_acm, review_queue, middleware_tenant};
+use veridion_api::{routes_evidence, routes_shield, routes_review_queue, routes_admin, routes_auth, routes_agents, routes_acm, routes_public_registry, review_queue, middleware_tenant};
 
 use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer, get};
 use actix_cors::Cors;
@@ -306,6 +306,9 @@ async fn main() -> std::io::Result<()> {
     println!("  ACM events:      POST /api/acm/events");
     println!("  ACM trust:       POST /api/acm/trust-annotations");
     println!("  ACM trust curr:  GET  /api/acm/trust-annotations/session/{{id}}/current");
+    println!("  Registry search: GET  /api/public/registry/agents");
+    println!("  Registry detail: GET  /api/public/registry/agents/{{id}}");
+    println!("  Registry stats:  GET  /api/public/registry/stats");
 
     let signup_rate_limiter = web::Data::new(routes_auth::SignupRateLimiter::new());
 
@@ -336,6 +339,7 @@ async fn main() -> std::io::Result<()> {
             .configure(routes_auth::configure)
             .configure(routes_agents::configure)
             .configure(routes_acm::configure)
+            .configure(routes_public_registry::configure)
     })
     .bind((server_host.as_str(), server_port))?
     .run()

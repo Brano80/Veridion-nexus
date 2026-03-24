@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import DashboardLayout from '../components/DashboardLayout';
-import { fetchEvidenceEventsWithMeta, fetchAgents, rotateAgentKey, deleteAgent, EvidenceEvent, AgentCard } from '../utils/api';
-import { Cpu, AlertTriangle, RefreshCw, Shield, X, FileText, Eye, Plus, Key, Copy, Trash2 } from 'lucide-react';
+import { fetchEvidenceEventsWithMeta, fetchAgents, rotateAgentKey, deleteAgent, patchAgent, EvidenceEvent, AgentCard } from '../utils/api';
+import { Cpu, AlertTriangle, RefreshCw, Shield, X, FileText, Eye, Plus, Key, Copy, Trash2, Globe, Mail } from 'lucide-react';
 import RegisterAgentModal from './RegisterAgentModal';
 
 const INTERNAL_SOURCES = ['human-oversight', 'sovereign-shield'];
@@ -142,6 +142,10 @@ export default function AgentsPage() {
   const [rotatedKeyCopied, setRotatedKeyCopied] = useState(false);
   const [rotating, setRotating] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [registryEditing, setRegistryEditing] = useState<string | null>(null);
+  const [registryDesc, setRegistryDesc] = useState('');
+  const [registryEmail, setRegistryEmail] = useState('');
+  const [togglingRegistry, setTogglingRegistry] = useState<string | null>(null);
 
   async function loadAll() {
     try {
@@ -207,6 +211,37 @@ export default function AgentsPage() {
       setTimeout(() => setToast(''), 4000);
     } finally {
       setDeleting(null);
+    }
+  }
+
+  async function handleToggleRegistry(agentId: string, currentlyListed: boolean) {
+    setTogglingRegistry(agentId);
+    try {
+      await patchAgent(agentId, { public_registry_listed: !currentlyListed });
+      await loadAll();
+      setToast(currentlyListed ? 'Removed from public registry' : 'Listed in public registry');
+      setTimeout(() => setToast(''), 4000);
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : 'Update failed');
+      setTimeout(() => setToast(''), 4000);
+    } finally {
+      setTogglingRegistry(null);
+    }
+  }
+
+  async function handleSaveRegistryProfile(agentId: string) {
+    try {
+      await patchAgent(agentId, {
+        public_registry_description: registryDesc,
+        public_registry_contact_email: registryEmail,
+      });
+      setRegistryEditing(null);
+      await loadAll();
+      setToast('Registry profile updated');
+      setTimeout(() => setToast(''), 4000);
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : 'Update failed');
+      setTimeout(() => setToast(''), 4000);
     }
   }
 
@@ -367,6 +402,77 @@ export default function AgentsPage() {
                       )}
                     </div>
                   </div>
+
+                  {/* Public Registry row */}
+                  {registered && card?.['x-veridion']?.agent_id && (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        onClick={() => handleToggleRegistry(card!['x-veridion'].agent_id, !!card!['x-veridion']?.public_registry_listed)}
+                        disabled={togglingRegistry === card!['x-veridion'].agent_id}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 ${
+                          card!['x-veridion']?.public_registry_listed
+                            ? 'bg-blue-500/15 text-blue-400 border border-blue-500/25 hover:bg-blue-500/25'
+                            : 'bg-slate-700 text-slate-300 hover:bg-slate-600 hover:text-white'
+                        }`}
+                      >
+                        <Globe className="w-3.5 h-3.5" />
+                        {card!['x-veridion']?.public_registry_listed ? 'Listed in Public Registry' : 'List in Public Registry'}
+                      </button>
+                      {card!['x-veridion']?.public_registry_listed && (
+                        <button
+                          onClick={() => {
+                            setRegistryEditing(card!['x-veridion'].agent_id);
+                            setRegistryDesc(card!['x-veridion']?.public_registry_description ?? '');
+                            setRegistryEmail(card!['x-veridion']?.public_registry_contact_email ?? '');
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-700 text-slate-300 hover:bg-slate-600 hover:text-white transition-colors"
+                        >
+                          <Mail className="w-3.5 h-3.5" />
+                          Edit Registry Profile
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Registry profile editor */}
+                  {registryEditing === card?.['x-veridion']?.agent_id && (
+                    <div className="bg-slate-900/50 border border-slate-600 rounded-lg p-4 space-y-3">
+                      <div>
+                        <label className="block text-xs text-slate-400 mb-1">Public Description</label>
+                        <textarea
+                          value={registryDesc}
+                          onChange={(e) => setRegistryDesc(e.target.value)}
+                          placeholder="Describe what this agent does for the public registry..."
+                          rows={3}
+                          className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-slate-400 mb-1">DPO Contact Email</label>
+                        <input
+                          type="email"
+                          value={registryEmail}
+                          onChange={(e) => setRegistryEmail(e.target.value)}
+                          placeholder="dpo@company.eu"
+                          className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleSaveRegistryProfile(card!['x-veridion'].agent_id)}
+                          className="px-4 py-1.5 rounded-lg text-xs font-medium bg-emerald-600 hover:bg-emerald-500 text-white transition-colors"
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={() => setRegistryEditing(null)}
+                          className="px-4 py-1.5 rounded-lg text-xs font-medium bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Action row */}
                   <div className="pt-2 border-t border-slate-700 flex items-center gap-2">

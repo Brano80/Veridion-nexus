@@ -735,6 +735,24 @@ export async function deleteAgent(agentId: string): Promise<void> {
   }
 }
 
+export async function patchAgent(agentId: string, data: {
+  public_registry_listed?: boolean;
+  public_registry_description?: string;
+  public_registry_contact_email?: string;
+}): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/v1/agents/${agentId}`, {
+    method: 'PATCH',
+    headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  checkUnauthorized(res);
+  checkTrialExpired(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: 'Update failed' }));
+    throw new Error(err.message || 'Update failed');
+  }
+}
+
 export async function verifyIntegrity(): Promise<{ status: 'VALID' | 'TAMPERED'; verified?: boolean }> {
   const res = await fetch(`${API_BASE}/api/v1/evidence/verify-integrity`, {
     method: 'POST',

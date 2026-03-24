@@ -34,6 +34,9 @@ export default function LandingPage() {
               <Link href="/spec" className="text-slate-300 hover:text-white transition-colors text-sm">
                 Spec
               </Link>
+              <Link href="/registry" className="text-slate-300 hover:text-white transition-colors text-sm">
+                Registry
+              </Link>
               <a 
                 href={process.env.NEXT_PUBLIC_DASHBOARD_URL && !process.env.NEXT_PUBLIC_DASHBOARD_URL.includes('localhost') 
                   ? `${process.env.NEXT_PUBLIC_DASHBOARD_URL}/login` 
@@ -63,6 +66,9 @@ export default function LandingPage() {
               </Link>
               <Link href="/spec" className="block text-slate-300 hover:text-white transition-colors text-sm" onClick={() => setMobileMenuOpen(false)}>
                 Spec
+              </Link>
+              <Link href="/registry" className="block text-slate-300 hover:text-white transition-colors text-sm" onClick={() => setMobileMenuOpen(false)}>
+                Registry
               </Link>
               <a 
                 href={process.env.NEXT_PUBLIC_DASHBOARD_URL && !process.env.NEXT_PUBLIC_DASHBOARD_URL.includes('localhost') 

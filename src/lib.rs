@@ -11,6 +11,7 @@ pub mod routes_admin;
 pub mod routes_auth;
 pub mod routes_agents;
 pub mod routes_acm;
+pub mod routes_public_registry;
 pub mod email;
 pub mod tenant;
 pub mod middleware_tenant;

@@ -1,6 +1,6 @@
 # Project Reference — Veridion API / Sovereign Shield
 
-**Version:** 2.3  
+**Version:** 2.4  
 **Last updated:** 2026-03-24
 
 This is the **single project reference** for Veridion API: vision, scope, tech stack, configuration, and current behaviour (dashboard and API). Use it to onboard, scope work, and keep the codebase and docs aligned.
@@ -254,6 +254,19 @@ Internal API routes called by the Accountability Ledger MCP proxy. Authenticated
 
 **Auth**: Admin routes verify admin access via `verify_admin()` function which checks JWT `is_admin` claim or API key `is_admin` flag. Admin routes are **cross-tenant by design** — all queries operate across all tenants without `tenant_id` filtering. Only admin context permits cross-tenant queries.
 
+### 9.11 Public Compliance Registry
+
+| Method + path | Purpose |
+|---------------|--------|
+| `GET /api/public/registry/agents` | Search public registry (query params: `q`, `eu_ai_act_risk_level`, `deployment_region`, `data_residency`, `processes_personal_data`, `page`, `limit`). Cross-tenant, no auth. Returns paginated agent list with compliance profiles. |
+| `GET /api/public/registry/agents/{agent_id}` | Public agent profile with EU AI Act classification, deployment info, accountability ledger status. No auth. |
+| `GET /api/public/registry/stats` | Aggregate stats: total listed, by risk level, by region, by data residency. No auth. |
+| `PATCH /api/v1/agents/{agent_id}` | Update agent registry fields (`public_registry_listed`, `public_registry_description`, `public_registry_contact_email`). Tenant-scoped, JWT auth. |
+
+**Auth**: Public endpoints (`/api/public/registry/*`) require no authentication — they are designed for DPOs and compliance officers to discover agents. The PATCH endpoint is tenant-scoped (standard JWT auth).
+
+**Migration 038**: Adds `public_registry_listed`, `public_registry_description`, `public_registry_contact_email`, `public_registry_listed_at` to `agents` table with GIN full-text search index.
+
 ### 9.6 MCP Server
 
 The MCP (Model Context Protocol) server provides GDPR compliance tools for AI agents (Claude Desktop, Cursor, etc.). It runs as a standalone Node.js process with stdio transport.
@@ -455,7 +468,15 @@ The MCP server also contains the **Accountability Ledger (AL) proxy** — an MCP
   - Available tools table (`evaluate_transfer`, `check_scc_coverage`, `get_compliance_status`, `list_adequate_countries`)
 - **Features**: Sticky sidebar, mobile dropdown, code examples with copy buttons, responsive design.
 
-### 12.2 Signup page — `veridion-landing/app/signup/page.tsx`
+### 12.2 Public Compliance Registry — `veridion-landing/app/registry/`
+
+- **Route**: `/registry`. Public, searchable AI agent compliance registry.
+- **Search page** (`page.tsx`): Full-text search, filters (risk level, region), paginated grid of agent cards with EU AI Act risk badges, stats dashboard (total agents, personal data processors, regions, high-risk count).
+- **Agent profile** (`[agent_id]/page.tsx`): Detailed public compliance profile — EU AI Act classification, deployment & data residency, accountability ledger status, DPO contact, permitted tools.
+- **No auth required**: Public-facing pages for DPOs and compliance officers.
+- **API**: Calls `/api/public/registry/agents` and `/api/public/registry/stats`.
+
+### 12.3 Signup page — `veridion-landing/app/signup/page.tsx`
 
 - **Route**: `/signup`. Self-serve tenant registration form.
 - **Styling**: Matches `dashboard/app/login/page.tsx` exactly (same card size, form elements, branding).
@@ -511,8 +532,9 @@ The MCP server also contains the **Accountability Ledger (AL) proxy** — an MCP
 - **Shield**: `src/routes_shield.rs` — evaluate (synchronous), ingest-logs (batch), stats, countries, requires-attention, transfers-by-destination, SCC CRUD (list, register, PATCH, delete). On register, `review_queue::approve_pending_reviews_for_scc()` auto-approves pending reviews whose evidence event matches the new SCC destination.
 - **Review queue**: `src/routes_review_queue.rs`, `src/review_queue.rs` — list (with status filter), pending, decided-evidence-ids, create (with `evidence_event_id`), approve, reject. Reject creates `HUMAN_OVERSIGHT_REJECTED` evidence event. **Shadow mode propagation**: When creating `HUMAN_OVERSIGHT_REJECTED` or `HUMAN_OVERSIGHT_APPROVED` evidence events, `shadow_mode: true` is added to payload if current enforcement mode is shadow. Applies to manual approve/reject, auto-approve (SCC registration), and SLA timeout auto-block paths.
 - **Auth**: `src/routes_auth.rs`, `src/email.rs` — `POST /api/v1/auth/register`: validates inputs, rate-limits 5/IP/hour, checks email uniqueness, creates tenant + user atomically, sends async welcome email (skipped if SMTP not configured). Returns `tenant_id`, `api_key_raw` (once only), `api_key_prefix`, `trial_expires_at`. `POST /api/v1/auth/login`: email/password, bcrypt verify, returns JWT with tenant_id. `POST /api/v1/auth/dev-reset-password`: dev only, resets password by username.
-- **Agents**: `src/routes_agents.rs` — Agent registry (register, list, get, card, rotate-key, delete). Per-agent policy enforcement in shield evaluate when `agent_id` + `agent_api_key` provided.
+- **Agents**: `src/routes_agents.rs` — Agent registry (register, list, get, card, rotate-key, patch, delete). Per-agent policy enforcement in shield evaluate when `agent_id` + `agent_api_key` provided. PATCH supports `public_registry_listed`, `public_registry_description`, `public_registry_contact_email`.
 - **ACM (Accountability Ledger)**: `src/routes_acm.rs` — Internal API for the AL MCP proxy. Agent lookup by `oauth_client_id`, tool call event creation with hash chaining, trust annotations with monotonic degradation. Authenticated via `AL_SERVICE_TOKEN` (bypasses tenant middleware).
+- **Public Registry**: `src/routes_public_registry.rs` — Public, cross-tenant search/detail/stats endpoints for the compliance registry. No auth required. Full-text search with GIN index, filterable by risk level, region, data residency.
 
 ---
 
@@ -554,6 +576,17 @@ The MCP server also contains the **Accountability Ledger (AL) proxy** — an MCP
 | `migrations/036_acm_context_trust_annotations.sql` | context_trust_annotations table (session trust) |
 | `migrations/037_acm_agent_identity.sql` | Extends agents table with OAuth/EU AI Act/ACM fields |
 | `env.proxy.example` | Example environment variables for AL proxy |
+
+### 16.3 File map (Public Compliance Registry)
+
+| Path | Purpose |
+|------|--------|
+| `src/routes_public_registry.rs` | Rust public registry API (search, detail, stats) |
+| `migrations/038_public_registry.sql` | Adds public_registry fields + GIN search index to agents |
+| `veridion-landing/app/registry/page.tsx` | Public registry search page (landing site) |
+| `veridion-landing/app/registry/[agent_id]/page.tsx` | Public agent compliance profile page |
+| `dashboard/app/agents/page.tsx` | Updated: registry toggle + profile editor |
+| `dashboard/app/utils/api.ts` | Updated: `patchAgent()` function |
 
 ---
 
