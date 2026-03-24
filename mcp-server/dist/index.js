@@ -1,442 +1,272 @@
-#!/usr/bin/env node
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { z } from "zod";
-const API_KEY = process.env.VERIDION_NEXUS_API_KEY;
-const API_URL = process.env.VERIDION_NEXUS_API_URL || "https://api.veridion-nexus.eu";
-if (!API_KEY) {
-    console.error("VERIDION_NEXUS_API_KEY environment variable is required.\n" +
-        "Get your API key at https://veridion-nexus.eu");
-    process.exit(1);
-}
-function authHeaders() {
-    return {
-        Authorization: `Bearer ${API_KEY}`,
-        "Content-Type": "application/json",
-    };
-}
-async function apiRequest(method, path, body) {
-    const url = `${API_URL}${path}`;
-    const opts = {
-        method,
-        headers: authHeaders(),
-    };
-    if (body) {
-        opts.body = JSON.stringify(body);
+/**
+ * Accountability Ledger — MCP Proxy
+ * Phase 1 skeleton: intercepts MCP tool calls, records ACM ToolCallEvents.
+ *
+ * Architecture (from ADR 001):
+ *   AI Agent → [this proxy] → Upstream MCP Server
+ *                    ↓
+ *             Rust API (ACM records)
+ *
+ * The proxy:
+ *   1. Validates the OAuth 2.1 Bearer token on session init → resolves agent_id
+ *   2. Creates a ContextTrustAnnotation for the session (trusted by default)
+ *   3. For each tool call:
+ *      a. Checks tools_permitted list from AgentRecord
+ *      b. Forwards to upstream MCP server
+ *      c. Records a ToolCallEvent (async, does not block the response)
+ *   4. On session end: finalises the annotation
+ *
+ * Environment variables (see .env.example):
+ *   AL_API_BASE_URL        - Rust API base URL (default: http://localhost:8080)
+ *   AL_SERVICE_TOKEN       - Internal service JWT for proxy→API auth
+ *   AL_OAUTH_ISSUER        - OAuth 2.1 issuer URL
+ *   AL_OAUTH_AUDIENCE      - Expected audience claim (default: veridion-nexus-al)
+ *   AL_JWKS_URI            - JWKS endpoint (default: {issuer}/.well-known/jwks.json)
+ *   AL_AUTH_MODE           - 'jwks' (default) or 'dev_bypass' (never in production)
+ *   AL_DEV_CLIENT_ID       - Required when AL_AUTH_MODE=dev_bypass
+ *   UPSTREAM_MCP_COMMAND   - Command to launch upstream MCP server (stdio mode)
+ *                            e.g. 'node /path/to/upstream/dist/index.js'
+ */
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { CallToolRequestSchema, ListToolsRequestSchema, } from '@modelcontextprotocol/sdk/types.js';
+import { randomUUID } from 'crypto';
+import { AlClient } from './al-client.js';
+import { validateToken, extractBearerToken } from './oauth.js';
+// ── Proxy class ───────────────────────────────────────────────────────────────
+class AccountabilityLedgerProxy {
+    server;
+    alClient;
+    session = null;
+    // TODO Phase 1: Replace with real upstream MCP client
+    // The upstream client will be an MCP Client instance connected to the real MCP server.
+    // For the Phase 0 skeleton, upstream is stubbed — add real upstream connection here.
+    upstreamTools = [];
+    constructor() {
+        this.alClient = new AlClient();
+        this.server = new Server({
+            name: 'accountability-ledger-proxy',
+            version: '0.1.0',
+        }, {
+            capabilities: { tools: {} },
+        });
+        this.registerHandlers();
     }
-    let res;
-    try {
-        res = await fetch(url, opts);
+    // ── Handler registration ────────────────────────────────────────────────────
+    registerHandlers() {
+        // List tools: proxy the upstream tool list
+        this.server.setRequestHandler(ListToolsRequestSchema, async () => {
+            this.ensureSession();
+            // TODO Phase 1: fetch tool list from upstream MCP server
+            // return await this.upstreamClient.listTools();
+            return { tools: this.upstreamTools };
+        });
+        // Call tool: the core interception point
+        this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+            this.ensureSession();
+            return await this.handleToolCall(request.params.name, request.params.arguments ?? {});
+        });
     }
-    catch {
-        throw new Error(`Cannot reach Sovereign Shield API at ${API_URL}. Check your network connection.`);
-    }
-    if (res.status === 401) {
-        throw new Error("Authentication failed. Check your VERIDION_NEXUS_API_KEY environment variable.");
-    }
-    if (res.status === 402) {
-        throw new Error("Trial expired. Upgrade to Pro at https://app.veridion-nexus.eu");
-    }
-    if (res.status === 400) {
-        const errData = (await res.json().catch(() => ({})));
-        if (errData.error === "AGENT_REQUIRED") {
-            throw new Error("Agent credentials required. Register your agent at app.veridion-nexus.eu/agents to get an agent_id and agent_api_key.");
-        }
-        const msg = String(errData.message ?? errData.error ?? "Bad request");
-        throw new Error(`API error (400): ${msg}`);
-    }
-    if (res.status >= 500) {
-        const text = await res.text().catch(() => "Unknown error");
-        throw new Error(`Sovereign Shield API error: ${text}. Check https://status.veridion-nexus.eu`);
-    }
-    if (!res.ok) {
-        const text = await res.text().catch(() => "Unknown error");
-        throw new Error(`API error (${res.status}): ${text}`);
-    }
-    return res.json();
-}
-function formatError(err) {
-    if (err instanceof Error)
-        return `❌ ${err.message}`;
-    return `❌ Unknown error: ${String(err)}`;
-}
-// ---------------------------------------------------------------------------
-// Server
-// ---------------------------------------------------------------------------
-const server = new McpServer({
-    name: "sovereign-shield",
-    version: "1.0.0",
-});
-// ---------------------------------------------------------------------------
-// Tool 1: evaluate_transfer
-// ---------------------------------------------------------------------------
-server.registerTool("evaluate_transfer", {
-    description: "Evaluate whether a cross-border data transfer complies with GDPR Art. 44-49. " +
-        "Call this before every API call, database sync, or data transfer that sends " +
-        "personal data outside the EU/EEA. Returns ALLOW, BLOCK, or REVIEW decision " +
-        "with cryptographic evidence seal.",
-    inputSchema: z.object({
-        agent_id: z
-            .string()
-            .describe("The registered agent ID (format: agt_XXXXXXXX). Register your agent at app.veridion-nexus.eu/agents"),
-        agent_api_key: z
-            .string()
-            .describe("The agent API key issued at registration (format: agt_key_XXXXXXXX). Shown once at registration."),
-        destination_country_code: z
-            .string()
-            .describe("ISO 3166-1 alpha-2 country code of the data recipient (e.g. 'US', 'CN', 'JP')"),
-        data_categories: z
-            .array(z.string())
-            .describe("Personal data categories being transferred. Examples: ['email', 'name', 'ip_address', 'user_id', 'health_data']. If empty or omitted, decision defaults to REVIEW."),
-        partner_name: z
-            .string()
-            .optional()
-            .describe("Name of the data recipient or service (e.g. 'OpenAI', 'AWS S3', 'Stripe')"),
-        protocol: z
-            .string()
-            .optional()
-            .describe("Transfer protocol (e.g. 'HTTPS', 'SFTP')"),
-        request_path: z
-            .string()
-            .optional()
-            .describe("API endpoint or path being called (e.g. '/v1/chat/completions')"),
-    }),
-}, async (args) => {
-    try {
-        // Convert snake_case input to camelCase for API request
-        const body = {
-            agent_id: args.agent_id,
-            agent_api_key: args.agent_api_key,
-            destinationCountryCode: args.destination_country_code,
-            dataCategories: args.data_categories,
-        };
-        if (args.partner_name)
-            body.partnerName = args.partner_name;
-        if (args.protocol)
-            body.protocol = args.protocol;
-        if (args.request_path)
-            body.requestPath = args.request_path;
-        const data = (await apiRequest("POST", "/api/v1/shield/evaluate", body));
-        const decision = String(data.decision ?? "UNKNOWN");
-        const reason = String(data.reason ?? "");
-        const country = String(data.destination_country ?? args.destination_country_code);
-        const code = args.destination_country_code;
-        const partner = args.partner_name ?? "Unknown";
-        const articles = Array.isArray(data.legal_basis) && data.legal_basis.length > 0
-            ? data.legal_basis.join(", ")
-            : "EU/EEA — no restrictions";
-        const sealId = String(data.seal_id ?? "—");
-        let text = "";
-        if (decision === "ALLOW") {
-            text =
-                `✅ TRANSFER ALLOWED\n` +
-                    `Decision: ALLOW\n` +
-                    `Destination: ${country} (${code})\n` +
-                    `Partner: ${partner}\n` +
-                    `Legal basis: ${articles}\n` +
-                    `Evidence sealed: ${sealId}\n\n` +
-                    `The transfer may proceed.`;
-        }
-        else if (decision === "REVIEW") {
-            text =
-                `⚠️ TRANSFER REQUIRES REVIEW\n` +
-                    `Decision: REVIEW\n` +
-                    `Destination: ${country} (${code})\n` +
-                    `Partner: ${partner}\n` +
-                    `Reason: ${reason}\n` +
-                    `Legal basis: ${articles}\n` +
-                    `Evidence sealed: ${sealId}\n\n` +
-                    `DO NOT proceed with this transfer. A human reviewer must\n` +
-                    `approve it in the Sovereign Shield dashboard before the\n` +
-                    `data can be transferred. Log the seal_id for tracking: ${sealId}`;
-        }
-        else if (decision === "BLOCK") {
-            text =
-                `🚫 TRANSFER BLOCKED\n` +
-                    `Decision: BLOCK\n` +
-                    `Destination: ${country} (${code})\n` +
-                    `Partner: ${partner}\n` +
-                    `Reason: ${reason}\n` +
-                    `Legal basis: ${articles}\n` +
-                    `Evidence sealed: ${sealId}\n\n` +
-                    `This transfer is not permitted under GDPR Art. 44-49.\n` +
-                    `Do not proceed. The block has been recorded in the\n` +
-                    `evidence vault with seal: ${sealId}`;
-        }
-        else {
-            text =
-                `Decision: ${decision}\n` +
-                    `Destination: ${country} (${code})\n` +
-                    `Partner: ${partner}\n` +
-                    `Reason: ${reason}\n` +
-                    `Evidence sealed: ${sealId}`;
-        }
-        if (reason.startsWith("SHADOW MODE")) {
-            text +=
-                `\n\n⚡ Shadow Mode active — this decision is recorded but not enforced.\n` +
-                    `Upgrade to Pro to enable enforcement.`;
-        }
-        return { content: [{ type: "text", text }] };
-    }
-    catch (err) {
-        return { content: [{ type: "text", text: formatError(err) }] };
-    }
-});
-// ---------------------------------------------------------------------------
-// Tool 2: check_scc_coverage
-// ---------------------------------------------------------------------------
-server.registerTool("check_scc_coverage", {
-    description: "Check whether an active Standard Contractual Clause (SCC) exists in " +
-        "the registry for a specific partner and destination country. Use this " +
-        "when you need to verify SCC coverage before proceeding with a transfer " +
-        "to an SCC-required country (US, Brazil, Singapore, etc.).",
-    inputSchema: z.object({
-        destination_country_code: z
-            .string()
-            .describe("ISO 3166-1 alpha-2 country code (e.g. 'US')"),
-        partner_name: z
-            .string()
-            .optional()
-            .describe("Name of the partner to check SCC coverage for (e.g. 'OpenAI')"),
-    }),
-}, async (args) => {
-    try {
-        const data = (await apiRequest("GET", "/api/v1/scc-registries"));
-        const code = args.destination_country_code.toUpperCase();
-        let filtered = data.filter((scc) => String(scc.destination_country_code ?? "").toUpperCase() === code);
-        if (args.partner_name) {
-            const search = args.partner_name.toLowerCase();
-            filtered = filtered.filter((scc) => String(scc.partner_name ?? "").toLowerCase().includes(search));
-        }
-        const country = code;
-        if (filtered.length === 0) {
-            const partnerNote = args.partner_name
-                ? ` matching partner: ${args.partner_name}`
-                : "";
+    // ── Tool call interception ──────────────────────────────────────────────────
+    async handleToolCall(toolName, args) {
+        const session = this.session;
+        const calledAt = new Date().toISOString();
+        // 1. Check tools_permitted allowlist
+        if (session.agentRecord.tools_permitted.length > 0 &&
+            !session.agentRecord.tools_permitted.includes(toolName)) {
+            // Record the blocked attempt as a ToolCallEvent
+            this.recordEventAsync({
+                toolName,
+                args,
+                result: null,
+                calledAt,
+                decisionMade: false,
+                humanReviewRequired: false,
+                outcomeNotes: `Tool blocked: not in tools_permitted list`,
+                blocked: true,
+            });
             return {
-                content: [
-                    {
-                        type: "text",
-                        text: `⚠️ NO SCC COVERAGE\n` +
-                            `No active SCCs found for ${country}${partnerNote}.\n\n` +
-                            `Transfers of personal data to ${country} require an SCC\n` +
-                            `under GDPR Art. 46(2)(c). Without an SCC, transfers will\n` +
-                            `result in a REVIEW decision requiring human approval.\n\n` +
-                            `Register an SCC in the Sovereign Shield dashboard:\n` +
-                            `https://app.veridion-nexus.eu/scc-registry`,
-                    },
-                ],
+                content: [{ type: 'text', text: `Tool '${toolName}' is not permitted for this agent.` }],
+                isError: true,
             };
         }
-        let text = `✅ SCC COVERAGE FOUND\n${filtered.length} active SCC(s) for ${country}:\n`;
-        for (const scc of filtered) {
-            text +=
-                `\n  Partner: ${scc.partner_name ?? "—"}\n` +
-                    `  Status: ${scc.status ?? "—"}\n` +
-                    `  Expires: ${scc.expires_at ?? "No expiry set"}\n` +
-                    `  Registered: ${scc.registered_at ?? "—"}\n`;
-        }
-        text +=
-            `\nThese SCCs support GDPR Art. 46(2)(c) compliance for\n` +
-                `transfers to ${country}.`;
-        return { content: [{ type: "text", text }] };
+        // 2. Forward to upstream MCP server
+        // TODO Phase 1: replace stub with real upstream call
+        // const upstreamResult = await this.upstreamClient.callTool(toolName, args);
+        const upstreamResult = {
+            content: [{ type: 'text', text: `[STUB] Upstream response for ${toolName}` }],
+        };
+        // 3. Determine if human review is required
+        //    Rule: degraded/untrusted context + high-risk agent + decision made → require review
+        const decisionMade = this.inferDecisionMade(toolName, upstreamResult);
+        const humanReviewRequired = session.trustLevel !== 'trusted' &&
+            session.agentRecord.eu_ai_act_risk_level === 'high' &&
+            decisionMade;
+        // 4. Record ToolCallEvent (async — does not block response to agent)
+        this.recordEventAsync({
+            toolName,
+            args,
+            result: upstreamResult,
+            calledAt,
+            decisionMade,
+            humanReviewRequired,
+            blocked: false,
+        });
+        return upstreamResult;
     }
-    catch (err) {
-        return { content: [{ type: "text", text: formatError(err) }] };
+    // ── Async event recording (non-blocking) ──────────────────────────────────
+    recordEventAsync(params) {
+        const session = this.session;
+        // Fire-and-forget — compliance record must not delay the agent response
+        // Errors are logged but not propagated to the agent
+        this.alClient
+            .recordToolCallEvent({
+            agent_id: session.agentRecord.agent_id,
+            session_id: session.sessionId,
+            tenant_id: session.agentRecord.tenant_id,
+            tool_id: params.toolName,
+            called_at: params.calledAt,
+            // Data minimisation: record field names only, not values
+            inputs: {
+                fields_requested: Object.keys(params.args),
+                data_subjects: this.extractDataSubjects(params.args),
+            },
+            outputs: {
+                fields_returned: params.result
+                    ? this.extractOutputFields(params.result)
+                    : [],
+            },
+            context_trust_level: session.trustLevel,
+            decision_made: params.decisionMade,
+            human_review_required: params.humanReviewRequired,
+            outcome_notes: params.outcomeNotes,
+            eu_ai_act_risk_level: session.agentRecord.eu_ai_act_risk_level,
+            trace_id: session.traceId,
+            parent_span_id: session.parentSpanId,
+            annotation_ref: session.annotationRef,
+        })
+            .catch((err) => {
+            // Logging only — the agent's response is not affected
+            console.error('[AL Proxy] Failed to record ToolCallEvent:', err);
+        });
     }
-});
-// ---------------------------------------------------------------------------
-// Tool 3: get_compliance_status
-// ---------------------------------------------------------------------------
-server.registerTool("get_compliance_status", {
-    description: "Get the current compliance status of your Sovereign Shield account — " +
-        "enforcement mode, recent transfer statistics, pending reviews, and " +
-        "expiring SCCs. Use this to give users a compliance overview or to " +
-        "check system status before starting a data-intensive operation.",
-    inputSchema: z.object({}),
-}, async () => {
-    try {
-        const [stats, settings, pending, sccs] = await Promise.all([
-            apiRequest("GET", "/api/v1/lenses/sovereign-shield/stats"),
-            apiRequest("GET", "/api/v1/settings"),
-            apiRequest("GET", "/api/v1/human_oversight/pending"),
-            apiRequest("GET", "/api/v1/scc-registries"),
-        ]);
-        const mode = String(settings.enforcement_mode ?? "shadow") === "enforce"
-            ? "ENFORCING 🔒"
-            : "SHADOW MODE ⚡";
-        const totalTransfers = Number(stats.totalTransfers ?? 0);
-        const blockedToday = Number(stats.blockedToday ?? 0);
-        const pendingApprovals = Number(stats.pendingApprovals ?? 0);
-        const pendingCount = Array.isArray(pending) ? pending.length : 0;
-        // Calculate allowed as totalTransfers - blockedToday - pendingApprovals
-        const allowed = Math.max(0, totalTransfers - blockedToday - pendingApprovals);
-        const activeSccCount = Array.isArray(sccs) ? sccs.length : 0;
-        const now = new Date();
-        const thirtyDays = 30 * 24 * 60 * 60 * 1000;
-        const expiringCount = Array.isArray(sccs)
-            ? sccs.filter((scc) => {
-                const exp = scc.expires_at;
-                if (!exp)
-                    return false;
-                const expDate = new Date(String(exp));
-                return expDate.getTime() - now.getTime() < thirtyDays;
-            }).length
-            : 0;
-        let text = `📊 SOVEREIGN SHIELD COMPLIANCE STATUS\n` +
-            `Mode: ${mode}\n\n` +
-            `TRANSFERS (24H)\n` +
-            `  Total: ${totalTransfers}\n` +
-            `  Allowed: ${allowed}\n` +
-            `  Blocked: ${blockedToday}\n` +
-            `  Pending Review: ${pendingApprovals}\n\n` +
-            `SCC REGISTRY\n` +
-            `  Active SCCs: ${activeSccCount}\n` +
-            `  Expiring within 30 days: ${expiringCount}\n\n` +
-            `PENDING APPROVALS\n` +
-            `  ${pendingCount} transfer(s) awaiting human review\n`;
-        if (pendingCount > 0) {
-            text += `  ⚠️ Review required at: https://app.veridion-nexus.eu/review-queue\n`;
+    // ── Session initialisation ─────────────────────────────────────────────────
+    /**
+     * Initialise the session: validate OAuth token, resolve AgentRecord,
+     * create ContextTrustAnnotation. Call this before starting the transport.
+     *
+     * In MCP over stdio, the Bearer token comes from an environment variable
+     * (AL_AGENT_TOKEN) passed by the agent launcher.
+     * In MCP over HTTP (future), it comes from the Authorization header.
+     */
+    async initSession(authHeader, traceparent) {
+        const rawToken = extractBearerToken(authHeader ?? process.env.AL_AGENT_TOKEN);
+        if (!rawToken) {
+            throw new Error('No Bearer token provided. Agent must supply OAuth 2.1 credentials.');
         }
-        text += `\nDashboard: https://app.veridion-nexus.eu`;
-        return { content: [{ type: "text", text }] };
+        // Validate token → get client_id
+        const tokenData = await validateToken(rawToken, traceparent);
+        // Resolve AgentRecord
+        const agentRecord = await this.alClient.resolveAgent(tokenData.client_id);
+        if (!agentRecord) {
+            throw new Error(`Unregistered agent: no AgentRecord found for client_id '${tokenData.client_id}'. ` +
+                `Register the agent at POST /api/acm/agents before connecting.`);
+        }
+        const sessionId = randomUUID();
+        // Create initial ContextTrustAnnotation (trusted by default)
+        const annotation = await this.alClient.createTrustAnnotation({
+            agent_id: agentRecord.agent_id,
+            session_id: sessionId,
+            tenant_id: agentRecord.tenant_id,
+            trust_level: 'trusted',
+            sources_in_context: [],
+            session_trust_persistent: true,
+            triggered_human_review: false,
+        });
+        this.session = {
+            sessionId,
+            agentRecord,
+            trustLevel: 'trusted',
+            annotationRef: annotation.id,
+            traceId: tokenData.trace_id,
+            parentSpanId: tokenData.parent_span_id,
+        };
+        console.log(`[AL Proxy] Session started: agent=${agentRecord.display_name} ` +
+            `session=${sessionId} trust=trusted`);
     }
-    catch (err) {
-        return { content: [{ type: "text", text: formatError(err) }] };
+    /**
+     * Downgrade the session trust level. Call this when the proxy detects
+     * an external/unverified source entering the agent's context window.
+     */
+    async degradeTrust(newLevel, trigger, sources) {
+        const session = this.session;
+        if (!session)
+            throw new Error('No active session');
+        // Trust can only go down — ignore if already at or below the requested level
+        const levelOrder = { trusted: 2, degraded: 1, untrusted: 0 };
+        if (levelOrder[session.trustLevel] <= levelOrder[newLevel])
+            return;
+        const annotation = await this.alClient.degradeTrust(session.agentRecord.agent_id, session.sessionId, session.agentRecord.tenant_id, newLevel, trigger, sources, session.annotationRef);
+        session.trustLevel = newLevel;
+        session.annotationRef = annotation.id;
+        console.log(`[AL Proxy] Trust degraded: session=${session.sessionId} ` +
+            `${session.trustLevel}→${newLevel} trigger=${trigger}`);
     }
-});
-// ---------------------------------------------------------------------------
-// Tool 4: list_adequate_countries
-// ---------------------------------------------------------------------------
-const COUNTRY_DATA = {
-    eu_eea: [
-        "AT",
-        "BE",
-        "BG",
-        "HR",
-        "CY",
-        "CZ",
-        "DK",
-        "EE",
-        "FI",
-        "FR",
-        "DE",
-        "GR",
-        "HU",
-        "IE",
-        "IT",
-        "LV",
-        "LT",
-        "LU",
-        "MT",
-        "NL",
-        "PL",
-        "PT",
-        "RO",
-        "SK",
-        "SI",
-        "ES",
-        "SE",
-        "IS",
-        "LI",
-        "NO",
-    ],
-    adequate: [
-        "Andorra (AD)",
-        "Argentina (AR)",
-        "Canada (CA)",
-        "Faroe Islands (FO)",
-        "Guernsey (GG)",
-        "Israel (IL)",
-        "Isle of Man (IM)",
-        "Japan (JP)",
-        "Jersey (JE)",
-        "New Zealand (NZ)",
-        "South Korea (KR)",
-        "United Kingdom (GB)",
-        "Uruguay (UY)",
-        "Switzerland (CH)",
-        "Brazil (BR) — adequacy decision January 2026",
-    ],
-    scc_required: [
-        "United States (US)",
-        "Australia (AU)",
-        "Mexico (MX)",
-        "Singapore (SG)",
-        "South Africa (ZA)",
-        "India (IN)",
-    ],
-    blocked: [
-        "China (CN)",
-        "Russia (RU)",
-        "North Korea (KP)",
-        "Iran (IR)",
-        "Syria (SY)",
-        "Venezuela (VE)",
-        "Belarus (BY)",
-    ],
-};
-server.registerTool("list_adequate_countries", {
-    description: "List all countries by their GDPR transfer status — EU/EEA (free flow), " +
-        "adequate protection (Art. 45 adequacy decision), SCC required (Art. 46), " +
-        "or blocked (no legal basis). Use this to check a country's status before " +
-        "initiating a transfer, or to show a user which countries require additional " +
-        "safeguards.",
-    inputSchema: z.object({
-        filter: z
-            .enum(["all", "adequate", "scc_required", "blocked", "eu_eea"])
-            .optional()
-            .describe("Filter countries by transfer status. Defaults to 'all'."),
-    }),
-}, async (args) => {
-    try {
-        // Try the API first; fall back to local data
-        let apiData = null;
-        try {
-            apiData = (await apiRequest("GET", "/api/v1/lenses/sovereign-shield/countries"));
+    // ── Helpers ────────────────────────────────────────────────────────────────
+    ensureSession() {
+        if (!this.session) {
+            throw new Error('Session not initialised. Call initSession() first.');
         }
-        catch {
-            // Fall back to built-in data
-        }
-        const filter = args.filter ?? "all";
-        const euEea = COUNTRY_DATA.eu_eea.join(", ");
-        const adequate = COUNTRY_DATA.adequate.join(",\n  ");
-        const sccRequired = COUNTRY_DATA.scc_required.join(",\n  ");
-        const blocked = COUNTRY_DATA.blocked.join(",\n  ");
-        const sections = [];
-        if (filter === "all" || filter === "eu_eea") {
-            sections.push(`🇪🇺 EU/EEA (Free flow — no restrictions):\n  ${euEea}`);
-        }
-        if (filter === "all" || filter === "adequate") {
-            sections.push(`✅ ADEQUATE PROTECTION (Art. 45 — adequacy decision):\n  ${adequate}`);
-        }
-        if (filter === "all" || filter === "scc_required") {
-            sections.push(`⚠️ SCC REQUIRED (Art. 46(2)(c)):\n  ${sccRequired}`);
-        }
-        if (filter === "all" || filter === "blocked") {
-            sections.push(`🚫 BLOCKED (No legal transfer basis):\n  ${blocked}`);
-        }
-        let text = `🌍 GDPR TRANSFER STATUS BY COUNTRY\n\n${sections.join("\n\n")}`;
-        text +=
-            `\n\nNote: United States — check DPF certification status for\n` +
-                `certified organizations. See https://www.dataprivacyframework.gov`;
-        if (apiData) {
-            text += `\n\n(Data verified against live API)`;
-        }
-        return { content: [{ type: "text", text }] };
     }
-    catch (err) {
-        return { content: [{ type: "text", text: formatError(err) }] };
+    /**
+     * Infer whether the tool call constitutes a "decision".
+     * A decision is any tool call that produces an output that is acted upon
+     * without human confirmation. Heuristic: write/mutate/send/approve operations.
+     *
+     * TODO Phase 2: Make this configurable per-tool via AgentRecord.tools_permitted metadata
+     */
+    inferDecisionMade(toolName, _result) {
+        const decisionKeywords = ['send', 'create', 'update', 'delete', 'approve', 'reject', 'submit'];
+        return decisionKeywords.some((kw) => toolName.toLowerCase().includes(kw));
     }
-});
-// ---------------------------------------------------------------------------
-// Start
-// ---------------------------------------------------------------------------
-async function main() {
-    const transport = new StdioServerTransport();
-    await server.connect(transport);
+    /**
+     * Extract data subject identifiers from tool arguments.
+     * Looks for common identifier field names.
+     *
+     * TODO Phase 2: Make this configurable via AgentRecord classification metadata
+     */
+    extractDataSubjects(args) {
+        const subjectFields = ['user_id', 'userId', 'subject_id', 'email', 'person_id', 'candidate_id'];
+        const subjects = [];
+        for (const field of subjectFields) {
+            const val = args[field];
+            if (typeof val === 'string')
+                subjects.push(`${field}:${val}`);
+        }
+        return subjects;
+    }
+    /**
+     * Extract field names from tool result (not values — data minimisation).
+     */
+    extractOutputFields(result) {
+        // For text results, we record that text was returned but not the content
+        // For structured results, record the top-level keys
+        if (!result.content)
+            return [];
+        return result.content.map((c) => c.type);
+    }
+    // ── Start ──────────────────────────────────────────────────────────────────
+    async start() {
+        // Initialise session from environment (stdio mode)
+        await this.initSession();
+        const transport = new StdioServerTransport();
+        await this.server.connect(transport);
+        console.log('[AL Proxy] Proxy running on stdio. Waiting for tool calls.');
+    }
 }
-main().catch((err) => {
-    console.error("Fatal error starting Sovereign Shield MCP server:", err);
+// ── Entry point ───────────────────────────────────────────────────────────────
+const proxy = new AccountabilityLedgerProxy();
+proxy.start().catch((err) => {
+    console.error('[AL Proxy] Fatal error:', err);
     process.exit(1);
 });

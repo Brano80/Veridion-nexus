@@ -16,7 +16,7 @@ globs:
 You are working on **Veridion API**, a standalone HTTP service with its **own database** and migrations. It is **not** veridion-nexus.
 
 ## ALWAYS READ FIRST
-- `PROJECT_REFERENCE.md` - the definitive project reference (v1.3, updated 2026-03-05)
+- `PROJECT_REFERENCE.md` - the definitive project reference (v2.1, updated 2026-03-18)
 
 ## WHAT THIS PROJECT IS
 - Standalone REST API (Rust/Actix-web) + Sovereign Shield dashboard (Next.js 14, port 3000) + Landing page with signup (Next.js 14, port 3001, veridion-landing/)
@@ -90,6 +90,7 @@ You are working on **Veridion API**, a standalone HTTP service with its **own da
 - `routes_shield.rs` — /api/v1/shield/*, /api/v1/scc-registries/*, /api/v1/settings
 - `routes_review_queue.rs` — /api/v1/review-queue/*, /api/v1/action/*
 - `routes_admin.rs` — /api/v1/admin/* (admin only, cross-tenant)
+- `routes_agents.rs` — /api/v1/agents/* (agent registry, per-agent policy)
 
 ### Dashboard (dashboard/)
 - `app/utils/api.ts` — API client, all fetch functions, types
@@ -99,6 +100,7 @@ You are working on **Veridion API**, a standalone HTTP service with its **own da
 - `app/review-queue/page.tsx` — Review Queue
 - `app/scc-registry/page.tsx` — SCC Registry
 - `app/adequate-countries/page.tsx` — Adequate Countries (static)
+- `app/agents/page.tsx` — Agent Registry (registered + unregistered)
 - `app/evidence-vault/page.tsx` — Evidence Vault
 - `app/components/Sidebar.tsx` — Nav (branding: VERIDION NEXUS / Compliance Dashboard v1.0.0)
 - `app/components/SovereignMap.tsx` + `WorldMap.tsx` — transfer map

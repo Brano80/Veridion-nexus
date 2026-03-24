@@ -26,6 +26,9 @@ export default function TermsPage() {
               <Link href="/docs" className="text-slate-300 hover:text-white transition-colors text-sm">
                 Documentation
               </Link>
+              <Link href="/spec" className="text-slate-300 hover:text-white transition-colors text-sm">
+                Spec
+              </Link>
               <a 
                 href={process.env.NEXT_PUBLIC_DASHBOARD_URL && !process.env.NEXT_PUBLIC_DASHBOARD_URL.includes('localhost') 
                   ? `${process.env.NEXT_PUBLIC_DASHBOARD_URL}/login` 
@@ -52,6 +55,9 @@ export default function TermsPage() {
             <div className="md:hidden border-t border-slate-800 py-4 space-y-3">
               <Link href="/docs" className="block text-slate-300 hover:text-white transition-colors text-sm" onClick={() => setMobileMenuOpen(false)}>
                 Documentation
+              </Link>
+              <Link href="/spec" className="block text-slate-300 hover:text-white transition-colors text-sm" onClick={() => setMobileMenuOpen(false)}>
+                Spec
               </Link>
               <a 
                 href={process.env.NEXT_PUBLIC_DASHBOARD_URL && !process.env.NEXT_PUBLIC_DASHBOARD_URL.includes('localhost') 
@@ -240,22 +246,16 @@ export default function TermsPage() {
 
             {/* Center Links */}
             <div className="space-y-2">
-              <Link
-                href="/docs"
-                className="block text-slate-400 hover:text-sky-400 transition-colors text-sm"
-              >
+              <Link href="/docs" className="block text-slate-400 hover:text-sky-400 transition-colors text-sm">
                 Documentation
               </Link>
-              <Link
-                href="/privacy"
-                className="block text-slate-400 hover:text-sky-400 transition-colors text-sm"
-              >
+              <Link href="/spec" className="block text-slate-400 hover:text-sky-400 transition-colors text-sm">
+                Spec
+              </Link>
+              <Link href="/privacy" className="block text-slate-400 hover:text-sky-400 transition-colors text-sm">
                 Privacy Policy
               </Link>
-              <Link
-                href="/terms"
-                className="block text-slate-400 hover:text-sky-400 transition-colors text-sm"
-              >
+              <Link href="/terms" className="block text-slate-400 hover:text-sky-400 transition-colors text-sm">
                 Terms of Service
               </Link>
             </div>

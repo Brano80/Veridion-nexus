@@ -2,8 +2,27 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://veridion-nexus.eu'),
   title: 'Veridion Nexus — EU GDPR Compliance API',
   description: 'GDPR data transfer monitoring and compliance tooling supporting demonstrable compliance',
+  keywords: ['GDPR', 'data transfer', 'compliance', 'EU', 'API', 'Sovereign Shield', 'international transfers', 'Chapter V'],
+  authors: [{ name: 'Veridion' }],
+  openGraph: {
+    title: 'Veridion Nexus — EU GDPR Compliance API',
+    description: 'GDPR data transfer monitoring and compliance tooling supporting demonstrable compliance',
+    url: 'https://veridion-nexus.eu',
+    siteName: 'Veridion Nexus',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Veridion Nexus — EU GDPR Compliance API',
+    description: 'GDPR data transfer monitoring and compliance tooling supporting demonstrable compliance',
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
 }
 
 export default function RootLayout({

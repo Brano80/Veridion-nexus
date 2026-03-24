@@ -1,5 +1,21 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
+  safelist: [
+    // Event type badge classes (used dynamically in evidence-vault drawer)
+    'bg-red-500/15',
+    'text-red-400',
+    'border',
+    'border-red-500/25',
+    'bg-orange-500/15',
+    'text-orange-400',
+    'border-orange-500/25',
+    'bg-emerald-500/15',
+    'text-emerald-400',
+    'border-emerald-500/25',
+    'bg-slate-500/15',
+    'text-slate-400',
+    'border-slate-500/25',
+  ],
   content: [
     './pages/**/*.{js,ts,jsx,tsx,mdx}',
     './components/**/*.{js,ts,jsx,tsx,mdx}',

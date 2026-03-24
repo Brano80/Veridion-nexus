@@ -11,6 +11,10 @@ path = "src/lib.rs"
 name = "veridion-api"
 path = "src/main.rs"
 
+[[bin]]
+name = "generate_hash"
+path = "generate_hash.rs"
+
 [dependencies]
 actix-web = { version = "4", features = ["compress-gzip"] }
 actix-cors = "0.7"

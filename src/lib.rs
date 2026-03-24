@@ -10,6 +10,7 @@ pub mod routes_review_queue;
 pub mod routes_admin;
 pub mod routes_auth;
 pub mod routes_agents;
+pub mod routes_acm;
 pub mod email;
 pub mod tenant;
 pub mod middleware_tenant;

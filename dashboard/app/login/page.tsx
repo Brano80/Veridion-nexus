@@ -66,9 +66,18 @@ export default function LoginPage() {
     }
   }
 
+  // Check for expired session parameter
+  const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+  const isExpired = urlParams?.get('expired') === 'true';
+
   return (
     <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center px-4">
       <div className="w-full max-w-md">
+        {isExpired && (
+          <div className="mb-4 p-3 bg-yellow-900/40 border border-yellow-800 rounded-lg text-yellow-400 text-sm">
+            Your session has expired. Please log in again.
+          </div>
+        )}
         {/* Logo */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-2 mb-3">
