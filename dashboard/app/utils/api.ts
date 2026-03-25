@@ -664,6 +664,9 @@ export interface AgentCard {
     policy_history?: unknown[];
     agent_api_key?: string;
     WARNING?: string;
+    public_registry_listed?: boolean;
+    public_registry_description?: string;
+    public_registry_contact_email?: string;
   };
 }
 
