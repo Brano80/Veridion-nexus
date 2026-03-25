@@ -8,6 +8,7 @@ Env:
   AGENT_ID          default agt_4a345b2b5160 (Blue agent — change if needed)
   TENANT_ID         optional; if unset, loaded from GET /api/v1/agents/{AGENT_ID}/card (x-veridion.tenant_id)
   DATABASE_URL      optional; if set + psycopg2, used when TENANT_ID unset and card has no tenant_id
+  VERIDION_API_KEY  tenant API key for GET .../agents/{id}/card (default: Almaco demo key used in other scripts)
 """
 import os
 import sys
@@ -17,6 +18,7 @@ import requests
 
 API_BASE = os.environ.get("API_BASE", "https://api.veridion-nexus.eu").rstrip("/")
 TOKEN = os.environ.get("AL_SERVICE_TOKEN", "")
+VERIDION_API_KEY = os.environ.get("VERIDION_API_KEY", "ss_test_25cc5fc40167da75ea0f34ac8b5a53ca")
 TENANT_ID = os.environ.get("TENANT_ID")
 
 
@@ -24,6 +26,14 @@ def headers():
     h = {"Content-Type": "application/json"}
     if TOKEN:
         h["Authorization"] = f"Bearer {TOKEN}"
+    return h
+
+
+def headers_with_tenant_key():
+    h = {"Content-Type": "application/json"}
+    key = VERIDION_API_KEY or TOKEN
+    if key:
+        h["Authorization"] = f"Bearer {key}"
     return h
 
 
@@ -48,7 +58,11 @@ def resolve_agent_from_db():
 
 
 def fetch_tenant_from_card(agent_id: str):
-    r = requests.get(f"{API_BASE}/api/v1/agents/{agent_id}/card", timeout=60)
+    r = requests.get(
+        f"{API_BASE}/api/v1/agents/{agent_id}/card",
+        headers=headers_with_tenant_key(),
+        timeout=60,
+    )
     r.raise_for_status()
     data = r.json()
     xv = data.get("x-veridion") or {}
