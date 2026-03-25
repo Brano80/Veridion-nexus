@@ -306,6 +306,11 @@ async fn main() -> std::io::Result<()> {
     println!("  ACM events:      POST /api/acm/events");
     println!("  ACM trust:       POST /api/acm/trust-annotations");
     println!("  ACM trust curr:  GET  /api/acm/trust-annotations/session/{{id}}/current");
+    println!("  ACM transfers:   POST /api/acm/transfers");
+    println!("  ACM schrems III: PATCH /api/acm/transfers/schrems-iii-review");
+    println!("  ACM oversight:   POST /api/acm/oversight");
+    println!("  ACM oversight q: GET  /api/acm/oversight/pending");
+    println!("  ACM oversight u: PATCH /api/acm/oversight/{{id}}");
     println!("  Registry search: GET  /api/public/registry/agents");
     println!("  Registry detail: GET  /api/public/registry/agents/{{id}}");
     println!("  Registry stats:  GET  /api/public/registry/stats");

@@ -112,14 +112,18 @@ export interface ContextSource {
 
 export interface DataTransferRecordInput {
   agent_id: string;
-  event_ref: string;          // tool_call_events.event_id that triggered this transfer
+  event_ref?: string;
   tenant_id: string;
-  origin_country: string;     // ISO 3166-1 alpha-2, should be EEA
+  origin_country: string;
   destination_country: string;
-  transfer_mechanism: TransferMechanism;
-  data_categories: string[];  // GDPR Art. 9 categories
-  dpf_relied_upon: boolean;
-  transfer_timestamp: string;
+  transfer_mechanism: TransferMechanism | string;
+  data_categories?: string[];
+  dpf_relied_upon?: boolean;
+  scc_ref?: string;
+  bcr_ref?: string;
+  derogation_basis?: string;
+  backup_mechanism?: string;
+  transfer_timestamp?: string;
 }
 
 // ── HumanOversightRecord ─────────────────────────────────────────────────────
@@ -134,13 +138,9 @@ export type ReviewTrigger =
 
 export interface HumanOversightRecordInput {
   agent_id: string;
-  event_ref: string;           // tool_call_events.event_id that triggered review
+  event_ref?: string;
   tenant_id: string;
   review_trigger: ReviewTrigger;
-  flagged_at: string;          // ISO 8601
-  reviewer_id?: string;
-  reviewer_outcome?: 'approved' | 'rejected' | 'escalated' | 'pending';
-  eu_ai_act_compliance?: boolean;
   notes?: string;
 }
 

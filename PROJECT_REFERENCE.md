@@ -1,7 +1,7 @@
 # Project Reference — Veridion API / Sovereign Shield
 
-**Version:** 2.4  
-**Last updated:** 2026-03-24
+**Version:** 2.6  
+**Last updated:** 2026-03-25
 
 This is the **single project reference** for Veridion API: vision, scope, tech stack, configuration, and current behaviour (dashboard and API). Use it to onboard, scope work, and keep the codebase and docs aligned.
 
@@ -29,7 +29,7 @@ The vision is a **single, deployable API** that owns its schema and can grow fro
 |--------|-------------|
 | **Product** | Standalone REST API plus Sovereign Shield dashboard (Next.js). Own PostgreSQL database. Own migrations. |
 | **Boundary** | No shared migrations, shared DB, or shared Rust crates with veridion-nexus or other repos. |
-| **Current scope** | Health, dev auth (JWT), CORS; Evidence Vault (events, verify-integrity, PDF export); Sovereign Shield (ingest/evaluate with agent_id/agent_api_key for per-agent policy, evidence + review queue); SCC registries (CRUD, PATCH tia_completed, dpa_id, scc_module; auto-approve on register; **auto-expiry background job**); Human Oversight (review queue with transfer_count burst grouping, pending/decided, approve/reject, decided-evidence-ids); **Auth** (login, logout, dev-reset-password); Self-serve signup (POST /api/v1/auth/register, input validation, rate limiting 5/IP/hour, bcrypt password, async welcome email via SMTP); **Agent Registry** (POST/GET/DELETE agents, agent card, rotate key, per-agent policy enforcement); **Accountability Ledger** (MCP proxy for AI agent tool call logging, SHA-256 hash-chained audit trail, context trust annotations, OAuth 2.1 agent identity, ACM Rust API routes). Migrations 001–037. |
+| **Current scope** | Health, dev auth (JWT), CORS; Evidence Vault (events, verify-integrity, PDF export); Sovereign Shield (ingest/evaluate with agent_id/agent_api_key for per-agent policy, evidence + review queue); SCC registries (CRUD, PATCH tia_completed, dpa_id, scc_module; auto-approve on register; **auto-expiry background job**); Human Oversight (review queue with transfer_count burst grouping, pending/decided, approve/reject, decided-evidence-ids); **Auth** (login, logout, dev-reset-password); Self-serve signup (POST /api/v1/auth/register, input validation, rate limiting 5/IP/hour, bcrypt password, async welcome email via SMTP); **Agent Registry** (POST/GET/DELETE agents, agent card, rotate key, per-agent policy enforcement); **Accountability Ledger** (MCP proxy: **Phase 1** real upstream MCP stdio/SSE via `UpstreamMcpClient`, tool call logging, SHA-256 hash-chained audit trail, context trust annotations, OAuth 2.1 agent identity, ACM Rust API routes); **Public Compliance Registry** (cross-tenant search/detail/stats, dashboard opt-in). Migrations 001–038. |
 | **Planned scope** | Further dashboard features, production auth. |
 
 **What it is not:** Not a fork or subset of veridion-nexus. Not a monorepo member that shares `migrations/` or `src/` with another project.
@@ -41,7 +41,7 @@ The vision is a **single, deployable API** that owns its schema and can grow fro
 - **Backend**: Rust (Actix-web) API on `http://localhost:8080`.
 - **Frontend**: Next.js 14 dashboard (Sovereign Shield) in `dashboard/`, on `http://localhost:3000`.
 - **Landing page**: Next.js 14 in `veridion-landing/`, on `http://localhost:3001`. Contains marketing page and self-serve signup flow.
-- **MCP Server**: Node.js/TypeScript MCP server in `mcp-server/`. Published as `veridion-nexus-mcp@1.0.8` on npm and in the MCP registry (`io.github.Brano80/Veridion-nexus`). Provides GDPR compliance tools for AI agents (Claude, Cursor, etc.). Also contains the **Accountability Ledger proxy** (`mcp-server/src/index.ts`) — an MCP proxy that intercepts agent tool calls, logs them to a tamper-evident audit trail, and forwards to upstream MCP servers.
+- **MCP Server**: Node.js/TypeScript MCP server in `mcp-server/`. Published as `veridion-nexus-mcp@1.0.8` on npm and in the MCP registry (`io.github.Brano80/Veridion-nexus`). Provides GDPR compliance tools for AI agents (Claude, Cursor, etc.). Also contains the **Accountability Ledger proxy** (`mcp-server/src/index.ts` + `upstream-client.ts`) — **Phase 1** connects to a real upstream MCP server (stdio or SSE), intercepts tool calls, logs them to a tamper-evident audit trail, and forwards to that upstream.
 - **Theme**: Dark (slate-900/800/700), emerald accents. Icons: `lucide-react`. Fonts: Inter, JetBrains Mono.
 
 ---
@@ -86,7 +86,7 @@ Dependencies: serde/serde_json, chrono, uuid, dotenv.
 veridion-api/
 ├── Cargo.toml
 ├── src/                    # Rust API (main.rs, routes_*, evidence, shield, routes_acm, etc.)
-├── migrations/             # Schema 001–037 (no external path)
+├── migrations/             # Schema 001–040 (no external path)
 ├── dashboard/              # Next.js Sovereign Shield dashboard (port 3000)
 ├── veridion-landing/       # Next.js landing page + signup flow (port 3001)
 ├── mcp-server/            # MCP server + Accountability Ledger proxy (Node.js/TypeScript)
@@ -96,7 +96,7 @@ veridion-api/
 └── …
 ```
 
-**Migrations:** 37 (001–037). Key tables: `users`, `tenants`, `compliance_records`, `human_oversight`, `evidence_events`, `scc_registries`, `system_settings`, `agents`, `policy_versions`, `tool_call_events`, `context_trust_annotations`. Migration **022** adds `evidence_event_id` to `compliance_records`. **023** adds `tia_completed` (Transfer Impact Assessment) to `scc_registries`. **024** adds `dpa_id` and `scc_module` to `scc_registries`. **025** creates `system_settings` (key/value) with PRIMARY KEY on `key`. **026** creates `tenants` table and adds `tenant_id` columns to all data tables for multi-tenancy; updates `system_settings` to drop old PRIMARY KEY and add UNIQUE constraint on `(key, tenant_id)` for multi-tenant support. **027** adds FK constraint `users.company_id → tenants.id`. **028** links admin user to admin tenant. **029** seeds `system_settings` for admin tenant with `enforcement_mode='shadow'` using `ON CONFLICT (key, tenant_id)`. **030** adds `transfer_count` to `compliance_records` (burst grouping for review queue). **031** creates `agents` and `policy_versions` tables (agent registry, per-agent policy). **032** adds `api_key_hash` to `agents`. **033** adds `deleted_at` to `agents` (soft delete). **035** creates `tool_call_events` table (ACM ToolCallEvent — append-only, SHA-256 hash-chained, UUID FK to agents, JSONB inputs/outputs, OTel trace_id/parent_span_id, context_trust_level, legal_basis, purpose, eu_ai_act_risk_level; NO UPDATE/DELETE rules; `acm_tool_call_events` view). **036** creates `context_trust_annotations` table (ACM ContextTrustAnnotation — session-level trust tracking, monotonic degradation trusted→degraded→untrusted, sources_in_context JSONB, triggered_human_review; `acm_session_trust_summary` view for current trust level). **037** extends `agents` table with ACM AgentRecord fields (oauth_client_id, oauth_issuer, oauth_scope, eu_ai_act_risk_level, processes_personal_data, automated_decision_making, deployment_environment, deployment_region, data_residency, transfer_policies JSONB, tools_permitted JSONB, a2a_card_url, retention_policy JSONB; `acm_agent_records` view). Full list in `migrations/`.
+**Migrations:** 40 (001–040). Key tables: `users`, `tenants`, `compliance_records`, `human_oversight`, `evidence_events`, `scc_registries`, `system_settings`, `agents`, `policy_versions`, `tool_call_events`, `context_trust_annotations`. Migration **022** adds `evidence_event_id` to `compliance_records`. **023** adds `tia_completed` (Transfer Impact Assessment) to `scc_registries`. **024** adds `dpa_id` and `scc_module` to `scc_registries`. **025** creates `system_settings` (key/value) with PRIMARY KEY on `key`. **026** creates `tenants` table and adds `tenant_id` columns to all data tables for multi-tenancy; updates `system_settings` to drop old PRIMARY KEY and add UNIQUE constraint on `(key, tenant_id)` for multi-tenant support. **027** adds FK constraint `users.company_id → tenants.id`. **028** links admin user to admin tenant. **029** seeds `system_settings` for admin tenant with `enforcement_mode='shadow'` using `ON CONFLICT (key, tenant_id)`. **030** adds `transfer_count` to `compliance_records` (burst grouping for review queue). **031** creates `agents` and `policy_versions` tables (agent registry, per-agent policy). **032** adds `api_key_hash` to `agents`. **033** adds `deleted_at` to `agents` (soft delete). **035** creates `tool_call_events` table (ACM ToolCallEvent — append-only, SHA-256 hash-chained, UUID FK to agents, JSONB inputs/outputs, OTel trace_id/parent_span_id, context_trust_level, legal_basis, purpose, eu_ai_act_risk_level; NO UPDATE/DELETE rules; `acm_tool_call_events` view). **036** creates `context_trust_annotations` table (ACM ContextTrustAnnotation — session-level trust tracking, monotonic degradation trusted→degraded→untrusted, sources_in_context JSONB, triggered_human_review; `acm_session_trust_summary` view for current trust level). **037** extends `agents` table with ACM AgentRecord fields (oauth_client_id, oauth_issuer, oauth_scope, eu_ai_act_risk_level, processes_personal_data, automated_decision_making, deployment_environment, deployment_region, data_residency, transfer_policies JSONB, tools_permitted JSONB, a2a_card_url, retention_policy JSONB; `acm_agent_records` view). **038** adds Public Compliance Registry fields on `agents` (`public_registry_listed`, `public_registry_description`, `public_registry_contact_email`, `public_registry_listed_at`) plus indexes for listing and full-text search. **039** creates `data_transfer_records` (ACM DataTransferRecord), `eea_countries`, view `acm_data_transfer_records`. **040** extends `human_oversight` for ACM (nullable `seal_id`, `agent_id`, `event_ref`, `review_trigger`, `reviewer_outcome`, etc.), views `acm_human_oversight_records` and `acm_oversight_pending`. Full list in `migrations/`.
 
 ### 5.2 Configuration
 
@@ -120,9 +120,16 @@ veridion-api/
 | `AL_OAUTH_ISSUER` | No      | OAuth 2.1 issuer URL for AL proxy token validation |
 | `AL_OAUTH_AUDIENCE` | No    | OAuth 2.1 audience for AL proxy token validation |
 | `AL_JWKS_URI`    | No       | JWKS endpoint for AL proxy JWT verification |
-| `AL_AUTH_MODE`    | No      | `oauth` or `dev` — AL proxy auth mode (default `dev`) |
-| `AL_DEV_CLIENT_ID` | No     | Dev-mode client ID for AL proxy (bypasses OAuth) |
-| `AL_AGENT_TOKEN` | No       | Agent Bearer token for AL proxy dev mode |
+| `AL_AUTH_MODE`    | No      | `jwks` (default) or `dev_bypass` — AL proxy token validation (never use `dev_bypass` in production) |
+| `AL_DEV_CLIENT_ID` | No     | Required when `AL_AUTH_MODE=dev_bypass` |
+| `AL_AGENT_TOKEN` | No       | Agent Bearer token (stdio: often set by launcher) |
+| `UPSTREAM_MCP_MODE` | No   | `stdio` (default) or `sse` — how the AL proxy reaches the upstream MCP server |
+| `UPSTREAM_MCP_COMMAND` | Yes (stdio) | Shell command to launch upstream (e.g. `node /path/to/upstream/dist/index.js`) |
+| `UPSTREAM_MCP_ARGS` | No    | Optional JSON array of extra argv, e.g. `["--flag"]` |
+| `UPSTREAM_MCP_URL` | Yes (sse) | SSE endpoint URL when `UPSTREAM_MCP_MODE=sse` |
+| `UPSTREAM_MCP_RECONNECT_MS` | No | Reconnect delay after upstream disconnect (default `5000`) |
+| `AL_ORIGIN_COUNTRY` | No | Default ISO country code for DataTransferRecord `origin_country` in AL proxy (default `DE`) |
+| `AL_EEA_EXTRA_COUNTRIES` | No | Comma-separated extra codes treated as EEA in AL proxy (e.g. after adequacy changes) |
 
 **Note:** If SMTP vars are not set, welcome email is skipped silently. Signup still succeeds.
 
@@ -238,8 +245,15 @@ Internal API routes called by the Accountability Ledger MCP proxy. Authenticated
 | `POST /api/acm/events` | Create a tool call event with SHA-256 hash chaining. Fetches previous `event_hash` for the agent and links via `prev_event_hash`. Fields: agent_id, session_id, tool_id, inputs/outputs (JSONB), context_trust_level, decision_made, human_review_required, legal_basis, purpose, eu_ai_act_risk_level, trace_id, parent_span_id. |
 | `POST /api/acm/trust-annotations` | Create a context trust annotation. Enforces monotonic degradation (trusted → degraded → untrusted; never back up within a session). Fields: trust_level, sources_in_context, degradation_trigger, triggered_human_review. |
 | `GET /api/acm/trust-annotations/session/{id}/current` | Get the current (lowest) trust level for a session. Returns the most degraded annotation. |
+| `POST /api/acm/transfers` | Create a **DataTransferRecord** (GDPR Chapter V). Optional `event_ref` links to `tool_call_events`. Sets `schrems_iii_risk` when DPF is relied on without backup. |
+| `PATCH /api/acm/transfers/schrems-iii-review` | Bulk-flag DPF transfers without backup as Schrems III risk. |
+| `POST /api/acm/oversight` | Create **HumanOversightRecord** on `human_oversight` (ACM fields). `seal_id` nullable for ACM-only rows (migration 040). Back-fills `tool_call_events.oversight_record_ref` when `event_ref` is set. |
+| `GET /api/acm/oversight/pending` | List pending oversight (`?tenant_id=` optional). |
+| `PATCH /api/acm/oversight/{id}` | Set reviewer outcome (`approved` / `rejected` / `escalated` / `pending`), optional notes, EU AI Act compliance flag. |
 
 **Auth**: Service token via `Authorization: Bearer {AL_SERVICE_TOKEN}`. In development mode with no token configured, routes are open. Agent ID fields accept both UUID format and string agent IDs (falls back to `oauth_client_id` lookup).
+
+**Migrations 039–040**: `039` — `data_transfer_records`, `eea_countries` reference data, `acm_data_transfer_records` view. `040` — extend `human_oversight` with ACM columns; `seal_id` nullable; views `acm_human_oversight_records`, `acm_oversight_pending`.
 
 ### 9.10 Admin Routes
 
@@ -310,8 +324,9 @@ The MCP server also contains the **Accountability Ledger (AL) proxy** — an MCP
 **Architecture**: See `docs/adr/001-al-architecture.md` (ADR).
 
 **Key files**:
-- `mcp-server/src/index.ts` — `AccountabilityLedgerProxy` class: session management, OAuth validation, tool call interception, upstream forwarding (stub in Phase 0), async event recording.
-- `mcp-server/src/al-client.ts` — `AlClient` class: HTTP client for Rust ACM API (`/api/acm/*`). Methods: `resolveAgent`, `recordToolCallEvent`, `createTrustAnnotation`, `degradeTrust`, `getSessionTrustLevel`.
+- `mcp-server/src/index.ts` — `AccountabilityLedgerProxy` (v0.2): **Phase 2** — after each `ToolCallEvent`, optional **DataTransferRecord** for non-EEA `transfer_policies` when PII heuristics match; **HumanOversightRecord** when `human_review_required`; env `AL_ORIGIN_COUNTRY`, `AL_EEA_EXTRA_COUNTRIES`. **Phase 1** upstream via `UpstreamMcpClient`, graceful shutdown.
+- `mcp-server/src/upstream-client.ts` — `UpstreamMcpClient`: MCP SDK `Client` connected with **stdio** (subprocess) or **SSE** (HTTP); discovers upstream tools on connect; optional reconnect on disconnect.
+- `mcp-server/src/al-client.ts` — `AlClient` class: HTTP client for Rust ACM API (`/api/acm/*`). Methods: `resolveAgent`, `recordToolCallEvent`, `createTrustAnnotation`, `degradeTrust`, `getSessionTrustLevel`, `createDataTransferRecord`, `createOversightRecord`, `updateOversightOutcome`.
 - `mcp-server/src/oauth.ts` — OAuth 2.1 token validation using `jose` (JWKS caching, `parseTraceparent` for OTel).
 - `mcp-server/src/types/acm.ts` — TypeScript interfaces for ACM spec v0.1 record types (`AgentRecord`, `ToolCallEventInput`, `ContextTrustAnnotationInput`, `TrustLevel`, etc.).
 
@@ -322,9 +337,11 @@ The MCP server also contains the **Accountability Ledger (AL) proxy** — an MCP
 - **OAuth 2.1 agent identity**: Agent identity derived from Bearer token `client_id` claim, resolved via `GET /api/acm/agents?oauth_client_id={id}`. Self-reported identity is rejected.
 - **tools_permitted allowlist**: Agents can only call tools listed in their `AgentRecord.tools_permitted` array.
 
-**Environment variables**: See `env.proxy.example` for full list (`AL_API_BASE_URL`, `AL_SERVICE_TOKEN`, `AL_OAUTH_ISSUER`, `AL_OAUTH_AUDIENCE`, `AL_JWKS_URI`, `AL_AUTH_MODE`, `AL_DEV_CLIENT_ID`, `AL_AGENT_TOKEN`).
+**Environment variables**: See `env.proxy.example` and root `.env.example` for AL vars (`AL_API_BASE_URL`, `AL_SERVICE_TOKEN`, `AL_OAUTH_ISSUER`, `AL_OAUTH_AUDIENCE`, `AL_JWKS_URI`, `AL_AUTH_MODE`, `AL_DEV_CLIENT_ID`, `AL_AGENT_TOKEN`) and **Phase 1 upstream** vars (`UPSTREAM_MCP_MODE`, `UPSTREAM_MCP_COMMAND`, `UPSTREAM_MCP_ARGS`, `UPSTREAM_MCP_URL`, `UPSTREAM_MCP_RECONNECT_MS`).
 
-**Phase 0 status**: Core proxy, types, OAuth, AL client, and Rust ACM routes are complete. Phase 1 TODOs: replace upstream MCP stub with real `Client` connection, make `inferDecisionMade` configurable per-tool, make `extractDataSubjects` configurable via AgentRecord classification.
+**Phase 1 status (upstream)**: **Done.** The proxy uses `@modelcontextprotocol/sdk` `Client` with stdio or SSE transport; `listTools` and `callTool` forward to the configured upstream server; blocked paths (not in `tools_permitted`, upstream disconnected, upstream error) still emit `ToolCallEvent` records where applicable.
+
+**Phase 2 (backend) status**: Data transfer records, oversight API, proxy wiring for transfers + oversight after tool events — **implemented** (migrations 039–040). **Phase 2b** (dashboard UI for oversight queue) — not in this repo batch. **Phase 3 TODOs**: Per-tool `inferDecisionMade` / PII heuristics configurable via `AgentRecord` metadata.
 
 ### 9.7 Shadow Mode
 
@@ -568,6 +585,7 @@ The MCP server also contains the **Accountability Ledger (AL) proxy** — an MCP
 |------|--------|
 | `docs/adr/001-al-architecture.md` | ADR: Accountability Ledger architecture decisions |
 | `mcp-server/src/index.ts` | AL MCP proxy (`AccountabilityLedgerProxy` class) |
+| `mcp-server/src/upstream-client.ts` | `UpstreamMcpClient` — real upstream MCP (stdio / SSE) |
 | `mcp-server/src/al-client.ts` | HTTP client for Rust ACM API |
 | `mcp-server/src/oauth.ts` | OAuth 2.1 token validation (jose, JWKS) |
 | `mcp-server/src/types/acm.ts` | TypeScript interfaces for ACM spec v0.1 |
@@ -575,6 +593,8 @@ The MCP server also contains the **Accountability Ledger (AL) proxy** — an MCP
 | `migrations/035_acm_tool_call_events.sql` | tool_call_events table (append-only, hash-chained) |
 | `migrations/036_acm_context_trust_annotations.sql` | context_trust_annotations table (session trust) |
 | `migrations/037_acm_agent_identity.sql` | Extends agents table with OAuth/EU AI Act/ACM fields |
+| `migrations/039_acm_data_transfer_records.sql` | `data_transfer_records`, `eea_countries`, ACM view |
+| `migrations/040_acm_human_oversight_extend.sql` | ACM fields on `human_oversight`, views |
 | `env.proxy.example` | Example environment variables for AL proxy |
 
 ### 16.3 File map (Public Compliance Registry)

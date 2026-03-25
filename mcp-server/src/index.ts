@@ -1,18 +1,11 @@
 /**
  * Accountability Ledger — MCP Proxy
- * Phase 1: real upstream MCP connection (replaces stub).
+ * Phase 2: DataTransferRecord + HumanOversightRecord + trust wiring.
  *
  * Architecture (ADR 001):
  *   AI Agent → [this proxy] → Upstream MCP Server
  *                    ↓
  *             Rust API (/api/acm/*)
- *
- * Changes from Phase 0 skeleton:
- *   - UpstreamMcpClient replaces all stub upstream calls
- *   - listTools() proxies real upstream tool list
- *   - callTool() forwards to real upstream and records actual outputs
- *   - Graceful shutdown on SIGINT/SIGTERM
- *   - Upstream connection happens before session init — fails fast if misconfigured
  */
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -29,7 +22,24 @@ import { UpstreamMcpClient } from './upstream-client.js';
 import { validateToken, extractBearerToken } from './oauth.js';
 import type { AgentRecord, TrustLevel } from './types/acm.js';
 
-// ── Session state ─────────────────────────────────────────────────────────────
+const EEA_COUNTRIES = new Set([
+  'AT', 'BE', 'BG', 'CY', 'CZ', 'DE', 'DK', 'EE', 'ES', 'FI',
+  'FR', 'GR', 'HR', 'HU', 'IE', 'IT', 'LT', 'LU', 'LV', 'MT',
+  'NL', 'PL', 'PT', 'RO', 'SE', 'SI', 'SK',
+  'NO', 'IS', 'LI',
+  'GB',
+]);
+
+const extraEea = process.env.AL_EEA_EXTRA_COUNTRIES;
+if (extraEea) {
+  for (const cc of extraEea.split(',').map((s) => s.trim().toUpperCase())) {
+    if (cc) EEA_COUNTRIES.add(cc);
+  }
+}
+
+function isEeaCountry(countryCode: string): boolean {
+  return EEA_COUNTRIES.has(countryCode.toUpperCase());
+}
 
 interface SessionState {
   sessionId: string;
@@ -39,8 +49,6 @@ interface SessionState {
   traceId?: string;
   parentSpanId?: string;
 }
-
-// ── Proxy ─────────────────────────────────────────────────────────────────────
 
 class AccountabilityLedgerProxy {
   private server: Server;
@@ -52,23 +60,19 @@ class AccountabilityLedgerProxy {
     this.alClient = new AlClient();
     this.upstream = new UpstreamMcpClient();
     this.server = new Server(
-      { name: 'accountability-ledger-proxy', version: '0.1.0' },
+      { name: 'accountability-ledger-proxy', version: '0.2.0' },
       { capabilities: { tools: {} } },
     );
     this.registerHandlers();
   }
 
-  // ── Handlers ──────────────────────────────────────────────────────────────
-
   private registerHandlers(): void {
-    // List tools: return real upstream tool list
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
       this.ensureSession();
       const tools = this.upstream.listTools();
       return { tools };
     });
 
-    // Call tool: intercept, record, forward to upstream
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       this.ensureSession();
       return this.handleToolCall(
@@ -78,8 +82,6 @@ class AccountabilityLedgerProxy {
     });
   }
 
-  // ── Tool call interception ────────────────────────────────────────────────
-
   private async handleToolCall(
     toolName: string,
     args: Record<string, unknown>,
@@ -87,12 +89,11 @@ class AccountabilityLedgerProxy {
     const session = this.session!;
     const calledAt = new Date().toISOString();
 
-    // 1. Check tools_permitted allowlist
     if (
       session.agentRecord.tools_permitted.length > 0 &&
       !session.agentRecord.tools_permitted.includes(toolName)
     ) {
-      this.recordEventAsync({
+      this.recordEventAndWireAsync({
         toolName, args, result: null, calledAt,
         decisionMade: false, humanReviewRequired: false,
         outcomeNotes: `Blocked: '${toolName}' not in tools_permitted`,
@@ -103,9 +104,8 @@ class AccountabilityLedgerProxy {
       };
     }
 
-    // 2. Check upstream is available
     if (!this.upstream.isConnected()) {
-      this.recordEventAsync({
+      this.recordEventAndWireAsync({
         toolName, args, result: null, calledAt,
         decisionMade: false, humanReviewRequired: false,
         outcomeNotes: 'Blocked: upstream MCP server not connected',
@@ -116,7 +116,6 @@ class AccountabilityLedgerProxy {
       };
     }
 
-    // 3. Forward to upstream
     let result: CallToolResult;
     let upstreamError: string | undefined;
     try {
@@ -129,15 +128,13 @@ class AccountabilityLedgerProxy {
       };
     }
 
-    // 4. Determine decision + review requirement
     const decisionMade = this.inferDecisionMade(toolName);
     const humanReviewRequired =
       session.trustLevel !== 'trusted' &&
       session.agentRecord.eu_ai_act_risk_level === 'high' &&
       decisionMade;
 
-    // 5. Record ToolCallEvent (async — does not block response)
-    this.recordEventAsync({
+    this.recordEventAndWireAsync({
       toolName, args, result, calledAt,
       decisionMade, humanReviewRequired,
       outcomeNotes: upstreamError,
@@ -146,9 +143,7 @@ class AccountabilityLedgerProxy {
     return result;
   }
 
-  // ── Async event recording ────────────────────────────────────────────────
-
-  private recordEventAsync(params: {
+  private recordEventAndWireAsync(params: {
     toolName: string;
     args: Record<string, unknown>;
     result: CallToolResult | null;
@@ -184,12 +179,105 @@ class AccountabilityLedgerProxy {
         parent_span_id: session.parentSpanId,
         annotation_ref: session.annotationRef,
       })
+      .then(async (eventRecord) => {
+        const eventId = eventRecord.id;
+        await this.maybeRecordDataTransfers(eventId, params.toolName, params.args);
+        if (params.humanReviewRequired) {
+          await this.createOversightAndUpdateSession(eventId);
+        }
+      })
       .catch((err) =>
-        console.error('[AL Proxy] ToolCallEvent write failed:', err),
+        console.error('[AL Proxy] ToolCallEvent or post-event wiring failed:', err),
       );
   }
 
-  // ── Session init ─────────────────────────────────────────────────────────
+  private async maybeRecordDataTransfers(
+    eventId: string,
+    toolName: string,
+    args: Record<string, unknown>,
+  ): Promise<void> {
+    const session = this.session!;
+    const policies = session.agentRecord.transfer_policies ?? [];
+
+    if (!Array.isArray(policies) || policies.length === 0) return;
+    if (!this.toolInvolvesPii(toolName, args)) return;
+
+    const originCountry = (process.env.AL_ORIGIN_COUNTRY ?? 'DE').toUpperCase();
+
+    for (const policy of policies as unknown as Array<Record<string, unknown>>) {
+      const rawDest = policy['destination_country'] ?? policy['destination'];
+      const dest =
+        typeof rawDest === 'string' ? rawDest.toUpperCase() : '';
+      if (!dest) continue;
+      if (isEeaCountry(dest)) continue;
+
+      const mechRaw = policy['transfer_mechanism'] ?? policy['mechanism'];
+      const transferMechanism =
+        typeof mechRaw === 'string' && mechRaw.length > 0 ? mechRaw : 'scc';
+
+      const dc = policy['data_categories'];
+      const dataCategories = Array.isArray(dc)
+        ? (dc as unknown[]).filter((x): x is string => typeof x === 'string')
+        : undefined;
+
+      await this.alClient
+        .createDataTransferRecord({
+          agent_id: session.agentRecord.agent_id,
+          event_ref: eventId,
+          tenant_id: session.agentRecord.tenant_id,
+          origin_country: originCountry,
+          destination_country: dest,
+          transfer_mechanism: transferMechanism,
+          data_categories: dataCategories,
+          dpf_relied_upon: (policy['dpf_relied_upon'] as boolean | undefined) ?? false,
+          scc_ref: policy['scc_ref'] as string | undefined,
+          bcr_ref: policy['bcr_ref'] as string | undefined,
+          derogation_basis: policy['derogation_basis'] as string | undefined,
+          backup_mechanism: policy['backup_mechanism'] as string | undefined,
+        })
+        .catch((err) =>
+          console.error(`[AL Proxy] DataTransferRecord failed (dest=${dest}):`, err),
+        );
+    }
+  }
+
+  private toolInvolvesPii(toolName: string, args: Record<string, unknown>): boolean {
+    const piiFields = [
+      'email', 'name', 'phone', 'address', 'user_id', 'userId',
+      'person_id', 'candidate_id', 'subject_id', 'dob', 'ip_address',
+      'passport', 'national_id', 'health', 'biometric',
+    ];
+    const hasArgPii = piiFields.some((f) => f in args);
+    const writeOp = ['send', 'create', 'update', 'submit', 'post', 'write']
+      .some((kw) => toolName.toLowerCase().includes(kw));
+    return hasArgPii || writeOp;
+  }
+
+  private async createOversightAndUpdateSession(eventId: string): Promise<void> {
+    const session = this.session!;
+
+    try {
+      const oversight = await this.alClient.createOversightRecord({
+        agent_id: session.agentRecord.agent_id,
+        event_ref: eventId,
+        tenant_id: session.agentRecord.tenant_id,
+        review_trigger: 'degraded_context_trust',
+        notes:
+          `Auto-triggered: context_trust=${session.trustLevel}, ` +
+          `eu_ai_act_risk_level=${session.agentRecord.eu_ai_act_risk_level}, ` +
+          `annotation_ref=${session.annotationRef}`,
+      });
+
+      session.annotationRef = oversight.id;
+
+      console.log(
+        `[AL Proxy] HumanOversightRecord created: id=${oversight.id} ` +
+        `event_ref=${eventId} session=${session.sessionId}`,
+      );
+    } catch (err) {
+      console.error('[AL Proxy] createOversightRecord failed:', err);
+    }
+  }
 
   async initSession(authHeader?: string, traceparent?: string): Promise<void> {
     const rawToken = extractBearerToken(authHeader ?? process.env.AL_AGENT_TOKEN);
@@ -234,11 +322,6 @@ class AccountabilityLedgerProxy {
     );
   }
 
-  /**
-   * Degrade session trust. Call this when an external/unverified source
-   * enters the agent's context window (e.g. web search result, user URL).
-   * Trust is monotonically decreasing — it cannot recover within a session.
-   */
   async degradeTrust(
     newLevel: 'degraded' | 'untrusted',
     trigger: string,
@@ -248,7 +331,7 @@ class AccountabilityLedgerProxy {
     if (!session) throw new Error('No active session');
 
     const order: Record<TrustLevel, number> = { trusted: 2, degraded: 1, untrusted: 0 };
-    if (order[session.trustLevel] <= order[newLevel]) return; // already at or below
+    if (order[session.trustLevel] <= order[newLevel]) return;
 
     const annotation = await this.alClient.degradeTrust(
       session.agentRecord.agent_id,
@@ -270,16 +353,10 @@ class AccountabilityLedgerProxy {
     );
   }
 
-  // ── Start / stop ─────────────────────────────────────────────────────────
-
   async start(): Promise<void> {
-    // Connect to upstream first — fail fast if misconfigured
     await this.upstream.connect();
-
-    // Validate agent token + create session
     await this.initSession();
 
-    // Wire up graceful shutdown
     const shutdown = async (signal: string) => {
       console.log(`[AL Proxy] Received ${signal}, shutting down…`);
       await this.upstream.disconnect();
@@ -288,23 +365,15 @@ class AccountabilityLedgerProxy {
     process.on('SIGINT', () => shutdown('SIGINT'));
     process.on('SIGTERM', () => shutdown('SIGTERM'));
 
-    // Start accepting MCP connections over stdio
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    console.log('[AL Proxy] Ready. Forwarding tool calls to upstream MCP server.');
+    console.log('[AL Proxy] Ready (v0.2). Forwarding tool calls to upstream MCP server.');
   }
-
-  // ── Helpers ──────────────────────────────────────────────────────────────
 
   private ensureSession(): void {
     if (!this.session) throw new Error('Session not initialised.');
   }
 
-  /**
-   * Infer whether a tool call constitutes a "decision" that may require
-   * human oversight. Matches write/mutate/send/approve operation names.
-   * Phase 2: make this configurable per-tool via AgentRecord metadata.
-   */
   private inferDecisionMade(toolName: string): boolean {
     const decisionKeywords = [
       'send', 'create', 'update', 'delete', 'approve',
@@ -313,21 +382,20 @@ class AccountabilityLedgerProxy {
     return decisionKeywords.some((kw) => toolName.toLowerCase().includes(kw));
   }
 
-  /** Extract data subject identifiers from tool args (field names, not values). */
   private extractDataSubjects(args: Record<string, unknown>): string[] {
-    const subjectFields = ['user_id', 'userId', 'subject_id', 'email', 'person_id', 'candidate_id'];
+    const subjectFields = [
+      'user_id', 'userId', 'subject_id', 'email',
+      'person_id', 'candidate_id',
+    ];
     return subjectFields
       .filter((f) => typeof args[f] === 'string')
       .map((f) => `${f}:${args[f]}`);
   }
 
-  /** Record output field names, not values (data minimisation). */
   private extractOutputFields(result: CallToolResult): string[] {
     return (result.content ?? []).map((c) => c.type);
   }
 }
-
-// ── Entry point ───────────────────────────────────────────────────────────────
 
 const proxy = new AccountabilityLedgerProxy();
 proxy.start().catch((err) => {
