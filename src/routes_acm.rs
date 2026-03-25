@@ -4,6 +4,8 @@ use sha2::{Sha256, Digest};
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use crate::tenant::get_tenant_context;
+
 fn verify_service_token(req: &HttpRequest) -> Result<(), HttpResponse> {
     let expected = std::env::var("AL_SERVICE_TOKEN").unwrap_or_default();
     if expected.is_empty() {
@@ -830,6 +832,295 @@ pub async fn update_oversight_outcome(
     }
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// Dashboard-facing endpoints (JWT auth via TenantContext)
+// ══════════════════════════════════════════════════════════════════════════════
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+struct DashboardOversightRow {
+    id: Uuid,
+    agent_id: Option<String>,
+    agent_name: Option<String>,
+    event_ref: Option<Uuid>,
+    tenant_id: Option<Uuid>,
+    review_trigger: Option<String>,
+    reviewer_outcome: Option<String>,
+    reviewer_id: Option<String>,
+    flagged_at: Option<chrono::DateTime<chrono::Utc>>,
+    decided_at: Option<chrono::DateTime<chrono::Utc>>,
+    eu_ai_act_compliance: Option<bool>,
+    comments: Option<String>,
+    created_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Deserialize)]
+pub struct DashboardOversightQuery {
+    pub status: Option<String>,
+}
+
+#[get("/api/v1/acm/oversight")]
+pub async fn dashboard_list_oversight(
+    req: HttpRequest,
+    pool: web::Data<PgPool>,
+    query: web::Query<DashboardOversightQuery>,
+) -> HttpResponse {
+    let tenant = match get_tenant_context(&req) {
+        Ok(t) => t,
+        Err(e) => return HttpResponse::from_error(e),
+    };
+
+    let status_filter = query.status.as_deref().unwrap_or("all");
+
+    let rows = match status_filter {
+        "pending" => {
+            sqlx::query_as::<_, DashboardOversightRow>(
+                r#"SELECT h.id, h.agent_id::text AS agent_id, a.name AS agent_name,
+                          h.event_ref, h.tenant_id, h.review_trigger,
+                          h.reviewer_outcome, h.reviewer_id,
+                          h.flagged_at, h.decided_at, h.eu_ai_act_compliance,
+                          h.comments, h.created_at
+                   FROM human_oversight h
+                   LEFT JOIN agents a ON a.id = h.agent_id::text
+                   WHERE h.tenant_id = $1
+                     AND (h.reviewer_outcome = 'pending' OR (h.reviewer_outcome IS NULL AND h.status = 'PENDING'))
+                   ORDER BY h.flagged_at ASC NULLS LAST
+                   LIMIT 200"#,
+            )
+            .bind(tenant.tenant_id)
+            .fetch_all(pool.get_ref())
+            .await
+        }
+        "decided" => {
+            sqlx::query_as::<_, DashboardOversightRow>(
+                r#"SELECT h.id, h.agent_id::text AS agent_id, a.name AS agent_name,
+                          h.event_ref, h.tenant_id, h.review_trigger,
+                          h.reviewer_outcome, h.reviewer_id,
+                          h.flagged_at, h.decided_at, h.eu_ai_act_compliance,
+                          h.comments, h.created_at
+                   FROM human_oversight h
+                   LEFT JOIN agents a ON a.id = h.agent_id::text
+                   WHERE h.tenant_id = $1
+                     AND h.reviewer_outcome IS NOT NULL
+                     AND h.reviewer_outcome != 'pending'
+                   ORDER BY h.decided_at DESC NULLS LAST
+                   LIMIT 200"#,
+            )
+            .bind(tenant.tenant_id)
+            .fetch_all(pool.get_ref())
+            .await
+        }
+        _ => {
+            sqlx::query_as::<_, DashboardOversightRow>(
+                r#"SELECT h.id, h.agent_id::text AS agent_id, a.name AS agent_name,
+                          h.event_ref, h.tenant_id, h.review_trigger,
+                          h.reviewer_outcome, h.reviewer_id,
+                          h.flagged_at, h.decided_at, h.eu_ai_act_compliance,
+                          h.comments, h.created_at
+                   FROM human_oversight h
+                   LEFT JOIN agents a ON a.id = h.agent_id::text
+                   WHERE h.tenant_id = $1
+                   ORDER BY h.created_at DESC
+                   LIMIT 200"#,
+            )
+            .bind(tenant.tenant_id)
+            .fetch_all(pool.get_ref())
+            .await
+        }
+    };
+
+    match rows {
+        Ok(r) => HttpResponse::Ok().json(serde_json::json!({
+            "data": r,
+            "total": r.len(),
+        })),
+        Err(e) => {
+            log::error!("dashboard_list_oversight error: {e}");
+            HttpResponse::InternalServerError().json(serde_json::json!({"error": "database error"}))
+        }
+    }
+}
+
+#[patch("/api/v1/acm/oversight/{id}")]
+pub async fn dashboard_resolve_oversight(
+    req: HttpRequest,
+    pool: web::Data<PgPool>,
+    path: web::Path<String>,
+    body: web::Json<UpdateOversightOutcomeRequest>,
+) -> HttpResponse {
+    let tenant = match get_tenant_context(&req) {
+        Ok(t) => t,
+        Err(e) => return HttpResponse::from_error(e),
+    };
+
+    let oversight_id = match Uuid::parse_str(path.as_str()) {
+        Ok(id) => id,
+        Err(_) => return HttpResponse::BadRequest().json(serde_json::json!({"error": "invalid id"})),
+    };
+
+    let valid_outcomes = ["approved", "rejected", "escalated", "pending"];
+    if !valid_outcomes.contains(&body.reviewer_outcome.as_str()) {
+        return HttpResponse::BadRequest().json(serde_json::json!({
+            "error": "invalid reviewer_outcome",
+            "valid": valid_outcomes
+        }));
+    }
+
+    let legacy_status = match body.reviewer_outcome.as_str() {
+        "approved" => "APPROVED",
+        "rejected" => "REJECTED",
+        "escalated" => "PENDING",
+        _ => "PENDING",
+    };
+
+    let result = sqlx::query(
+        r#"UPDATE human_oversight
+           SET reviewer_outcome     = $1,
+               reviewer_id          = $2,
+               decided_at           = NOW(),
+               eu_ai_act_compliance = $3,
+               comments             = COALESCE($4, comments),
+               status               = $5,
+               updated_at           = NOW()
+           WHERE id = $6 AND tenant_id = $7"#,
+    )
+    .bind(&body.reviewer_outcome)
+    .bind(&body.reviewer_id)
+    .bind(body.eu_ai_act_compliance)
+    .bind(&body.notes)
+    .bind(legacy_status)
+    .bind(oversight_id)
+    .bind(tenant.tenant_id)
+    .execute(pool.get_ref())
+    .await;
+
+    match result {
+        Ok(r) if r.rows_affected() == 0 => HttpResponse::NotFound().json(serde_json::json!({"error": "oversight record not found"})),
+        Ok(_) => HttpResponse::Ok().json(serde_json::json!({
+            "updated": true,
+            "outcome": body.reviewer_outcome,
+        })),
+        Err(e) => {
+            log::error!("dashboard_resolve_oversight error: {e}");
+            HttpResponse::InternalServerError().json(serde_json::json!({"error": "database error"}))
+        }
+    }
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+struct DashboardTransferRow {
+    transfer_id: Uuid,
+    agent_id: Option<String>,
+    agent_name: Option<String>,
+    event_ref: Option<Uuid>,
+    origin_country: String,
+    destination_country: String,
+    transfer_mechanism: String,
+    data_categories: Option<serde_json::Value>,
+    dpf_relied_upon: Option<bool>,
+    schrems_iii_risk: Option<bool>,
+    scc_ref: Option<String>,
+    bcr_ref: Option<String>,
+    derogation_basis: Option<String>,
+    backup_mechanism: Option<String>,
+    transfer_timestamp: Option<chrono::DateTime<chrono::Utc>>,
+    created_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[get("/api/v1/acm/transfers")]
+pub async fn dashboard_list_transfers(
+    req: HttpRequest,
+    pool: web::Data<PgPool>,
+) -> HttpResponse {
+    let tenant = match get_tenant_context(&req) {
+        Ok(t) => t,
+        Err(e) => return HttpResponse::from_error(e),
+    };
+
+    let rows = sqlx::query_as::<_, DashboardTransferRow>(
+        r#"SELECT d.transfer_id, d.agent_id::text AS agent_id, a.name AS agent_name,
+                  d.event_ref,
+                  d.origin_country, d.destination_country, d.transfer_mechanism,
+                  d.data_categories, d.dpf_relied_upon, d.schrems_iii_risk,
+                  d.scc_ref, d.bcr_ref, d.derogation_basis, d.backup_mechanism,
+                  d.transfer_timestamp, d.created_at
+           FROM data_transfer_records d
+           LEFT JOIN agents a ON a.id = d.agent_id::text
+           WHERE d.tenant_id = $1
+           ORDER BY d.created_at DESC
+           LIMIT 500"#,
+    )
+    .bind(tenant.tenant_id)
+    .fetch_all(pool.get_ref())
+    .await;
+
+    match rows {
+        Ok(r) => HttpResponse::Ok().json(serde_json::json!({
+            "data": r,
+            "total": r.len(),
+        })),
+        Err(e) => {
+            log::error!("dashboard_list_transfers error: {e}");
+            HttpResponse::InternalServerError().json(serde_json::json!({"error": "database error"}))
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+struct AcmStatsResponse {
+    oversight_pending: i64,
+    oversight_decided: i64,
+    transfers_total: i64,
+    transfers_schrems_risk: i64,
+    tool_call_events_total: i64,
+    trust_degraded_sessions: i64,
+}
+
+#[get("/api/v1/acm/stats")]
+pub async fn dashboard_acm_stats(
+    req: HttpRequest,
+    pool: web::Data<PgPool>,
+) -> HttpResponse {
+    let tenant = match get_tenant_context(&req) {
+        Ok(t) => t,
+        Err(e) => return HttpResponse::from_error(e),
+    };
+
+    let oversight_pending: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM human_oversight WHERE tenant_id = $1 AND (reviewer_outcome = 'pending' OR (reviewer_outcome IS NULL AND status = 'PENDING'))"
+    ).bind(tenant.tenant_id).fetch_one(pool.get_ref()).await.unwrap_or(0);
+
+    let oversight_decided: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM human_oversight WHERE tenant_id = $1 AND reviewer_outcome IS NOT NULL AND reviewer_outcome != 'pending'"
+    ).bind(tenant.tenant_id).fetch_one(pool.get_ref()).await.unwrap_or(0);
+
+    let transfers_total: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM data_transfer_records WHERE tenant_id = $1"
+    ).bind(tenant.tenant_id).fetch_one(pool.get_ref()).await.unwrap_or(0);
+
+    let transfers_schrems_risk: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM data_transfer_records WHERE tenant_id = $1 AND schrems_iii_risk = true"
+    ).bind(tenant.tenant_id).fetch_one(pool.get_ref()).await.unwrap_or(0);
+
+    let tool_call_events_total: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM tool_call_events WHERE tenant_id = $1"
+    ).bind(tenant.tenant_id).fetch_one(pool.get_ref()).await.unwrap_or(0);
+
+    let trust_degraded_sessions: i64 = sqlx::query_scalar(
+        "SELECT COUNT(DISTINCT session_id) FROM context_trust_annotations WHERE tenant_id = $1 AND trust_level IN ('degraded', 'untrusted')"
+    ).bind(tenant.tenant_id).fetch_one(pool.get_ref()).await.unwrap_or(0);
+
+    HttpResponse::Ok().json(serde_json::json!({
+        "data": {
+            "oversight_pending": oversight_pending,
+            "oversight_decided": oversight_decided,
+            "transfers_total": transfers_total,
+            "transfers_schrems_risk": transfers_schrems_risk,
+            "tool_call_events_total": tool_call_events_total,
+            "trust_degraded_sessions": trust_degraded_sessions,
+        }
+    }))
+}
+
 // ── Configure ────────────────────────────────────────────────────────────────
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
@@ -841,5 +1132,9 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
         .service(schrems_iii_bulk_review)
         .service(create_oversight_record)
         .service(list_pending_oversight)
-        .service(update_oversight_outcome);
+        .service(update_oversight_outcome)
+        .service(dashboard_list_oversight)
+        .service(dashboard_resolve_oversight)
+        .service(dashboard_list_transfers)
+        .service(dashboard_acm_stats);
 }

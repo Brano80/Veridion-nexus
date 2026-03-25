@@ -105,6 +105,50 @@ these routes exist. That's expected — implement the proxy first, then the API 
 
 ---
 
+## Step 8 — Phase 2b: ACM Dashboard Pages
+
+### Sidebar navigation
+
+In `dashboard/app/components/Sidebar.tsx`, a new **ACM** section is added between the
+main nav and the System section. Three links:
+
+| href | label | icon |
+|------|-------|------|
+| `/acm` | ACM Overview | `Activity` |
+| `/acm/oversight` | Oversight Queue | `Eye` |
+| `/acm/transfers` | Transfers | `ArrowRightLeft` |
+
+### API client
+
+The ACM API client is at `dashboard/app/lib/acm-api.ts` — separate from the existing
+`dashboard/app/utils/api.ts`. It uses the same `getAuthHeaders()` pattern (JWT Bearer
+token via Next.js rewrite proxy).
+
+### Pages
+
+- **`/acm`** — Overview dashboard with stat cards (pending oversight, decided, total
+  transfers, Schrems III risk, tool call events, degraded sessions). Calls
+  `GET /api/v1/acm/stats`.
+- **`/acm/oversight`** — EU AI Act Art. 14 oversight queue. Expandable rows with
+  Approve / Reject / Escalate actions. Filter tabs: Pending | Decided | All. Calls
+  `GET /api/v1/acm/oversight?status=<filter>` and
+  `PATCH /api/v1/acm/oversight/{id}`.
+- **`/acm/transfers`** — GDPR Art. 44–49 cross-border transfer table with search,
+  country flags, mechanism badges, Schrems III risk indicators. Calls
+  `GET /api/v1/acm/transfers`.
+
+### Rust backend additions
+
+New JWT-authenticated dashboard endpoints in `src/routes_acm.rs`:
+- `GET  /api/v1/acm/stats`           — aggregate ACM counts for the overview page
+- `GET  /api/v1/acm/oversight`       — list oversight records (query: `?status=pending|decided|all`)
+- `PATCH /api/v1/acm/oversight/{id}` — resolve an oversight record (approve/reject/escalate)
+- `GET  /api/v1/acm/transfers`       — list data transfer records
+
+All scoped to the logged-in tenant via `get_tenant_context`.
+
+---
+
 ## Verification checklist
 
 - [ ] `psql $DATABASE_URL -c "\d tool_call_events"` shows all columns
@@ -113,3 +157,6 @@ these routes exist. That's expected — implement the proxy first, then the API 
 - [ ] `cd mcp-server && npm run build` exits 0
 - [ ] No TypeScript errors in any of the four new .ts files
 - [ ] `docs/adr/001-al-architecture.md` committed to repo
+- [ ] `cd dashboard && npm run build` exits 0 — all three ACM pages compile
+- [ ] `cargo check` passes with no new errors
+- [ ] Sidebar shows ACM section with three links between Evidence Vault and System

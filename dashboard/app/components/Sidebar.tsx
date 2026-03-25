@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import { Globe, FileText, Shield, ClipboardCheck, List, MapPin, Settings, LogOut, Cpu } from 'lucide-react';
+import { Globe, FileText, Shield, ClipboardCheck, List, MapPin, Settings, LogOut, Cpu, Activity, Eye, ArrowRightLeft } from 'lucide-react';
 import { getCurrentUser, isAdmin, getAuthHeaders, clearAuthState, CurrentUser } from '../utils/api';
 
 const navItems = [
@@ -63,7 +63,46 @@ export default function Sidebar() {
               </Link>
             );
           })}
-          <div className="border-t border-slate-700 mt-10 mb-1.5" />
+          <div className="border-t border-slate-700 mt-4 mb-1.5" />
+          <div className="px-2 py-0.5">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+              ACM
+            </span>
+          </div>
+          <Link
+            href="/acm"
+            className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              pathname === '/acm'
+                ? 'bg-slate-700 text-white'
+                : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+            }`}
+          >
+            <Activity className="w-3.5 h-3.5" />
+            ACM Overview
+          </Link>
+          <Link
+            href="/acm/oversight"
+            className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              pathname === '/acm/oversight'
+                ? 'bg-slate-700 text-white'
+                : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+            }`}
+          >
+            <Eye className="w-3.5 h-3.5" />
+            Oversight Queue
+          </Link>
+          <Link
+            href="/acm/transfers"
+            className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              pathname === '/acm/transfers'
+                ? 'bg-slate-700 text-white'
+                : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+            }`}
+          >
+            <ArrowRightLeft className="w-3.5 h-3.5" />
+            Transfers
+          </Link>
+          <div className="border-t border-slate-700 mt-4 mb-1.5" />
           <div className="px-2 py-0.5">
             <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
               System
