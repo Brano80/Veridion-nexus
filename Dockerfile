@@ -3,6 +3,7 @@ WORKDIR /app
 
 # Copy dependency files first for better caching
 COPY Cargo.toml Cargo.lock ./
+COPY generate_hash.rs ./
 COPY src ./src
 
 # Build the release binary
