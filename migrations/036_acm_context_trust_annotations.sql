@@ -18,7 +18,7 @@
 CREATE TABLE IF NOT EXISTS context_trust_annotations (
     -- Identity
     annotation_id       UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    agent_id            UUID        NOT NULL REFERENCES agents(id) ON DELETE RESTRICT,
+    agent_id            VARCHAR(64) NOT NULL REFERENCES agents(id) ON DELETE RESTRICT,
     session_id          UUID        NOT NULL,
     tenant_id           UUID        NOT NULL REFERENCES tenants(id) ON DELETE RESTRICT,
 

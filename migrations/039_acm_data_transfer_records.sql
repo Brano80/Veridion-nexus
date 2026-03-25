@@ -4,7 +4,7 @@
 
 CREATE TABLE IF NOT EXISTS data_transfer_records (
     transfer_id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    agent_id            UUID        NOT NULL REFERENCES agents(id) ON DELETE RESTRICT,
+    agent_id            VARCHAR(64) NOT NULL REFERENCES agents(id) ON DELETE RESTRICT,
     event_ref           UUID        REFERENCES tool_call_events(event_id) ON DELETE SET NULL,
     tenant_id           UUID        NOT NULL REFERENCES tenants(id) ON DELETE RESTRICT,
 

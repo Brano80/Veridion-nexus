@@ -7,7 +7,7 @@
 -- canonical fields, and prev_event_hash links it to the prior record for the same agent.
 --
 -- Differences from compliance_records (005):
---   - Proper UUID FK to agents.id (not VARCHAR agent_id)
+--   - Proper FK to agents.id (VARCHAR(64))
 --   - inputs/outputs JSONB with fields_requested / fields_returned
 --   - context_trust_level (trusted/degraded/untrusted) — required field
 --   - OTel trace_id + parent_span_id for delegation chain (v0.2 prep)
@@ -16,7 +16,7 @@
 CREATE TABLE IF NOT EXISTS tool_call_events (
     -- Identity
     event_id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    agent_id            UUID        NOT NULL REFERENCES agents(id) ON DELETE RESTRICT,
+    agent_id            VARCHAR(64) NOT NULL REFERENCES agents(id) ON DELETE RESTRICT,
     session_id          UUID        NOT NULL,
     tenant_id           UUID        NOT NULL REFERENCES tenants(id) ON DELETE RESTRICT,
 

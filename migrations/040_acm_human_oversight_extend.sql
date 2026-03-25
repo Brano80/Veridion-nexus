@@ -4,7 +4,7 @@
 ALTER TABLE human_oversight ALTER COLUMN seal_id DROP NOT NULL;
 
 ALTER TABLE human_oversight
-    ADD COLUMN IF NOT EXISTS agent_id         UUID REFERENCES agents(id) ON DELETE SET NULL,
+    ADD COLUMN IF NOT EXISTS agent_id         VARCHAR(64) REFERENCES agents(id) ON DELETE SET NULL,
     ADD COLUMN IF NOT EXISTS event_ref        UUID REFERENCES tool_call_events(event_id) ON DELETE SET NULL,
     ADD COLUMN IF NOT EXISTS review_trigger   VARCHAR(40)
         CHECK (review_trigger IS NULL OR review_trigger IN (
