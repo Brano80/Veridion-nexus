@@ -73,6 +73,12 @@ def post(path: str, body: dict) -> dict:
     r = requests.post(f"{API_BASE}{path}", headers=headers(), json=body, timeout=120)
     if not r.ok:
         print(f"POST {path} failed: {r.status_code} {r.text[:500]}", file=sys.stderr)
+        if r.status_code == 500 and "AL_SERVICE_TOKEN" in (r.text or ""):
+            print(
+                "Set AL_SERVICE_TOKEN to the same value as on the API server (.env), "
+                "then re-run.",
+                file=sys.stderr,
+            )
         r.raise_for_status()
     return r.json()
 
