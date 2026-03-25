@@ -39,6 +39,36 @@ fn sha256_hex(input: &str) -> String {
     format!("{:x}", hasher.finalize())
 }
 
+/// Resolve `agents.id` (VARCHAR, e.g. `agt_…`) for ACM inserts; validates tenant.
+async fn resolve_agent_id_for_tenant(
+    pool: &PgPool,
+    raw: &str,
+    tenant_id: Uuid,
+) -> Result<String, HttpResponse> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err(HttpResponse::BadRequest().json(serde_json::json!({"error": "invalid agent_id"})));
+    }
+    let row: Option<(String,)> = sqlx::query_as(
+        "SELECT id FROM agents WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL AND status = 'active'",
+    )
+    .bind(trimmed)
+    .bind(tenant_id)
+    .fetch_optional(pool)
+    .await
+    .map_err(|e| {
+        log::error!("resolve_agent_id_for_tenant: {}", e);
+        HttpResponse::InternalServerError().json(serde_json::json!({"error": "database error"}))
+    })?;
+    match row {
+        Some((id,)) => Ok(id),
+        None => Err(HttpResponse::BadRequest().json(serde_json::json!({
+            "error": "agent not found for tenant",
+            "agent_id": trimmed,
+        }))),
+    }
+}
+
 // ── GET /api/acm/agents?oauth_client_id={id} ────────────────────────────────
 
 #[derive(Deserialize)]
@@ -470,13 +500,13 @@ pub async fn create_data_transfer_record(
         return resp;
     }
 
-    let agent_id = match Uuid::parse_str(&body.agent_id) {
-        Ok(id) => id,
-        Err(_) => return HttpResponse::BadRequest().json(serde_json::json!({"error": "invalid agent_id"})),
-    };
     let tenant_id = match Uuid::parse_str(&body.tenant_id) {
         Ok(id) => id,
         Err(_) => return HttpResponse::BadRequest().json(serde_json::json!({"error": "invalid tenant_id"})),
+    };
+    let agent_id_str = match resolve_agent_id_for_tenant(pool.get_ref(), &body.agent_id, tenant_id).await {
+        Ok(s) => s,
+        Err(resp) => return resp,
     };
     let event_ref = body
         .event_ref
@@ -524,7 +554,7 @@ pub async fn create_data_transfer_record(
         RETURNING transfer_id, schrems_iii_risk, created_at
         "#,
     )
-    .bind(agent_id)
+    .bind(&agent_id_str)
     .bind(event_ref)
     .bind(tenant_id)
     .bind(&body.origin_country)
@@ -617,13 +647,13 @@ pub async fn create_oversight_record(
         return resp;
     }
 
-    let agent_id = match Uuid::parse_str(&body.agent_id) {
-        Ok(id) => id,
-        Err(_) => return HttpResponse::BadRequest().json(serde_json::json!({"error": "invalid agent_id"})),
-    };
     let tenant_id = match Uuid::parse_str(&body.tenant_id) {
         Ok(id) => id,
         Err(_) => return HttpResponse::BadRequest().json(serde_json::json!({"error": "invalid tenant_id"})),
+    };
+    let agent_id_str = match resolve_agent_id_for_tenant(pool.get_ref(), &body.agent_id, tenant_id).await {
+        Ok(s) => s,
+        Err(resp) => return resp,
     };
     let event_ref = body
         .event_ref
@@ -656,7 +686,7 @@ pub async fn create_oversight_record(
         RETURNING id, review_trigger, reviewer_outcome, flagged_at, created_at
         "#,
     )
-    .bind(agent_id)
+    .bind(&agent_id_str)
     .bind(event_ref)
     .bind(tenant_id)
     .bind(&body.review_trigger)

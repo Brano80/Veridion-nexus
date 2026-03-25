@@ -132,6 +132,7 @@ fn build_agent_card(agent: &AgentRow, policy_hash: &str, policy_version: i32) ->
         },
         "x-veridion": {
             "agent_id": agent.id,
+            "tenant_id": agent.tenant_id.to_string(),
             "policy_version": format!("v{}", policy_version),
             "policy_version_hash": policy_hash,
             "trust_level": agent.trust_level,
