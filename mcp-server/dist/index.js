@@ -1,124 +1,109 @@
 /**
  * Accountability Ledger — MCP Proxy
- * Phase 1 skeleton: intercepts MCP tool calls, records ACM ToolCallEvents.
+ * Phase 2: DataTransferRecord + HumanOversightRecord + trust wiring.
  *
- * Architecture (from ADR 001):
+ * Architecture (ADR 001):
  *   AI Agent → [this proxy] → Upstream MCP Server
  *                    ↓
- *             Rust API (ACM records)
- *
- * The proxy:
- *   1. Validates the OAuth 2.1 Bearer token on session init → resolves agent_id
- *   2. Creates a ContextTrustAnnotation for the session (trusted by default)
- *   3. For each tool call:
- *      a. Checks tools_permitted list from AgentRecord
- *      b. Forwards to upstream MCP server
- *      c. Records a ToolCallEvent (async, does not block the response)
- *   4. On session end: finalises the annotation
- *
- * Environment variables (see .env.example):
- *   AL_API_BASE_URL        - Rust API base URL (default: http://localhost:8080)
- *   AL_SERVICE_TOKEN       - Internal service JWT for proxy→API auth
- *   AL_OAUTH_ISSUER        - OAuth 2.1 issuer URL
- *   AL_OAUTH_AUDIENCE      - Expected audience claim (default: veridion-nexus-al)
- *   AL_JWKS_URI            - JWKS endpoint (default: {issuer}/.well-known/jwks.json)
- *   AL_AUTH_MODE           - 'jwks' (default) or 'dev_bypass' (never in production)
- *   AL_DEV_CLIENT_ID       - Required when AL_AUTH_MODE=dev_bypass
- *   UPSTREAM_MCP_COMMAND   - Command to launch upstream MCP server (stdio mode)
- *                            e.g. 'node /path/to/upstream/dist/index.js'
+ *             Rust API (/api/acm/*)
  */
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema, } from '@modelcontextprotocol/sdk/types.js';
 import { randomUUID } from 'crypto';
 import { AlClient } from './al-client.js';
+import { UpstreamMcpClient } from './upstream-client.js';
 import { validateToken, extractBearerToken } from './oauth.js';
-// ── Proxy class ───────────────────────────────────────────────────────────────
+const EEA_COUNTRIES = new Set([
+    'AT', 'BE', 'BG', 'CY', 'CZ', 'DE', 'DK', 'EE', 'ES', 'FI',
+    'FR', 'GR', 'HR', 'HU', 'IE', 'IT', 'LT', 'LU', 'LV', 'MT',
+    'NL', 'PL', 'PT', 'RO', 'SE', 'SI', 'SK',
+    'NO', 'IS', 'LI',
+    'GB',
+]);
+const extraEea = process.env.AL_EEA_EXTRA_COUNTRIES;
+if (extraEea) {
+    for (const cc of extraEea.split(',').map((s) => s.trim().toUpperCase())) {
+        if (cc)
+            EEA_COUNTRIES.add(cc);
+    }
+}
+function isEeaCountry(countryCode) {
+    return EEA_COUNTRIES.has(countryCode.toUpperCase());
+}
 class AccountabilityLedgerProxy {
     server;
     alClient;
+    upstream;
     session = null;
-    // TODO Phase 1: Replace with real upstream MCP client
-    // The upstream client will be an MCP Client instance connected to the real MCP server.
-    // For the Phase 0 skeleton, upstream is stubbed — add real upstream connection here.
-    upstreamTools = [];
     constructor() {
         this.alClient = new AlClient();
-        this.server = new Server({
-            name: 'accountability-ledger-proxy',
-            version: '0.1.0',
-        }, {
-            capabilities: { tools: {} },
-        });
+        this.upstream = new UpstreamMcpClient();
+        this.server = new Server({ name: 'accountability-ledger-proxy', version: '0.2.0' }, { capabilities: { tools: {} } });
         this.registerHandlers();
     }
-    // ── Handler registration ────────────────────────────────────────────────────
     registerHandlers() {
-        // List tools: proxy the upstream tool list
         this.server.setRequestHandler(ListToolsRequestSchema, async () => {
             this.ensureSession();
-            // TODO Phase 1: fetch tool list from upstream MCP server
-            // return await this.upstreamClient.listTools();
-            return { tools: this.upstreamTools };
+            const tools = this.upstream.listTools();
+            return { tools };
         });
-        // Call tool: the core interception point
         this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
             this.ensureSession();
-            return await this.handleToolCall(request.params.name, request.params.arguments ?? {});
+            return this.handleToolCall(request.params.name, (request.params.arguments ?? {}));
         });
     }
-    // ── Tool call interception ──────────────────────────────────────────────────
     async handleToolCall(toolName, args) {
         const session = this.session;
         const calledAt = new Date().toISOString();
-        // 1. Check tools_permitted allowlist
         if (session.agentRecord.tools_permitted.length > 0 &&
             !session.agentRecord.tools_permitted.includes(toolName)) {
-            // Record the blocked attempt as a ToolCallEvent
-            this.recordEventAsync({
-                toolName,
-                args,
-                result: null,
-                calledAt,
-                decisionMade: false,
-                humanReviewRequired: false,
-                outcomeNotes: `Tool blocked: not in tools_permitted list`,
-                blocked: true,
+            this.recordEventAndWireAsync({
+                toolName, args, result: null, calledAt,
+                decisionMade: false, humanReviewRequired: false,
+                outcomeNotes: `Blocked: '${toolName}' not in tools_permitted`,
             });
             return {
                 content: [{ type: 'text', text: `Tool '${toolName}' is not permitted for this agent.` }],
                 isError: true,
             };
         }
-        // 2. Forward to upstream MCP server
-        // TODO Phase 1: replace stub with real upstream call
-        // const upstreamResult = await this.upstreamClient.callTool(toolName, args);
-        const upstreamResult = {
-            content: [{ type: 'text', text: `[STUB] Upstream response for ${toolName}` }],
-        };
-        // 3. Determine if human review is required
-        //    Rule: degraded/untrusted context + high-risk agent + decision made → require review
-        const decisionMade = this.inferDecisionMade(toolName, upstreamResult);
+        if (!this.upstream.isConnected()) {
+            this.recordEventAndWireAsync({
+                toolName, args, result: null, calledAt,
+                decisionMade: false, humanReviewRequired: false,
+                outcomeNotes: 'Blocked: upstream MCP server not connected',
+            });
+            return {
+                content: [{ type: 'text', text: 'Upstream MCP server is temporarily unavailable.' }],
+                isError: true,
+            };
+        }
+        let result;
+        let upstreamError;
+        try {
+            result = await this.upstream.callTool(toolName, args);
+        }
+        catch (err) {
+            upstreamError = err.message;
+            result = {
+                content: [{ type: 'text', text: `Upstream error: ${upstreamError}` }],
+                isError: true,
+            };
+        }
+        const decisionMade = this.inferDecisionMade(toolName);
         const humanReviewRequired = session.trustLevel !== 'trusted' &&
             session.agentRecord.eu_ai_act_risk_level === 'high' &&
             decisionMade;
-        // 4. Record ToolCallEvent (async — does not block response to agent)
-        this.recordEventAsync({
-            toolName,
-            args,
-            result: upstreamResult,
-            calledAt,
-            decisionMade,
-            humanReviewRequired,
-            blocked: false,
+        this.recordEventAndWireAsync({
+            toolName, args, result, calledAt,
+            decisionMade, humanReviewRequired,
+            outcomeNotes: upstreamError,
         });
-        return upstreamResult;
+        return result;
     }
-    // ── Async event recording (non-blocking) ──────────────────────────────────
-    recordEventAsync(params) {
+    recordEventAndWireAsync(params) {
         const session = this.session;
-        // Fire-and-forget — compliance record must not delay the agent response
-        // Errors are logged but not propagated to the agent
         this.alClient
             .recordToolCallEvent({
             agent_id: session.agentRecord.agent_id,
@@ -126,7 +111,6 @@ class AccountabilityLedgerProxy {
             tenant_id: session.agentRecord.tenant_id,
             tool_id: params.toolName,
             called_at: params.calledAt,
-            // Data minimisation: record field names only, not values
             inputs: {
                 fields_requested: Object.keys(params.args),
                 data_subjects: this.extractDataSubjects(params.args),
@@ -145,35 +129,97 @@ class AccountabilityLedgerProxy {
             parent_span_id: session.parentSpanId,
             annotation_ref: session.annotationRef,
         })
-            .catch((err) => {
-            // Logging only — the agent's response is not affected
-            console.error('[AL Proxy] Failed to record ToolCallEvent:', err);
-        });
+            .then(async (eventRecord) => {
+            const eventId = eventRecord.id;
+            await this.maybeRecordDataTransfers(eventId, params.toolName, params.args);
+            if (params.humanReviewRequired) {
+                await this.createOversightAndUpdateSession(eventId);
+            }
+        })
+            .catch((err) => console.error('[AL Proxy] ToolCallEvent or post-event wiring failed:', err));
     }
-    // ── Session initialisation ─────────────────────────────────────────────────
-    /**
-     * Initialise the session: validate OAuth token, resolve AgentRecord,
-     * create ContextTrustAnnotation. Call this before starting the transport.
-     *
-     * In MCP over stdio, the Bearer token comes from an environment variable
-     * (AL_AGENT_TOKEN) passed by the agent launcher.
-     * In MCP over HTTP (future), it comes from the Authorization header.
-     */
+    async maybeRecordDataTransfers(eventId, toolName, args) {
+        const session = this.session;
+        const policies = session.agentRecord.transfer_policies ?? [];
+        if (!Array.isArray(policies) || policies.length === 0)
+            return;
+        if (!this.toolInvolvesPii(toolName, args))
+            return;
+        const originCountry = (process.env.AL_ORIGIN_COUNTRY ?? 'DE').toUpperCase();
+        for (const policy of policies) {
+            const rawDest = policy['destination_country'] ?? policy['destination'];
+            const dest = typeof rawDest === 'string' ? rawDest.toUpperCase() : '';
+            if (!dest)
+                continue;
+            if (isEeaCountry(dest))
+                continue;
+            const mechRaw = policy['transfer_mechanism'] ?? policy['mechanism'];
+            const transferMechanism = typeof mechRaw === 'string' && mechRaw.length > 0 ? mechRaw : 'scc';
+            const dc = policy['data_categories'];
+            const dataCategories = Array.isArray(dc)
+                ? dc.filter((x) => typeof x === 'string')
+                : undefined;
+            await this.alClient
+                .createDataTransferRecord({
+                agent_id: session.agentRecord.agent_id,
+                event_ref: eventId,
+                tenant_id: session.agentRecord.tenant_id,
+                origin_country: originCountry,
+                destination_country: dest,
+                transfer_mechanism: transferMechanism,
+                data_categories: dataCategories,
+                dpf_relied_upon: policy['dpf_relied_upon'] ?? false,
+                scc_ref: policy['scc_ref'],
+                bcr_ref: policy['bcr_ref'],
+                derogation_basis: policy['derogation_basis'],
+                backup_mechanism: policy['backup_mechanism'],
+            })
+                .catch((err) => console.error(`[AL Proxy] DataTransferRecord failed (dest=${dest}):`, err));
+        }
+    }
+    toolInvolvesPii(toolName, args) {
+        const piiFields = [
+            'email', 'name', 'phone', 'address', 'user_id', 'userId',
+            'person_id', 'candidate_id', 'subject_id', 'dob', 'ip_address',
+            'passport', 'national_id', 'health', 'biometric',
+        ];
+        const hasArgPii = piiFields.some((f) => f in args);
+        const writeOp = ['send', 'create', 'update', 'submit', 'post', 'write']
+            .some((kw) => toolName.toLowerCase().includes(kw));
+        return hasArgPii || writeOp;
+    }
+    async createOversightAndUpdateSession(eventId) {
+        const session = this.session;
+        try {
+            const oversight = await this.alClient.createOversightRecord({
+                agent_id: session.agentRecord.agent_id,
+                event_ref: eventId,
+                tenant_id: session.agentRecord.tenant_id,
+                review_trigger: 'degraded_context_trust',
+                notes: `Auto-triggered: context_trust=${session.trustLevel}, ` +
+                    `eu_ai_act_risk_level=${session.agentRecord.eu_ai_act_risk_level}, ` +
+                    `annotation_ref=${session.annotationRef}`,
+            });
+            session.annotationRef = oversight.id;
+            console.log(`[AL Proxy] HumanOversightRecord created: id=${oversight.id} ` +
+                `event_ref=${eventId} session=${session.sessionId}`);
+        }
+        catch (err) {
+            console.error('[AL Proxy] createOversightRecord failed:', err);
+        }
+    }
     async initSession(authHeader, traceparent) {
         const rawToken = extractBearerToken(authHeader ?? process.env.AL_AGENT_TOKEN);
         if (!rawToken) {
-            throw new Error('No Bearer token provided. Agent must supply OAuth 2.1 credentials.');
+            throw new Error('No Bearer token. Agent must supply OAuth 2.1 credentials.');
         }
-        // Validate token → get client_id
         const tokenData = await validateToken(rawToken, traceparent);
-        // Resolve AgentRecord
         const agentRecord = await this.alClient.resolveAgent(tokenData.client_id);
         if (!agentRecord) {
-            throw new Error(`Unregistered agent: no AgentRecord found for client_id '${tokenData.client_id}'. ` +
-                `Register the agent at POST /api/acm/agents before connecting.`);
+            throw new Error(`Unregistered agent: no AgentRecord for client_id '${tokenData.client_id}'. ` +
+                `Register via POST /api/acm/agents first.`);
         }
         const sessionId = randomUUID();
-        // Create initial ContextTrustAnnotation (trusted by default)
         const annotation = await this.alClient.createTrustAnnotation({
             agent_id: agentRecord.agent_id,
             session_id: sessionId,
@@ -194,79 +240,60 @@ class AccountabilityLedgerProxy {
         console.log(`[AL Proxy] Session started: agent=${agentRecord.display_name} ` +
             `session=${sessionId} trust=trusted`);
     }
-    /**
-     * Downgrade the session trust level. Call this when the proxy detects
-     * an external/unverified source entering the agent's context window.
-     */
     async degradeTrust(newLevel, trigger, sources) {
         const session = this.session;
         if (!session)
             throw new Error('No active session');
-        // Trust can only go down — ignore if already at or below the requested level
-        const levelOrder = { trusted: 2, degraded: 1, untrusted: 0 };
-        if (levelOrder[session.trustLevel] <= levelOrder[newLevel])
+        const order = { trusted: 2, degraded: 1, untrusted: 0 };
+        if (order[session.trustLevel] <= order[newLevel])
             return;
         const annotation = await this.alClient.degradeTrust(session.agentRecord.agent_id, session.sessionId, session.agentRecord.tenant_id, newLevel, trigger, sources, session.annotationRef);
+        const prev = session.trustLevel;
         session.trustLevel = newLevel;
         session.annotationRef = annotation.id;
         console.log(`[AL Proxy] Trust degraded: session=${session.sessionId} ` +
-            `${session.trustLevel}→${newLevel} trigger=${trigger}`);
+            `${prev}→${newLevel} trigger=${trigger}`);
     }
-    // ── Helpers ────────────────────────────────────────────────────────────────
-    ensureSession() {
-        if (!this.session) {
-            throw new Error('Session not initialised. Call initSession() first.');
-        }
-    }
-    /**
-     * Infer whether the tool call constitutes a "decision".
-     * A decision is any tool call that produces an output that is acted upon
-     * without human confirmation. Heuristic: write/mutate/send/approve operations.
-     *
-     * TODO Phase 2: Make this configurable per-tool via AgentRecord.tools_permitted metadata
-     */
-    inferDecisionMade(toolName, _result) {
-        const decisionKeywords = ['send', 'create', 'update', 'delete', 'approve', 'reject', 'submit'];
-        return decisionKeywords.some((kw) => toolName.toLowerCase().includes(kw));
-    }
-    /**
-     * Extract data subject identifiers from tool arguments.
-     * Looks for common identifier field names.
-     *
-     * TODO Phase 2: Make this configurable via AgentRecord classification metadata
-     */
-    extractDataSubjects(args) {
-        const subjectFields = ['user_id', 'userId', 'subject_id', 'email', 'person_id', 'candidate_id'];
-        const subjects = [];
-        for (const field of subjectFields) {
-            const val = args[field];
-            if (typeof val === 'string')
-                subjects.push(`${field}:${val}`);
-        }
-        return subjects;
-    }
-    /**
-     * Extract field names from tool result (not values — data minimisation).
-     */
-    extractOutputFields(result) {
-        // For text results, we record that text was returned but not the content
-        // For structured results, record the top-level keys
-        if (!result.content)
-            return [];
-        return result.content.map((c) => c.type);
-    }
-    // ── Start ──────────────────────────────────────────────────────────────────
     async start() {
-        // Initialise session from environment (stdio mode)
+        await this.upstream.connect();
         await this.initSession();
+        const shutdown = async (signal) => {
+            console.log(`[AL Proxy] Received ${signal}, shutting down…`);
+            await this.upstream.disconnect();
+            process.exit(0);
+        };
+        process.on('SIGINT', () => shutdown('SIGINT'));
+        process.on('SIGTERM', () => shutdown('SIGTERM'));
         const transport = new StdioServerTransport();
         await this.server.connect(transport);
-        console.log('[AL Proxy] Proxy running on stdio. Waiting for tool calls.');
+        console.log('[AL Proxy] Ready (v0.2). Forwarding tool calls to upstream MCP server.');
+    }
+    ensureSession() {
+        if (!this.session)
+            throw new Error('Session not initialised.');
+    }
+    inferDecisionMade(toolName) {
+        const decisionKeywords = [
+            'send', 'create', 'update', 'delete', 'approve',
+            'reject', 'submit', 'write', 'post', 'publish',
+        ];
+        return decisionKeywords.some((kw) => toolName.toLowerCase().includes(kw));
+    }
+    extractDataSubjects(args) {
+        const subjectFields = [
+            'user_id', 'userId', 'subject_id', 'email',
+            'person_id', 'candidate_id',
+        ];
+        return subjectFields
+            .filter((f) => typeof args[f] === 'string')
+            .map((f) => `${f}:${args[f]}`);
+    }
+    extractOutputFields(result) {
+        return (result.content ?? []).map((c) => c.type);
     }
 }
-// ── Entry point ───────────────────────────────────────────────────────────────
 const proxy = new AccountabilityLedgerProxy();
 proxy.start().catch((err) => {
-    console.error('[AL Proxy] Fatal error:', err);
+    console.error('[AL Proxy] Fatal error during startup:', err);
     process.exit(1);
 });

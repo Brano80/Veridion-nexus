@@ -1,0 +1,21 @@
+# Veridion landing — Vercel deploy
+
+---
+description: After any change to the marketing site (veridion-landing), redeploy to Vercel production
+globs:
+  - "veridion-landing/**"
+---
+
+## Website changes require Vercel redeploy
+
+The public site at **veridion-nexus.eu** / **www.veridion-nexus.eu** is served by **Vercel** from this repo’s **`veridion-landing/`** Next.js app (project root in Vercel is `veridion-landing`).
+
+**Whenever you edit files under `veridion-landing/`**, finish the task by deploying:
+
+1. From the **repository root** (`veridion-api/`), **not** from inside `veridion-landing/`:
+   ```bash
+   npx vercel --prod --yes
+   ```
+2. Running from the wrong directory causes a doubled path (`veridion-landing/veridion-landing`) and fails.
+
+Do **not** skip deploy after landing changes unless the user explicitly says not to.

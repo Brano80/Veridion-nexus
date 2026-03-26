@@ -1,7 +1,7 @@
 # Project Reference — Veridion API / Sovereign Shield
 
-**Version:** 2.7  
-**Last updated:** 2026-03-25
+**Version:** 2.8  
+**Last updated:** 2026-03-26
 
 This is the **single project reference** for Veridion API: vision, scope, tech stack, configuration, and current behaviour (dashboard and API). Use it to onboard, scope work, and keep the codebase and docs aligned.
 
@@ -29,7 +29,7 @@ The vision is a **single, deployable API** that owns its schema and can grow fro
 |--------|-------------|
 | **Product** | Standalone REST API plus Sovereign Shield dashboard (Next.js). Own PostgreSQL database. Own migrations. |
 | **Boundary** | No shared migrations, shared DB, or shared Rust crates with veridion-nexus or other repos. |
-| **Current scope** | Health, dev auth (JWT), CORS; Evidence Vault (events, verify-integrity, PDF export); Sovereign Shield (ingest/evaluate with agent_id/agent_api_key for per-agent policy, evidence + review queue); SCC registries (CRUD, PATCH tia_completed, dpa_id, scc_module; auto-approve on register; **auto-expiry background job**); Human Oversight (review queue with transfer_count burst grouping, pending/decided, approve/reject, decided-evidence-ids); **Auth** (login, logout, dev-reset-password); Self-serve signup (POST /api/v1/auth/register, input validation, rate limiting 5/IP/hour, bcrypt password, async welcome email via SMTP); **Agent Registry** (POST/GET/DELETE agents, agent card, rotate key, per-agent policy enforcement); **Accountability Ledger** (MCP proxy: **Phase 1** real upstream MCP stdio/SSE via `UpstreamMcpClient`, tool call logging, SHA-256 hash-chained audit trail, context trust annotations, OAuth 2.1 agent identity, ACM Rust API routes); **Public Compliance Registry** (cross-tenant search/detail/stats, dashboard opt-in); **ACM Dashboard** (Phase 2b: ACM Overview stats, Oversight Queue with approve/reject/escalate, Transfers table). Migrations 001–040. |
+| **Current scope** | Health, dev auth (JWT), CORS; Evidence Vault (events, verify-integrity, PDF export); Sovereign Shield (ingest/evaluate with agent_id/agent_api_key for per-agent policy, evidence + review queue); SCC registries (CRUD, PATCH tia_completed, dpa_id, scc_module; auto-approve on register; **auto-expiry background job**); Human Oversight (review queue with transfer_count burst grouping, pending/decided, approve/reject, decided-evidence-ids); **Auth** (login, logout, dev-reset-password); Self-serve signup (POST /api/v1/auth/register, input validation, rate limiting 5/IP/hour, bcrypt password, async welcome email via SMTP); **Agent Registry** (POST/GET/DELETE agents, agent card, rotate key, per-agent policy enforcement); **Accountability Ledger** (MCP proxy: **Phase 1** real upstream MCP stdio/SSE via `UpstreamMcpClient`, tool call logging, SHA-256 hash-chained audit trail, context trust annotations, OAuth 2.1 agent identity, ACM Rust API routes); **Public Compliance Registry** (cross-tenant search/detail/stats, dashboard opt-in); **ACM Dashboard** (Phase 2b: ACM Overview stats, Oversight Queue with approve/reject/escalate, Transfers table — **sidebar** lists ACM Overview under System; Oversight Queue and Transfers are not in the nav but routes remain). Migrations 001–040. |
 | **Planned scope** | Further dashboard features, production auth. |
 
 **What it is not:** Not a fork or subset of veridion-nexus. Not a monorepo member that shares `migrations/` or `src/` with another project.
@@ -354,7 +354,7 @@ The MCP server also contains the **Accountability Ledger (AL) proxy** — an MCP
 
 **Phase 1 status (upstream)**: **Done.** The proxy uses `@modelcontextprotocol/sdk` `Client` with stdio or SSE transport; `listTools` and `callTool` forward to the configured upstream server; blocked paths (not in `tools_permitted`, upstream disconnected, upstream error) still emit `ToolCallEvent` records where applicable.
 
-**Phase 2 (backend) status**: Data transfer records, oversight API, proxy wiring for transfers + oversight after tool events — **implemented** (migrations 039–040). **Phase 2b (dashboard) status**: **Implemented** — ACM Overview (`/acm`), Oversight Queue (`/acm/oversight`) with approve/reject/escalate, Transfers table (`/acm/transfers`). Dashboard-facing JWT-authenticated API endpoints at `/api/v1/acm/*`. Separate ACM API client at `dashboard/app/lib/acm-api.ts`. **Phase 3 TODOs**: Per-tool `inferDecisionMade` / PII heuristics configurable via `AgentRecord` metadata.
+**Phase 2 (backend) status**: Data transfer records, oversight API, proxy wiring for transfers + oversight after tool events — **implemented** (migrations 039–040). **Phase 2b (dashboard) status**: **Implemented** — ACM Overview (`/acm`), Oversight Queue (`/acm/oversight`) with approve/reject/escalate, Transfers table (`/acm/transfers`). Dashboard-facing JWT-authenticated API endpoints at `/api/v1/acm/*`. Separate ACM API client at `dashboard/app/lib/acm-api.ts`. **Sidebar**: System group shows **AI System Registry** and **ACM Overview** only; Oversight and Transfers are not in the nav (direct URLs/bookmarks still work). **Phase 3 TODOs**: Per-tool `inferDecisionMade` / PII heuristics configurable via `AgentRecord` metadata.
 
 ### 9.7 Shadow Mode
 
@@ -385,7 +385,7 @@ The MCP server also contains the **Accountability Ledger (AL) proxy** — an MCP
 - **`dashboard/app/layout.tsx`**: Root layout; title "Sovereign Shield Dashboard"; fonts Inter, JetBrains Mono.
 - **`dashboard/app/globals.css`**: Tailwind; `:root` background `#0f172a`; custom scrollbar.
 - **`dashboard/app/components/DashboardLayout.tsx`**: Sidebar + main content (`ml-64`, `p-8`).
-- **`dashboard/app/components/Sidebar.tsx`**: Fixed left nav; branding "VERIDION NEXUS" / "Compliance Dashboard v1.0.0". Nav: Sovereign Shield → `/`, Review Queue → `/review-queue`, SCC Registry → `/scc-registry`, Adequate Countries → `/adequate-countries`, Transfer Log → `/transfer-log`, Evidence Vault → `/evidence-vault`; **ACM**: ACM Overview → `/acm`, Oversight Queue → `/acm/oversight`, Transfers → `/acm/transfers`; **System**: Agents → `/agents`, Admin Panel → `/admin` (admin only). **Sign Out** button (calls logout, clears auth, redirects to `/login`). Active link: emerald highlight.
+- **`dashboard/app/components/Sidebar.tsx`**: Fixed left nav; branding "VERIDION" / "nexus" / "Compliance Dashboard v1.0.0". **Primary links** (emerald active style): Sovereign Shield → `/`, Review Queue → `/review-queue`, SCC Registry → `/scc-registry`, Adequate Countries → `/adequate-countries`, Transfer Log → `/transfer-log`, Evidence Vault → `/evidence-vault`. **Between two horizontal dividers**: empty spacer (former ACM block — "ACM" heading and nav links to Oversight Queue / Transfers were removed; visual gap preserved). **System** section: **AI System Registry** → `/agents`, **ACM Overview** → `/acm`, **Admin Panel** → `/admin` (admin only). Routes `/acm/oversight` and `/acm/transfers` remain valid (pages unchanged); they are not linked from the sidebar. **Sign Out** (footer). Active link: emerald highlight on primary nav; slate highlight on System links.
 
 ---
 
@@ -462,7 +462,7 @@ The MCP server also contains the **Accountability Ledger (AL) proxy** — an MCP
 
 ### 11.10 ACM Overview — `dashboard/app/acm/page.tsx`
 
-- **Route**: `/acm`. ACM (Agent Compliance Manager) overview dashboard.
+- **Route**: `/acm`. ACM (Agent Compliance Manager) overview dashboard. Listed in sidebar under **System** as **ACM Overview** (after **AI System Registry**).
 - **Data**: `fetchAcmStats()` from `@/app/lib/acm-api` (calls `GET /api/v1/acm/stats`). Auto-refresh 30s.
 - **KPI cards (6)**: Pending Oversight (amber when > 0), Decided Reviews, Total Transfers, Schrems III Risk (red when > 0), Tool Call Events, Degraded Sessions (amber when > 0). Cards link to `/acm/oversight` or `/acm/transfers`.
 - **Quick actions**: Review Pending Oversight (with count), View All Transfers.
@@ -470,7 +470,7 @@ The MCP server also contains the **Accountability Ledger (AL) proxy** — an MCP
 
 ### 11.11 Oversight Queue — `dashboard/app/acm/oversight/page.tsx`
 
-- **Route**: `/acm/oversight`. EU AI Act Art. 14 human oversight of AI tool-call decisions.
+- **Route**: `/acm/oversight`. EU AI Act Art. 14 human oversight of AI tool-call decisions. **Not** linked from the sidebar; reachable from ACM Overview KPIs / bookmarks / direct URL.
 - **Data**: `fetchOversightRecords(status)`, `resolveOversight(id, payload)` from `@/app/lib/acm-api`. Auto-refresh 10s.
 - **Filter tabs**: Pending | Decided | All. Initial filter from `?status=` query param.
 - **Records**: Expandable rows showing agent name, trigger type, flagged date, outcome badge (PENDING/APPROVED/REJECTED/ESCALATED).
@@ -481,15 +481,15 @@ The MCP server also contains the **Accountability Ledger (AL) proxy** — an MCP
 
 ### 11.12 ACM Transfers — `dashboard/app/acm/transfers/page.tsx`
 
-- **Route**: `/acm/transfers`. GDPR Art. 44–49 cross-border data transfer records created by the ACM proxy.
+- **Route**: `/acm/transfers`. GDPR Art. 44–49 cross-border data transfer records created by the ACM proxy. **Not** linked from the sidebar; reachable from ACM Overview KPIs / bookmarks / direct URL.
 - **Data**: `fetchTransferRecords()` from `@/app/lib/acm-api` (calls `GET /api/v1/acm/transfers`). Auto-refresh 30s.
 - **Table columns**: Route (origin → destination with country flags), Mechanism (adequacy/SCC/BCR/DPF/derogation/blocked badges), Agent, Data Categories, Risk (Schrems III indicator), Timestamp.
 - **Search**: Filter by country name, agent, mechanism.
 - **Schrems III risk**: Red AlertTriangle for flagged transfers; green CheckCircle for OK.
 
-### 11.13 Agents — `dashboard/app/agents/page.tsx`
+### 11.13 AI System Registry (Agents) — `dashboard/app/agents/page.tsx`
 
-- **Route**: `/agents`. AI agents and systems interacting with Veridion Nexus.
+- **Route**: `/agents`. AI agents and systems interacting with Veridion Nexus. Sidebar label: **AI System Registry**.
 
 - **Data**: `fetchEvidenceEvents()`, `fetchAgents()` — merges registered agents (from API) with unregistered agents detected in evidence events by `source_system`, `payload.agent_id`, `payload.agentId`.
 
@@ -626,7 +626,7 @@ The MCP server also contains the **Accountability Ledger (AL) proxy** — an MCP
 | `app/agents/RegisterAgentModal.tsx` | Register agent modal |
 | `app/evidence-vault/page.tsx` | Evidence Vault |
 | `app/components/DashboardLayout.tsx` | Sidebar + main wrapper |
-| `app/components/Sidebar.tsx` | Nav links (includes ACM section) |
+| `app/components/Sidebar.tsx` | Nav links (primary list + System: AI System Registry, ACM Overview, Admin; spacer between dividers where ACM heading/Oversight/Transfers were removed) |
 | `app/components/SovereignMap.tsx` | Map data from events |
 | `app/components/WorldMap.tsx` | World map |
 | `app/components/TrialExpiredModal.tsx` | Trial expiry modal overlay |
@@ -719,6 +719,8 @@ The script automatically pulls latest code, intelligently rebuilds only changed 
 - All migrations run automatically on API startup via `sqlx::migrate`.
 
 **Reverse Proxy**: Production uses **Caddy** (not Nginx) for automatic HTTPS/SSL via Let's Encrypt. See `DEPLOYMENT.md` for Caddy setup, SSL/TLS (automatic), backup procedures, and admin password reset instructions.
+
+**From a dev machine (Windows)**: `deploy.ps1` at repo root runs `git push origin main` then `ssh $env:DEPLOY_HOST 'cd /opt/veridion-nexus && ./deploy.sh'`. Set `DEPLOY_HOST` (e.g. `root@<server-ip>`) before running. Marketing site (`veridion-landing/`) deploys separately to **Vercel** (`npx vercel --prod --yes` from repo root). See `.cursor/rules/07-deploy-after-changes.mdc` and `06-veridion-landing-vercel.mdc`.
 
 ---
 

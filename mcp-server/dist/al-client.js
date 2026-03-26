@@ -1,13 +1,7 @@
 /**
  * AL API client — posts ACM compliance records to the Rust backend.
  *
- * All ACM record writes go through this client. The proxy never writes to
- * the database directly. Auth uses an internal service token (not an agent
- * OAuth token) to call the Rust API.
- *
- * Environment variables:
- *   AL_API_BASE_URL   - e.g. 'http://localhost:8080'
- *   AL_SERVICE_TOKEN  - Internal service JWT for proxy→API auth
+ * Phase 2: DataTransferRecord + HumanOversightRecord methods.
  */
 export class AlClient {
     baseUrl;
@@ -25,61 +19,37 @@ export class AlClient {
             method,
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${this.serviceToken}`,
-                'X-AL-Proxy': 'true', // Identifies internal proxy requests to the Rust API
+                Authorization: `Bearer ${this.serviceToken}`,
+                'X-AL-Proxy': 'true',
             },
             body: body !== undefined ? JSON.stringify(body) : undefined,
         });
         if (!res.ok) {
             const text = await res.text().catch(() => 'no body');
-            throw new Error(`AL API ${method} ${path} failed: ${res.status} ${text}`);
+            throw new Error(`AL API ${method} ${path} → ${res.status}: ${text}`);
         }
         return res.json();
     }
-    // ── AgentRecord ────────────────────────────────────────────────────────────
-    /**
-     * Resolve an AgentRecord by OAuth client_id.
-     * This is the proxy's hot path — called on every new session.
-     * Returns null if no agent is registered with this client_id.
-     */
     async resolveAgent(oauthClientId) {
         try {
             const res = await this.request('GET', `/api/acm/agents?oauth_client_id=${encodeURIComponent(oauthClientId)}`);
             return res.data;
         }
         catch (err) {
-            // 404 = unregistered agent — proxy should reject the session
             if (err.message.includes('404'))
                 return null;
             throw err;
         }
     }
-    // ── ToolCallEvent ──────────────────────────────────────────────────────────
-    /**
-     * Record a tool call event. Called after every tool invocation.
-     * The Rust API computes the hash-chain values (event_hash, prev_event_hash).
-     * Returns the created record's event_id and created_at.
-     */
     async recordToolCallEvent(event) {
         const res = await this.request('POST', '/api/acm/events', event);
         return res.data;
     }
-    // ── ContextTrustAnnotation ─────────────────────────────────────────────────
-    /**
-     * Create an initial trust annotation for a new session.
-     * Call this once when the proxy establishes a new MCP session.
-     */
     async createTrustAnnotation(annotation) {
         const res = await this.request('POST', '/api/acm/trust-annotations', annotation);
         return res.data;
     }
-    /**
-     * Degrade the trust level for a session.
-     * Appends a new annotation row — does NOT update the existing one.
-     * The Rust API enforces the monotonic degradation invariant:
-     *   trusted → degraded → untrusted (no recovery within session).
-     */
-    async degradeTrust(agentId, sessionId, tenantId, newLevel, trigger, sources, currentAnnotationRef) {
+    async degradeTrust(agentId, sessionId, tenantId, newLevel, trigger, sources, _currentAnnotationRef) {
         return this.createTrustAnnotation({
             agent_id: agentId,
             session_id: sessionId,
@@ -88,20 +58,32 @@ export class AlClient {
             sources_in_context: sources,
             degradation_trigger: trigger,
             session_trust_persistent: true,
-            triggered_human_review: false, // set to true if this triggers review
+            triggered_human_review: false,
         });
     }
-    /**
-     * Get the current (lowest) trust level for a session.
-     * Returns 'trusted' if no annotation exists yet.
-     */
     async getSessionTrustLevel(sessionId) {
         try {
             const res = await this.request('GET', `/api/acm/trust-annotations/session/${encodeURIComponent(sessionId)}/current`);
             return res.data.trust_level;
         }
         catch {
-            return 'trusted'; // default — session not yet annotated
+            return 'trusted';
         }
+    }
+    async createDataTransferRecord(record) {
+        const res = await this.request('POST', '/api/acm/transfers', record);
+        return res.data;
+    }
+    async createOversightRecord(record) {
+        const res = await this.request('POST', '/api/acm/oversight', record);
+        return res.data;
+    }
+    async updateOversightOutcome(oversightId, outcome, reviewerId, notes, euAiActCompliance) {
+        await this.request('PATCH', `/api/acm/oversight/${encodeURIComponent(oversightId)}`, {
+            reviewer_outcome: outcome,
+            reviewer_id: reviewerId,
+            notes,
+            eu_ai_act_compliance: euAiActCompliance,
+        });
     }
 }

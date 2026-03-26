@@ -102,7 +102,7 @@ You are working on **Veridion API**, a standalone HTTP service with its **own da
 - `app/adequate-countries/page.tsx` — Adequate Countries (static)
 - `app/agents/page.tsx` — Agent Registry (registered + unregistered)
 - `app/evidence-vault/page.tsx` — Evidence Vault
-- `app/components/Sidebar.tsx` — Nav (branding: VERIDION NEXUS / Compliance Dashboard v1.0.0)
+- `app/components/Sidebar.tsx` — Nav (branding: VERIDION nexus / Compliance Dashboard v1.0.0; System: AI System Registry, ACM Overview; `/acm/oversight` and `/acm/transfers` not in sidebar)
 - `app/components/SovereignMap.tsx` + `WorldMap.tsx` — transfer map
 - `app/config/countries.ts` — country classifications, getLegalBasis helpers
 

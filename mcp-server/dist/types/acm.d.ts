@@ -84,25 +84,25 @@ export interface ContextSource {
 }
 export interface DataTransferRecordInput {
     agent_id: string;
-    event_ref: string;
+    event_ref?: string;
     tenant_id: string;
     origin_country: string;
     destination_country: string;
-    transfer_mechanism: TransferMechanism;
-    data_categories: string[];
-    dpf_relied_upon: boolean;
-    transfer_timestamp: string;
+    transfer_mechanism: TransferMechanism | string;
+    data_categories?: string[];
+    dpf_relied_upon?: boolean;
+    scc_ref?: string;
+    bcr_ref?: string;
+    derogation_basis?: string;
+    backup_mechanism?: string;
+    transfer_timestamp?: string;
 }
 export type ReviewTrigger = 'degraded_context_trust' | 'high_impact_decision' | 'anomaly_detected' | 'manual_request' | 'periodic_audit';
 export interface HumanOversightRecordInput {
     agent_id: string;
-    event_ref: string;
+    event_ref?: string;
     tenant_id: string;
     review_trigger: ReviewTrigger;
-    flagged_at: string;
-    reviewer_id?: string;
-    reviewer_outcome?: 'approved' | 'rejected' | 'escalated' | 'pending';
-    eu_ai_act_compliance?: boolean;
     notes?: string;
 }
 export interface AlApiResponse<T> {
