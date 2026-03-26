@@ -70,17 +70,6 @@ export default function Sidebar() {
             </span>
           </div>
           <Link
-            href="/acm"
-            className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-              pathname === '/acm'
-                ? 'bg-slate-700 text-white'
-                : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
-            }`}
-          >
-            <Activity className="w-3.5 h-3.5" />
-            ACM Overview
-          </Link>
-          <Link
             href="/acm/oversight"
             className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${
               pathname === '/acm/oversight'
@@ -117,7 +106,18 @@ export default function Sidebar() {
             }`}
           >
             <Cpu className="w-3.5 h-3.5" />
-            Agents
+            AI System Registry
+          </Link>
+          <Link
+            href="/acm"
+            className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              pathname === '/acm'
+                ? 'bg-slate-700 text-white'
+                : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+            }`}
+          >
+            <Activity className="w-3.5 h-3.5" />
+            ACM Overview
           </Link>
           {isAdmin(currentUser) && (
             <Link
