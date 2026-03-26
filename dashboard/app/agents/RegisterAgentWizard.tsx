@@ -225,6 +225,26 @@ export default function RegisterAgentWizard({ open, agentName, onClose, onSucces
     }));
   }
 
+  function toggleGroupAll(groupKey: 'eu' | 'adequate' | 'scc') {
+    const list =
+      groupKey === 'eu'
+        ? groupedCountries.eu
+        : groupKey === 'adequate'
+          ? groupedCountries.adequate
+          : groupedCountries.scc;
+    const codes = list.map((r) => r.code);
+    if (codes.length === 0) return;
+    setTransfer((t) => {
+      const allSelected = codes.every((c) => t.countries.includes(c));
+      if (allSelected) {
+        return { ...t, countries: t.countries.filter((c) => !codes.includes(c)) };
+      }
+      const next = new Set(t.countries);
+      codes.forEach((c) => next.add(c));
+      return { ...t, countries: [...next] };
+    });
+  }
+
   function partnerSccHint(p: PartnerRow): { needsScc: boolean; registered: boolean; countryLabel: string } | null {
     const name = p.name.trim();
     if (!name) return null;
@@ -700,11 +720,7 @@ curl -sS -X POST "https://api.veridion-nexus.eu/api/v1/shield/evaluate" \\
               </div>
               <p className="text-xs text-slate-500 flex items-center gap-2">
                 <Globe className="w-3.5 h-3.5" />
-                Classifications match the{' '}
-                <Link href="/adequate-countries" className="text-emerald-400 hover:underline">
-                  Adequate Countries
-                </Link>{' '}
-                reference.
+                Classifications match the Adequate Countries reference.
               </p>
 
               {(['eu', 'adequate', 'scc'] as const).map((groupKey) => {
@@ -720,9 +736,24 @@ curl -sS -X POST "https://api.veridion-nexus.eu/api/v1/shield/evaluate" \\
                     : groupKey === 'adequate'
                       ? groupedCountries.adequate
                       : groupedCountries.scc;
+                const codes = list.map((r) => r.code);
+                const selectedInGroup = codes.filter((c) => transfer.countries.includes(c)).length;
+                const allInGroup = codes.length > 0 && selectedInGroup === codes.length;
+                const someInGroup = selectedInGroup > 0 && selectedInGroup < codes.length;
                 return (
                   <div key={groupKey}>
                     <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2 flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        className="rounded border-slate-500 text-emerald-500 focus:ring-emerald-500 shrink-0"
+                        checked={allInGroup}
+                        disabled={codes.length === 0}
+                        ref={(el) => {
+                          if (el) el.indeterminate = someInGroup;
+                        }}
+                        onChange={() => toggleGroupAll(groupKey)}
+                        aria-label={`Select or clear all destinations in ${title}`}
+                      />
                       {groupKey === 'eu' && <span>🟢</span>}
                       {groupKey === 'adequate' && <span>🟢</span>}
                       {groupKey === 'scc' && <span>🟡</span>}
