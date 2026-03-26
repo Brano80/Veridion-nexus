@@ -50,9 +50,9 @@ export default function SiteHeader({ active }: { active?: SiteHeaderActive }) {
             <Link href="/spec" className={linkClass(active === 'spec')}>
               Spec
             </Link>
-            <Link href="/registry" className={linkClass(active === 'registry')}>
+            {/* <Link href="/registry" className={linkClass(active === 'registry')}>
               Registry
-            </Link>
+            </Link> */}
             <a
               href={login}
               target="_blank"
