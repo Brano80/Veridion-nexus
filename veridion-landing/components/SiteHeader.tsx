@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Menu, X } from 'lucide-react';
 
@@ -23,8 +23,15 @@ export default function SiteHeader({ active }: { active?: SiteHeaderActive }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const login = signInHref();
 
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)');
+    const close = () => setMobileMenuOpen(false);
+    mq.addEventListener('change', close);
+    return () => mq.removeEventListener('change', close);
+  }, []);
+
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-[#0f172a] border-b border-slate-800">
+    <nav className="fixed top-0 left-0 right-0 z-50 overflow-visible bg-[#0f172a] border-b border-slate-800">
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <Link href="/" className="flex items-center">
@@ -79,11 +86,18 @@ export default function SiteHeader({ active }: { active?: SiteHeaderActive }) {
         </div>
 
         {mobileMenuOpen && (
-          <div
-            className="md:hidden absolute right-0 top-full z-50 mt-1 flex min-w-[12rem] flex-col items-end gap-3 rounded-lg border border-slate-800 bg-[#0f172a] py-4 pl-6 pr-4 shadow-xl text-right"
-            role="dialog"
-            aria-label="Main menu"
-          >
+          <>
+            <button
+              type="button"
+              className="fixed left-0 right-0 top-16 bottom-0 z-[90] bg-slate-950/60 md:hidden"
+              aria-label="Close menu"
+              onClick={() => setMobileMenuOpen(false)}
+            />
+            <div
+              className="md:hidden fixed right-4 top-16 z-[100] mt-1 flex min-w-[12rem] max-w-[calc(100vw-2rem)] flex-col items-end gap-3 rounded-lg border border-slate-800 bg-[#0f172a] py-4 pl-6 pr-4 shadow-xl text-right sm:right-6 lg:right-8"
+              role="dialog"
+              aria-label="Main menu"
+            >
             <Link
               href="/docs"
               className="block w-full text-sm text-slate-300 transition-colors hover:text-white"
@@ -114,7 +128,8 @@ export default function SiteHeader({ active }: { active?: SiteHeaderActive }) {
             >
               Sign In
             </a>
-          </div>
+            </div>
+          </>
         )}
       </div>
     </nav>
