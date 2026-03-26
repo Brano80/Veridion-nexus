@@ -21,7 +21,7 @@ export default function SiteHeader({ active }: { active?: SiteHeaderActive }) {
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-[#0f172a] border-b border-slate-800">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex h-16 min-h-[4rem] items-center justify-between gap-3">
+        <div className="flex h-16 min-h-[4rem] w-full min-w-0 items-center gap-4">
           <Link href="/" className="flex shrink-0 items-center">
             <h1 className="flex items-baseline gap-1.5" style={{ fontFamily: 'Inter, sans-serif' }}>
               <span
@@ -43,7 +43,7 @@ export default function SiteHeader({ active }: { active?: SiteHeaderActive }) {
             </h1>
           </Link>
 
-          <div className="flex min-w-0 flex-1 items-center justify-end gap-3 overflow-x-auto sm:gap-4 md:gap-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="ml-auto flex min-w-0 shrink-0 items-center justify-end gap-3 overflow-x-auto sm:gap-4 md:gap-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <Link href="/docs" className={linkClass(active === 'docs')}>
               Documentation
             </Link>
