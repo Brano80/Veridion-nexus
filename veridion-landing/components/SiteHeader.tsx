@@ -25,7 +25,7 @@ export default function SiteHeader({ active }: { active?: SiteHeaderActive }) {
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-[#0f172a] border-b border-slate-800">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <Link href="/" className="flex items-center">
             <h1 className="flex items-baseline gap-1.5" style={{ fontFamily: 'Inter, sans-serif' }}>
@@ -80,27 +80,27 @@ export default function SiteHeader({ active }: { active?: SiteHeaderActive }) {
 
         {mobileMenuOpen && (
           <div
-            className="md:hidden flex w-full flex-col items-end gap-3 border-t border-slate-800 bg-[#0f172a] py-4 text-right"
+            className="md:hidden absolute right-0 top-full z-50 mt-1 flex min-w-[12rem] flex-col items-end gap-3 rounded-lg border border-slate-800 bg-[#0f172a] py-4 pl-6 pr-4 shadow-xl text-right"
             role="dialog"
             aria-label="Main menu"
           >
             <Link
               href="/docs"
-              className="text-sm text-slate-300 transition-colors hover:text-white"
+              className="block w-full text-sm text-slate-300 transition-colors hover:text-white"
               onClick={() => setMobileMenuOpen(false)}
             >
               Documentation
             </Link>
             <Link
               href="/spec"
-              className="text-sm text-slate-300 transition-colors hover:text-white"
+              className="block w-full text-sm text-slate-300 transition-colors hover:text-white"
               onClick={() => setMobileMenuOpen(false)}
             >
               Spec
             </Link>
             <Link
               href="/registry"
-              className="text-sm text-slate-300 transition-colors hover:text-white"
+              className="block w-full text-sm text-slate-300 transition-colors hover:text-white"
               onClick={() => setMobileMenuOpen(false)}
             >
               Registry
@@ -109,7 +109,7 @@ export default function SiteHeader({ active }: { active?: SiteHeaderActive }) {
               href={login}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-sm text-slate-300 transition-colors hover:text-white"
+              className="block w-full text-sm text-slate-300 transition-colors hover:text-white"
               onClick={() => setMobileMenuOpen(false)}
             >
               Sign In
