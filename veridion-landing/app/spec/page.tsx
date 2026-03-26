@@ -2,6 +2,7 @@
 // Place at: your-nextjs-app/app/spec/page.tsx
 
 import type { Metadata } from "next";
+import SiteHeader from "@/components/SiteHeader";
 
 export const metadata: Metadata = {
   title: "AI Agent Compliance Data Model v0.1 — Veridion Nexus",
@@ -21,41 +22,9 @@ const GITHUB_REPO = "https://github.com/Veridion-nexus/ai-agent-compliance-spec"
 export default function SpecPage() {
   return (
     <div className="min-h-screen bg-white text-gray-900">
-      {/* Top bar — nav links match other pages */}
-      <div className="border-b border-gray-200 bg-gray-50">
-        <div className="max-w-4xl mx-auto px-6 py-3 flex items-center justify-between text-sm text-gray-500">
-          <a href="/" className="font-medium text-gray-900 hover:text-blue-600 transition-colors">
-            Veridion Nexus
-          </a>
-          <div className="flex items-center gap-6">
-            <a href="/docs" className="hover:text-gray-900 transition-colors">
-              Documentation
-            </a>
-            <a href="/spec" className="hover:text-gray-900 transition-colors">
-              Spec
-            </a>
-            <a
-              href="https://app.veridion-nexus.eu/login"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-gray-900 transition-colors"
-            >
-              Sign In
-            </a>
-            <a
-              href={GITHUB_REPO}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 hover:text-gray-900 transition-colors"
-            >
-              <GitHubIcon />
-              View on GitHub
-            </a>
-          </div>
-        </div>
-      </div>
+      <SiteHeader active="spec" />
 
-      <main className="max-w-4xl mx-auto px-6 py-16">
+      <main className="max-w-4xl mx-auto px-6 pt-24 pb-16">
         {/* Header */}
         <header className="mb-12 pb-10 border-b border-gray-200">
           <div className="flex flex-wrap gap-2 mb-4">

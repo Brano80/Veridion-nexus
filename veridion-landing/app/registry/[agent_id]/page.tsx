@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import SiteHeader from '@/components/SiteHeader';
 import { Shield, Globe, AlertTriangle, ArrowLeft, ExternalLink, Mail, Clock, Cpu, CheckCircle, XCircle, FileText } from 'lucide-react';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.veridion-nexus.eu';
@@ -42,21 +43,27 @@ export default function AgentProfilePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <div className="animate-spin w-8 h-8 border-2 border-emerald-400 border-t-transparent rounded-full" />
+      <div className="min-h-screen bg-slate-900 flex flex-col">
+        <SiteHeader active="registry" />
+        <div className="flex-1 flex items-center justify-center pt-16">
+          <div className="animate-spin w-8 h-8 border-2 border-emerald-400 border-t-transparent rounded-full" />
+        </div>
       </div>
     );
   }
 
   if (error || !agent) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <div className="text-center">
-          <Shield className="w-16 h-16 text-slate-600 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-white mb-2">{error || 'Agent not found'}</h2>
-          <Link href="/registry" className="text-emerald-400 hover:text-emerald-300 text-sm">
-            &larr; Back to Registry
-          </Link>
+      <div className="min-h-screen bg-slate-900 flex flex-col">
+        <SiteHeader active="registry" />
+        <div className="flex-1 flex items-center justify-center pt-16">
+          <div className="text-center">
+            <Shield className="w-16 h-16 text-slate-600 mx-auto mb-4" />
+            <h2 className="text-xl font-semibold text-white mb-2">{error || 'Agent not found'}</h2>
+            <Link href="/registry" className="text-emerald-400 hover:text-emerald-300 text-sm">
+              &larr; Back to Registry
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -68,25 +75,7 @@ export default function AgentProfilePage() {
 
   return (
     <div className="min-h-screen bg-slate-900">
-      {/* Nav */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-[#0f172a] border-b border-slate-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <Link href="/" className="flex items-center">
-              <h1 className="flex items-baseline gap-1.5" style={{ fontFamily: 'Inter, sans-serif' }}>
-                <span className="text-xl font-black italic uppercase text-white" style={{ letterSpacing: '-0.05em' }}>VERIDION</span>
-                <span className="text-base font-semibold italic lowercase" style={{ color: '#10b981' }}>nexus</span>
-              </h1>
-            </Link>
-            <div className="hidden md:flex items-center gap-6">
-              <Link href="/registry" className="text-emerald-400 text-sm font-medium">Registry</Link>
-              <Link href="https://app.veridion-nexus.eu/login" className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-                Dashboard
-              </Link>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <SiteHeader active="registry" />
 
       <div className="pt-24 pb-16 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <Link href="/registry" className="inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-white mb-6 transition-colors">

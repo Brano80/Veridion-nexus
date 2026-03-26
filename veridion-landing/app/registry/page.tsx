@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import SiteHeader from '@/components/SiteHeader';
 import { Shield, Search, Globe, AlertTriangle, ChevronLeft, ChevronRight, Users, Database, Lock, ArrowRight } from 'lucide-react';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.veridion-nexus.eu';
@@ -92,29 +93,7 @@ export default function RegistryPage() {
 
   return (
     <div className="min-h-screen bg-slate-900">
-      {/* Nav */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-[#0f172a] border-b border-slate-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <Link href="/" className="flex items-center">
-              <h1 className="flex items-baseline gap-1.5" style={{ fontFamily: 'Inter, sans-serif' }}>
-                <span className="text-xl font-black italic uppercase text-white" style={{ letterSpacing: '-0.05em' }}>VERIDION</span>
-                <span className="text-base font-semibold italic lowercase" style={{ color: '#10b981', letterSpacing: '-0.02em' }}>nexus</span>
-              </h1>
-            </Link>
-            <div className="hidden md:flex items-center gap-6">
-              <Link href="/docs" className="text-slate-300 hover:text-white transition-colors text-sm">Documentation</Link>
-              <Link href="/registry" className="text-emerald-400 text-sm font-medium">Registry</Link>
-              <Link
-                href="https://app.veridion-nexus.eu/login"
-                className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-              >
-                Dashboard
-              </Link>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <SiteHeader active="registry" />
 
       <div className="pt-24 pb-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Hero */}
@@ -215,7 +194,7 @@ export default function RegistryPage() {
                 : 'Be the first to list your AI agent in the public compliance registry.'}
             </p>
             <Link
-              href="https://app.veridion-nexus.eu/agents"
+              href="/signup"
               className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-2.5 rounded-lg text-sm font-medium transition-colors"
             >
               Register Your Agent <ArrowRight className="w-4 h-4" />
@@ -295,7 +274,7 @@ export default function RegistryPage() {
             discoverable to DPOs and compliance officers across the EU.
           </p>
           <Link
-            href="https://app.veridion-nexus.eu/agents"
+            href="/signup"
             className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-3 rounded-lg font-medium transition-colors"
           >
             Get Started — Free <ArrowRight className="w-4 h-4" />

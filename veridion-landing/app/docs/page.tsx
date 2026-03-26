@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Shield, Menu, X, Copy, Check } from 'lucide-react';
+import { Shield, Copy, Check } from 'lucide-react';
 import Link from 'next/link';
+import SiteHeader from '@/components/SiteHeader';
 
 const sections = [
   { id: 'quick-start', label: 'Quick Start' },
@@ -19,7 +20,6 @@ const sections = [
 ];
 
 export default function DocsPage() {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeSection, setActiveSection] = useState('quick-start');
   const [codeTab, setCodeTab] = useState<'curl' | 'python' | 'nodejs'>('curl');
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -55,7 +55,6 @@ export default function DocsPage() {
     const element = sectionRefs.current[id];
     if (element) {
       element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      setMobileMenuOpen(false);
     }
   }
 
@@ -80,63 +79,7 @@ export default function DocsPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-[#0f172a] border-b border-slate-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <Link href="/" className="flex items-center">
-              <h1 className="flex items-baseline gap-1.5" style={{ fontFamily: "Inter, sans-serif" }}>
-                <span className="text-xl font-black italic uppercase text-white" style={{ letterSpacing: "-0.05em", lineHeight: 0.85 }}>VERIDION</span>
-                <span className="text-base font-semibold italic lowercase" style={{ color: "#10b981", letterSpacing: "-0.02em", filter: "drop-shadow(0 0 15px rgba(16, 185, 129, 0.3))" }}>nexus</span>
-              </h1>
-            </Link>
-            <div className="hidden md:flex items-center gap-6">
-              <Link href="/docs" className="text-slate-300 hover:text-white transition-colors text-sm">
-                Documentation
-              </Link>
-              <Link href="/spec" className="text-slate-300 hover:text-white transition-colors text-sm">
-                Spec
-              </Link>
-              <a 
-                href={process.env.NEXT_PUBLIC_DASHBOARD_URL && !process.env.NEXT_PUBLIC_DASHBOARD_URL.includes('localhost') 
-                  ? `${process.env.NEXT_PUBLIC_DASHBOARD_URL}/login` 
-                  : 'https://app.veridion-nexus.eu/login'}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-slate-300 hover:text-white transition-colors text-sm"
-              >
-                Sign In
-              </a>
-            </div>
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-2 text-slate-300 hover:text-white"
-            >
-              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-            </button>
-          </div>
-          {mobileMenuOpen && (
-            <div className="md:hidden border-t border-slate-800 py-4 space-y-3">
-              <Link href="/docs" className="block text-slate-300 hover:text-white transition-colors text-sm">
-                Documentation
-              </Link>
-              <Link href="/spec" className="block text-slate-300 hover:text-white transition-colors text-sm" onClick={() => setMobileMenuOpen(false)}>
-                Spec
-              </Link>
-              <a 
-                href={process.env.NEXT_PUBLIC_DASHBOARD_URL && !process.env.NEXT_PUBLIC_DASHBOARD_URL.includes('localhost') 
-                  ? `${process.env.NEXT_PUBLIC_DASHBOARD_URL}/login` 
-                  : 'https://app.veridion-nexus.eu/login'}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block text-slate-300 hover:text-white transition-colors text-sm"
-              >
-                Sign In
-              </a>
-            </div>
-          )}
-        </div>
-      </nav>
+      <SiteHeader active="docs" />
 
       <div className="flex pt-16">
         {/* Sidebar */}
