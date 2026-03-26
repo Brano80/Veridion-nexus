@@ -57,6 +57,8 @@ export default function LoginPage() {
         is_admin: data.user.is_admin,
         roles: data.user.roles,
         onboarded: data.user.onboarded,
+        tenant_name: data.tenant?.name ?? undefined,
+        tenant_id: data.tenant?.id ?? undefined,
       }));
 
       window.location.href = '/';

@@ -45,6 +45,8 @@ export interface CurrentUser {
   company_id: string | null;
   is_admin?: boolean;
   tenant_id?: string;
+  /** Tenant display name (company name from signup); set on login from API `tenant.name` */
+  tenant_name?: string;
 }
 
 let currentUserCache: CurrentUser | null = null;

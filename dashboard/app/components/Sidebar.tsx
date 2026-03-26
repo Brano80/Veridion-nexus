@@ -112,6 +112,14 @@ export default function Sidebar() {
         </nav>
       </div>
       <div className="p-3 border-t border-slate-700">
+        {currentUser?.tenant_name ? (
+          <p
+            className="px-2 pb-3 text-xs text-slate-400 leading-snug line-clamp-2 break-words"
+            title={currentUser.tenant_name}
+          >
+            {currentUser.tenant_name}
+          </p>
+        ) : null}
         <button
           onClick={handleLogout}
           className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-700/50 transition-colors w-full"
