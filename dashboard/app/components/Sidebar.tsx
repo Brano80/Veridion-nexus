@@ -35,8 +35,9 @@ export default function Sidebar() {
   }
 
   return (
-    <div className="w-56 bg-slate-800 border-r border-slate-700 h-screen fixed left-0 top-0 overflow-y-auto flex flex-col">
-      <div className="p-4 flex-1">
+    <div className="w-56 bg-slate-800 border-r border-slate-700 h-screen fixed left-0 top-0 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col min-h-0">
+        <div className="p-4 flex-1 overflow-y-auto min-h-0">
         <div className="mb-6">
           <h1 className="flex items-baseline gap-1 mb-0.5" style={{ fontFamily: "Inter, sans-serif" }}>
             <span className="text-lg font-black italic uppercase text-white" style={{ letterSpacing: "-0.05em", lineHeight: 0.85 }}>VERIDION</span>
@@ -110,16 +111,19 @@ export default function Sidebar() {
             </Link>
           )}
         </nav>
-      </div>
-      <div className="p-3 border-t border-slate-700">
+        </div>
         {currentUser?.tenant_name ? (
-          <p
-            className="px-2 pb-3 text-xs text-slate-400 leading-snug line-clamp-2 break-words"
-            title={currentUser.tenant_name}
-          >
-            {currentUser.tenant_name}
-          </p>
+          <div className="shrink-0 px-4 pb-3 pt-1">
+            <p
+              className="px-2 text-xs text-slate-400 leading-snug line-clamp-2 break-words"
+              title={currentUser.tenant_name}
+            >
+              {currentUser.tenant_name}
+            </p>
+          </div>
         ) : null}
+      </div>
+      <div className="shrink-0 p-3 border-t border-slate-700">
         <button
           onClick={handleLogout}
           className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-700/50 transition-colors w-full"
