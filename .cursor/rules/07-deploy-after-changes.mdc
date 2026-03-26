@@ -1,0 +1,44 @@
+# Deploy after code changes
+
+---
+description: After substantive edits, commit, push, and deploy—Vercel for landing, deploy.ps1 for production server
+alwaysApply: true
+---
+
+## Always finish with deploy (unless the user says not to)
+
+When you change **production-facing code**, do not stop at “saved locally”—**commit**, **push**, and **deploy** so the user does not have to deploy manually.
+
+### 1. Marketing site (`veridion-landing/`)
+
+- Deploy to **Vercel** from **repository root** (`veridion-api/`):
+
+  `npx vercel --prod --yes`
+
+- Do not run Vercel from inside `veridion-landing/` (wrong root / doubled path).
+
+- Details: see `.cursor/rules/06-veridion-landing-vercel.mdc`.
+
+### 2. Dashboard, Rust API, migrations, `deploy.sh` targets, MCP server (everything else that ships to the VPS)
+
+1. **Commit** only files that belong to the task (no unrelated churn).
+2. **`git push origin main`**
+3. **Remote deploy:** from repo root, with a **real** SSH target (never a placeholder):
+
+   ```powershell
+   $env:DEPLOY_HOST = 'root@YOUR_REAL_IP_OR_HOSTNAME'
+   .\deploy.ps1
+   ```
+
+   `deploy.ps1` pushes then runs `ssh $env:DEPLOY_HOST "cd /opt/veridion-nexus && ./deploy.sh"`.
+
+- If `DEPLOY_HOST` is unset, the script still pushes but **does not** SSH—tell the user to set it once per session or in their profile.
+
+### 3. What counts as “substantive”
+
+- UI, API, config, migrations, scripts that run in prod: **deploy**.
+- Docs-only or `.md` comment-only: deploy optional unless the user wants it.
+
+### 4. Order when both landing and backend change
+
+- Push once after commits; run **Vercel** for `veridion-landing/` changes and **`deploy.ps1`** for server-side changes (both if both apply).
