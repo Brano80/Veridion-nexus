@@ -1,10 +1,18 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import DashboardLayout from '../components/DashboardLayout';
-import { fetchEvidenceEventsWithMeta, fetchAgents, rotateAgentKey, deleteAgent, patchAgent, EvidenceEvent, AgentCard } from '../utils/api';
-import { Cpu, AlertTriangle, RefreshCw, Shield, X, FileText, Eye, Plus, Key, Copy, Trash2, Globe, Mail } from 'lucide-react';
-import RegisterAgentModal from './RegisterAgentModal';
+import { useState, useEffect, useCallback } from 'react';
+import { Cpu, RefreshCw, Plus, Shield } from 'lucide-react';
+import DashboardLayout from '@/app/components/DashboardLayout';
+import RegisterAgentModal from '@/app/agents/RegisterAgentModal';
+import AgentDetailPanel from '@/app/components/AgentDetailPanel';
+import {
+  fetchEvidenceEventsWithMeta,
+  fetchAgents,
+  rotateAgentKey,
+  deleteAgent,
+  EvidenceEvent,
+  type AgentCard,
+} from '@/app/utils/api';
 
 const INTERNAL_SOURCES = ['human-oversight', 'sovereign-shield'];
 
@@ -17,19 +25,8 @@ interface AgentInfo {
   reviewCount: number;
   blockCount: number;
   isActive: boolean;
-}
-
-function formatTimeAgo(dateStr: string): string {
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return '—';
-  const diff = Date.now() - d.getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
+  /** Present when the agent is registered — used for JSON panel + trust level */
+  card?: Record<string, unknown>;
 }
 
 function buildStatsFromEvents(events: EvidenceEvent[]): Map<string, AgentInfo> {
@@ -76,7 +73,6 @@ function buildStatsFromEvents(events: EvidenceEvent[]): Map<string, AgentInfo> {
 function mergeAgents(events: EvidenceEvent[], registeredCards: AgentCard[]): AgentInfo[] {
   const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
   const statsMap = buildStatsFromEvents(events);
-  // Build agent_id -> stats map for fallback when source_system differs from registered name
   const statsByAgentId = new Map<string, AgentInfo>();
   for (const e of events) {
     const agentId = e.payload?.agent_id || e.payload?.agentId;
@@ -86,7 +82,7 @@ function mergeAgents(events: EvidenceEvent[], registeredCards: AgentCard[]): Age
     const stats = statsMap.get(source.toLowerCase());
     if (stats) {
       const existing = statsByAgentId.get(agentId);
-      if (!existing || (stats.totalTransfers > (existing?.totalTransfers ?? 0))) {
+      if (!existing || stats.totalTransfers > (existing?.totalTransfers ?? 0)) {
         statsByAgentId.set(agentId, { ...stats });
       }
     }
@@ -94,7 +90,6 @@ function mergeAgents(events: EvidenceEvent[], registeredCards: AgentCard[]): Age
   const merged = new Map<string, AgentInfo>();
   const registeredNames = new Set<string>();
 
-  // Add all registered agents (key by agent_id so duplicates with same name stay separate)
   for (const card of registeredCards) {
     const agentId = card['x-veridion']?.agent_id;
     const key = agentId ?? card.name.toLowerCase().trim();
@@ -112,14 +107,16 @@ function mergeAgents(events: EvidenceEvent[], registeredCards: AgentCard[]): Age
       allowCount: stats?.allowCount ?? 0,
       reviewCount: stats?.reviewCount ?? 0,
       blockCount: stats?.blockCount ?? 0,
-      isActive: true, // registered agents always ACTIVE
+      isActive: true,
+      card: card as unknown as Record<string, unknown>,
     });
   }
 
-  // Add unregistered agents from events (skip if a registered agent already has that name)
   for (const [key, stats] of statsMap) {
     if (registeredNames.has(key)) continue;
-    stats.isActive = stats.lastActivity ? new Date(stats.lastActivity).getTime() > twentyFourHoursAgo : false;
+    stats.isActive = stats.lastActivity
+      ? new Date(stats.lastActivity).getTime() > twentyFourHoursAgo
+      : false;
     merged.set(`_unreg:${key}`, stats);
   }
 
@@ -129,481 +126,243 @@ function mergeAgents(events: EvidenceEvent[], registeredCards: AgentCard[]): Age
   });
 }
 
+function AgentListCard({
+  agent,
+  onClick,
+}: {
+  agent: AgentInfo;
+  onClick: () => void;
+}) {
+  const xVeridion = agent.card?.['x-veridion'] as Record<string, unknown> | undefined;
+  const rawTrust = xVeridion?.trust_level;
+  const trustNum =
+    typeof rawTrust === 'number' ? rawTrust : rawTrust != null ? Number(rawTrust) : NaN;
+  const showTrust = Number.isFinite(trustNum) && trustNum > 0;
+  const isRegistered = !!agent.agentId;
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group w-full text-left rounded-xl border border-slate-700 bg-slate-800 p-5 hover:border-slate-500 hover:bg-slate-800/90 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+    >
+      <div className="flex items-start gap-3">
+        <div className="shrink-0 rounded-lg bg-slate-700 p-2 group-hover:bg-slate-600 transition-colors">
+          <Cpu className="w-5 h-5 text-slate-300" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold text-white truncate">{agent.name}</p>
+          {isRegistered && (
+            <p className="mt-0.5 text-xs text-slate-500 font-mono truncate">
+              {agent.agentId!.slice(0, 12)}…
+            </p>
+          )}
+        </div>
+        <span className="shrink-0 text-slate-600 group-hover:text-slate-400 transition-colors text-lg leading-none mt-0.5">
+          →
+        </span>
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        <span
+          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium border ${
+            isRegistered
+              ? 'bg-blue-900/50 text-blue-400 border-blue-700'
+              : 'bg-slate-700 text-slate-400 border-slate-600'
+          }`}
+        >
+          <Shield className="w-3 h-3" />
+          {isRegistered ? 'Registered' : 'Unregistered'}
+        </span>
+
+        <span
+          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border ${
+            agent.isActive
+              ? 'bg-emerald-900/50 text-emerald-400 border-emerald-700'
+              : 'bg-slate-700 text-slate-400 border-slate-600'
+          }`}
+        >
+          {agent.isActive ? 'Active' : 'Inactive'}
+        </span>
+
+        {showTrust && (
+          <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border bg-emerald-900/40 text-emerald-400 border-emerald-700">
+            Trust {trustNum}
+          </span>
+        )}
+
+        {agent.reviewCount > 0 && (
+          <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium border bg-yellow-900/30 text-yellow-400 border-yellow-800">
+            {agent.reviewCount} review{agent.reviewCount !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
+    </button>
+  );
+}
+
 export default function AgentsPage() {
   const [agents, setAgents] = useState<AgentInfo[]>([]);
-  const [registeredAgents, setRegisteredAgents] = useState<AgentCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [registerModalOpen, setRegisterModalOpen] = useState(false);
-  const [registerModalName, setRegisterModalName] = useState('');
-  const [toast, setToast] = useState('');
-  const [cardPanel, setCardPanel] = useState<AgentCard | null>(null);
-  const [rotatedKey, setRotatedKey] = useState('');
-  const [rotatedKeyCopied, setRotatedKeyCopied] = useState(false);
-  const [rotating, setRotating] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState<string | null>(null);
-  const [registryEditing, setRegistryEditing] = useState<string | null>(null);
-  const [registryDesc, setRegistryDesc] = useState('');
-  const [registryEmail, setRegistryEmail] = useState('');
-  const [togglingRegistry, setTogglingRegistry] = useState<string | null>(null);
+  const [registerOpen, setRegisterOpen] = useState(false);
+  const [selectedAgent, setSelectedAgent] = useState<AgentInfo | null>(null);
+  const [rotatedKey, setRotatedKey] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
 
-  async function loadAll() {
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 4000);
+  };
+
+  const loadAll = useCallback(async () => {
     try {
       const [{ events }, { agents: regAgents }] = await Promise.all([
         fetchEvidenceEventsWithMeta({ limit: 5000 }),
         fetchAgents(),
       ]);
-      setRegisteredAgents(regAgents);
       setAgents(mergeAgents(events, regAgents));
     } catch (err) {
-      console.error('Failed to load agents:', err);
-    } finally {
-      setLoading(false);
+      console.error('loadAll error:', err);
     }
-  }
+  }, []);
 
-  useEffect(() => { loadAll(); }, []);
+  useEffect(() => {
+    setLoading(true);
+    loadAll().finally(() => setLoading(false));
+  }, [loadAll]);
 
-  async function handleRefresh() {
+  const handleRefresh = async () => {
     setRefreshing(true);
     await loadAll();
     setRefreshing(false);
-  }
+  };
 
-  function handleRegisterSuccess() {
-    setToast('Agent registered successfully');
-    loadAll();
-    setTimeout(() => setToast(''), 4000);
-  }
-
-  async function handleRotateKey(agentId: string) {
-    if (!confirm('This will invalidate the current API key. Continue?')) return;
-    setRotating(agentId);
+  const handleRotateKey = async (agentId: string): Promise<string | null> => {
     try {
-      const result = await rotateAgentKey(agentId);
-      setRotatedKey(result.agent_api_key);
-    } catch (err) {
-      setToast(err instanceof Error ? err.message : 'Key rotation failed');
-      setTimeout(() => setToast(''), 4000);
-    } finally {
-      setRotating(null);
+      const res = await rotateAgentKey(agentId);
+      const key = res?.agent_api_key ?? null;
+      setRotatedKey(key);
+      showToast('API key rotated — save it now.');
+      return key;
+    } catch {
+      showToast('Key rotation failed.');
+      return null;
     }
-  }
+  };
 
-  async function copyRotatedKey() {
-    try {
-      await navigator.clipboard.writeText(rotatedKey);
-      setRotatedKeyCopied(true);
-      setTimeout(() => setRotatedKeyCopied(false), 2000);
-    } catch { /* ignore */ }
-  }
-
-  async function handleDeleteAgent(agentId: string, agentName: string) {
-    if (!confirm(`Delete agent ${agentName}? This will permanently remove the agent registration and invalidate its API key. Existing evidence events are not affected.`)) return;
-    setDeleting(agentId);
+  const handleDelete = async (agentId: string) => {
     try {
       await deleteAgent(agentId);
+      setSelectedAgent(null);
       await loadAll();
-      setToast('Agent deleted');
-      setTimeout(() => setToast(''), 4000);
-    } catch (err) {
-      setToast(err instanceof Error ? err.message : 'Delete failed');
-      setTimeout(() => setToast(''), 4000);
-    } finally {
-      setDeleting(null);
+      showToast('Agent deleted.');
+    } catch {
+      showToast('Delete failed.');
     }
-  }
-
-  async function handleToggleRegistry(agentId: string, currentlyListed: boolean) {
-    setTogglingRegistry(agentId);
-    try {
-      await patchAgent(agentId, { public_registry_listed: !currentlyListed });
-      await loadAll();
-      setToast(currentlyListed ? 'Removed from public registry' : 'Listed in public registry');
-      setTimeout(() => setToast(''), 4000);
-    } catch (err) {
-      setToast(err instanceof Error ? err.message : 'Update failed');
-      setTimeout(() => setToast(''), 4000);
-    } finally {
-      setTogglingRegistry(null);
-    }
-  }
-
-  async function handleSaveRegistryProfile(agentId: string) {
-    try {
-      await patchAgent(agentId, {
-        public_registry_description: registryDesc,
-        public_registry_contact_email: registryEmail,
-      });
-      setRegistryEditing(null);
-      await loadAll();
-      setToast('Registry profile updated');
-      setTimeout(() => setToast(''), 4000);
-    } catch (err) {
-      setToast(err instanceof Error ? err.message : 'Update failed');
-      setTimeout(() => setToast(''), 4000);
-    }
-  }
-
-  function isRegistered(agent: AgentInfo): boolean {
-    if (agent.agentId) return true;
-    return registeredAgents.some(r => r.name.toLowerCase() === agent.name.toLowerCase());
-  }
-
-  function getRegisteredCard(agent: AgentInfo): AgentCard | undefined {
-    if (agent.agentId) {
-      return registeredAgents.find(r => r['x-veridion']?.agent_id === agent.agentId);
-    }
-    return registeredAgents.find(r => r.name.toLowerCase() === agent.name.toLowerCase());
-  }
+  };
 
   const totalAgents = agents.length;
-  const activeAgents = agents.filter(a => a.isActive).length;
-  const registeredCount = registeredAgents.length;
+  const activeAgents = agents.filter((a) => a.isActive).length;
+  const registeredAgents = agents.filter((a) => !!a.agentId).length;
 
   return (
     <DashboardLayout>
-      <div className="max-w-6xl mx-auto space-y-6">
-        {/* Toast */}
-        {toast && (
-          <div className="fixed top-4 right-4 z-50 bg-emerald-600 text-white px-4 py-2.5 rounded-lg shadow-lg text-sm font-medium flex items-center gap-2 animate-in slide-in-from-right">
-            <Shield className="w-4 h-4" />
-            {toast}
+      <div className="max-w-5xl mx-auto px-4 py-8">
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-3">
+            <Cpu className="w-6 h-6 text-slate-400" />
+            <h1 className="text-xl font-semibold text-white">Agents</h1>
           </div>
-        )}
-
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-              <Cpu className="w-6 h-6 text-emerald-400" />
-              Agents
-            </h1>
-            <p className="text-sm text-slate-400 mt-1">
-              AI agents and systems interacting with Veridion Nexus
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <button
-              onClick={() => { setRegisterModalName(''); setRegisterModalOpen(true); }}
-              className="flex items-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              Register New Agent
-            </button>
-            <button
+              type="button"
               onClick={handleRefresh}
               disabled={refreshing}
-              className="flex items-center gap-2 px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-300 hover:bg-slate-700 transition-colors disabled:opacity-50"
             >
               <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
               Refresh
             </button>
+            <button
+              type="button"
+              onClick={() => setRegisterOpen(true)}
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-500 px-3 py-2 text-sm text-white font-medium transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Register Agent
+            </button>
           </div>
         </div>
 
-        {/* Summary */}
-        <div className="grid grid-cols-3 gap-4">
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
-            <div className="text-2xl font-bold text-white">{totalAgents}</div>
-            <div className="text-xs text-slate-400 mt-1">Agents Detected</div>
-          </div>
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
-            <div className="text-2xl font-bold text-emerald-400">{activeAgents}</div>
-            <div className="text-xs text-slate-400 mt-1">Active (last 24h)</div>
-          </div>
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
-            <div className="text-2xl font-bold text-emerald-400">{registeredCount}</div>
-            <div className="text-xs text-slate-400 mt-1">Registered</div>
-          </div>
+        <div className="grid grid-cols-3 gap-4 mb-8">
+          {[
+            { label: 'Total Agents', value: totalAgents },
+            { label: 'Active (24h)', value: activeAgents },
+            { label: 'Registered', value: registeredAgents },
+          ].map(({ label, value }) => (
+            <div key={label} className="rounded-xl border border-slate-700 bg-slate-800 p-4">
+              <p className="text-xs text-slate-500 uppercase tracking-wide">{label}</p>
+              <p className="mt-1 text-3xl font-bold text-white">{value}</p>
+            </div>
+          ))}
         </div>
 
-        {/* Agent Cards */}
         {loading ? (
-          <div className="p-8 text-center text-slate-400">Loading agents...</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[...Array(6)].map((_, i) => (
+              <div
+                key={i}
+                className="h-28 rounded-xl border border-slate-700 bg-slate-800 animate-pulse"
+              />
+            ))}
+          </div>
         ) : agents.length === 0 ? (
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
+          <div className="rounded-xl border border-slate-700 bg-slate-800 p-12 text-center">
+            <Cpu className="w-10 h-10 text-slate-600 mx-auto mb-3" />
             <p className="text-slate-400">No agents detected yet.</p>
-            <p className="text-sm text-slate-500 mt-1">Send transfers through the API to see agents appear here.</p>
+            <p className="mt-1 text-xs text-slate-500">Register an agent or wait for activity.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {agents.map((agent) => {
-              const registered = isRegistered(agent);
-              const card = getRegisteredCard(agent);
-              const trustLevel = card?.['x-veridion']?.trust_level ?? 0;
-
-              return (
-                <div
-                  key={agent.agentId ?? `_unreg:${agent.name}`}
-                  className={`bg-slate-800 border rounded-lg p-5 flex flex-col gap-4 ${
-                    registered ? 'border-emerald-500/30' : 'border-slate-700'
-                  }`}
-                >
-                  {/* Top row: name + status */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                        registered ? 'bg-emerald-500/15' : 'bg-slate-700'
-                      }`}>
-                        <Cpu className={`w-5 h-5 ${registered ? 'text-emerald-400' : 'text-slate-400'}`} />
-                      </div>
-                      <div>
-                        <div className="text-sm font-semibold text-white">{agent.name}</div>
-                        {registered && card?.['x-veridion']?.agent_id && (
-                          <div className="text-[10px] font-mono text-slate-500 mt-0.5">{card['x-veridion'].agent_id}</div>
-                        )}
-                        <div className="text-xs text-slate-500">
-                          Last active: {agent.lastActivity ? formatTimeAgo(agent.lastActivity) : (registered ? 'No activity yet' : '—')}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      {registered && (
-                        <span className="px-2 py-0.5 rounded text-[11px] font-medium border bg-emerald-500/15 text-emerald-400 border-emerald-500/25">
-                          REGISTERED
-                        </span>
-                      )}
-                      {registered && trustLevel > 0 && (
-                        <span className="px-2 py-0.5 rounded text-[11px] font-medium border bg-blue-500/15 text-blue-400 border-blue-500/25">
-                          Trust Level {trustLevel}
-                        </span>
-                      )}
-                      <span className={`px-2 py-0.5 rounded text-[11px] font-medium border ${
-                        (registered || agent.isActive)
-                          ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25'
-                          : 'bg-slate-500/15 text-slate-400 border-slate-500/25'
-                      }`}>
-                        {(registered || agent.isActive) ? 'ACTIVE' : 'INACTIVE'}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Stats row */}
-                  <div className="flex items-center gap-3">
-                    <div className="text-xs text-slate-400">
-                      <span className="text-white font-semibold">{agent.totalTransfers}</span> transfers
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      {agent.allowCount > 0 && (
-                        <span className="px-1.5 py-0.5 rounded text-[11px] font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
-                          {agent.allowCount} ALLOW
-                        </span>
-                      )}
-                      {agent.reviewCount > 0 && (
-                        <span className="px-1.5 py-0.5 rounded text-[11px] font-medium bg-amber-500/15 text-amber-400 border border-amber-500/25">
-                          {agent.reviewCount} REVIEW
-                        </span>
-                      )}
-                      {agent.blockCount > 0 && (
-                        <span className="px-1.5 py-0.5 rounded text-[11px] font-medium bg-red-500/15 text-red-400 border border-red-500/25">
-                          {agent.blockCount} BLOCK
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Public Registry row */}
-                  {registered && card?.['x-veridion']?.agent_id && (
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <button
-                        onClick={() => handleToggleRegistry(card!['x-veridion'].agent_id, !!card!['x-veridion']?.public_registry_listed)}
-                        disabled={togglingRegistry === card!['x-veridion'].agent_id}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 ${
-                          card!['x-veridion']?.public_registry_listed
-                            ? 'bg-blue-500/15 text-blue-400 border border-blue-500/25 hover:bg-blue-500/25'
-                            : 'bg-slate-700 text-slate-300 hover:bg-slate-600 hover:text-white'
-                        }`}
-                      >
-                        <Globe className="w-3.5 h-3.5" />
-                        {card!['x-veridion']?.public_registry_listed ? 'Listed in Public Registry' : 'List in Public Registry'}
-                      </button>
-                      {card!['x-veridion']?.public_registry_listed && (
-                        <button
-                          onClick={() => {
-                            setRegistryEditing(card!['x-veridion'].agent_id);
-                            setRegistryDesc(card!['x-veridion']?.public_registry_description ?? '');
-                            setRegistryEmail(card!['x-veridion']?.public_registry_contact_email ?? '');
-                          }}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-700 text-slate-300 hover:bg-slate-600 hover:text-white transition-colors"
-                        >
-                          <Mail className="w-3.5 h-3.5" />
-                          Edit Registry Profile
-                        </button>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Registry profile editor */}
-                  {registryEditing === card?.['x-veridion']?.agent_id && (
-                    <div className="bg-slate-900/50 border border-slate-600 rounded-lg p-4 space-y-3">
-                      <div>
-                        <label className="block text-xs text-slate-400 mb-1">Public Description</label>
-                        <textarea
-                          value={registryDesc}
-                          onChange={(e) => setRegistryDesc(e.target.value)}
-                          placeholder="Describe what this agent does for the public registry..."
-                          rows={3}
-                          className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-slate-400 mb-1">DPO Contact Email</label>
-                        <input
-                          type="email"
-                          value={registryEmail}
-                          onChange={(e) => setRegistryEmail(e.target.value)}
-                          placeholder="dpo@company.eu"
-                          className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-                        />
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleSaveRegistryProfile(card!['x-veridion'].agent_id)}
-                          className="px-4 py-1.5 rounded-lg text-xs font-medium bg-emerald-600 hover:bg-emerald-500 text-white transition-colors"
-                        >
-                          Save
-                        </button>
-                        <button
-                          onClick={() => setRegistryEditing(null)}
-                          className="px-4 py-1.5 rounded-lg text-xs font-medium bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Action row */}
-                  <div className="pt-2 border-t border-slate-700 flex items-center gap-2">
-                    {registered ? (
-                      <>
-                        <button
-                          onClick={() => card && setCardPanel(card)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                          View Agent Card
-                        </button>
-                        <button
-                          disabled
-                          title="Coming soon"
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-700 text-slate-500 cursor-not-allowed"
-                        >
-                          <FileText className="w-3.5 h-3.5" />
-                          Policy History
-                        </button>
-                        {card?.['x-veridion']?.agent_id && (
-                          <button
-                            onClick={() => handleRotateKey(card!['x-veridion'].agent_id)}
-                            disabled={rotating === card!['x-veridion'].agent_id}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors disabled:opacity-50"
-                          >
-                            <Key className="w-3.5 h-3.5" />
-                            {rotating === card!['x-veridion'].agent_id ? 'Rotating...' : 'Rotate Key'}
-                          </button>
-                        )}
-                        {card?.['x-veridion']?.agent_id && (
-                          <button
-                            onClick={() => handleDeleteAgent(card!['x-veridion'].agent_id, agent.name)}
-                            disabled={deleting === card!['x-veridion'].agent_id}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-red-500/50 text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50 ml-auto"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            Delete Agent
-                          </button>
-                        )}
-                      </>
-                    ) : (
-                      <button
-                        onClick={() => { setRegisterModalName(agent.name); setRegisterModalOpen(true); }}
-                        className="px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-600 hover:bg-emerald-500 text-white transition-colors"
-                      >
-                        Register Agent
-                      </button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {agents.map((agent) => (
+              <AgentListCard
+                key={agent.agentId ?? `unreg-${agent.name}`}
+                agent={agent}
+                onClick={() => {
+                  setSelectedAgent(agent);
+                  setRotatedKey(null);
+                }}
+              />
+            ))}
           </div>
         )}
       </div>
 
-      {/* Registration Modal */}
-      <RegisterAgentModal
-        open={registerModalOpen}
-        agentName={registerModalName}
-        onClose={() => setRegisterModalOpen(false)}
-        onSuccess={handleRegisterSuccess}
-      />
-
-      {/* Agent Card Side Panel */}
-      {cardPanel && (
-        <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-sm" onClick={() => setCardPanel(null)}>
-          <div
-            className="w-full max-w-lg bg-slate-800 border-l border-slate-700 h-full overflow-y-auto shadow-2xl"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between p-5 border-b border-slate-700">
-              <h2 className="text-lg font-bold text-white">A2A Agent Card</h2>
-              <button onClick={() => setCardPanel(null)} className="text-slate-400 hover:text-white transition-colors">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-5">
-              <pre className="bg-slate-900 border border-slate-700 rounded-lg p-4 text-xs text-slate-300 overflow-x-auto whitespace-pre-wrap">
-                {JSON.stringify(cardPanel, null, 2)}
-              </pre>
-            </div>
-          </div>
-        </div>
+      {selectedAgent && (
+        <AgentDetailPanel
+          agent={selectedAgent}
+          onClose={() => setSelectedAgent(null)}
+          onRotateKey={handleRotateKey}
+          onDelete={handleDelete}
+          rotatedKey={rotatedKey}
+        />
       )}
 
-      {/* Rotated Key Reveal Modal */}
-      {rotatedKey && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-slate-800 border border-slate-700 rounded-xl w-full max-w-lg shadow-2xl">
-            <div className="flex items-center justify-between p-5 border-b border-slate-700">
-              <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                <Key className="w-5 h-5 text-emerald-400" />
-                New Agent API Key
-              </h2>
-            </div>
-            <div className="p-5 space-y-4">
-              <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3">
-                <div className="flex items-start gap-2">
-                  <AlertTriangle className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
-                  <p className="text-xs text-amber-400">
-                    This key will only be shown once. Store it securely — it cannot be recovered. The previous key has been invalidated.
-                  </p>
-                </div>
-              </div>
-              <div className="relative">
-                <pre className="bg-slate-900 border border-slate-600 rounded-lg p-3 text-sm text-emerald-400 font-mono break-all pr-12">
-                  {rotatedKey}
-                </pre>
-                <button
-                  onClick={copyRotatedKey}
-                  className="absolute top-2 right-2 p-1.5 rounded bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors"
-                  title="Copy to clipboard"
-                >
-                  <Copy className="w-4 h-4" />
-                </button>
-              </div>
-              {rotatedKeyCopied && (
-                <p className="text-xs text-emerald-400">Copied to clipboard</p>
-              )}
-            </div>
-            <div className="flex items-center justify-end p-5 border-t border-slate-700">
-              <button
-                onClick={() => { setRotatedKey(''); setRotatedKeyCopied(false); }}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors"
-              >
-                I have saved this key
-              </button>
-            </div>
-          </div>
+      <RegisterAgentModal
+        open={registerOpen}
+        agentName=""
+        onClose={() => setRegisterOpen(false)}
+        onSuccess={() => {
+          setRegisterOpen(false);
+          handleRefresh();
+          showToast('Agent registered successfully.');
+        }}
+      />
+
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 rounded-lg bg-emerald-600 px-4 py-3 text-sm text-white shadow-lg">
+          {toast}
         </div>
       )}
     </DashboardLayout>
