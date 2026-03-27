@@ -1,12 +1,11 @@
-import { getAuthHeaders } from '@/app/utils/api';
+import { clearAuthState, getAuthHeaders } from '@/app/utils/api';
 
 const API_BASE = '';
 
 function checkUnauthorized(res: Response): void {
   if (res.status === 401) {
     if (typeof window !== 'undefined') {
-      localStorage.removeItem('ss_token');
-      localStorage.removeItem('ss_user');
+      clearAuthState();
       window.location.href = '/login?expired=true';
     }
     throw new Error('Unauthorized - session expired');

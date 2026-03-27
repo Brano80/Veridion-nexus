@@ -1,7 +1,9 @@
 'use client';
 
-import { useState, FormEvent } from 'react';
+import { useState, useEffect, FormEvent } from 'react';
 import { Shield, Eye, EyeOff, Loader2 } from 'lucide-react';
+
+const LOGIN_EMAIL_KEY = 'ss_login_email';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -10,6 +12,12 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const saved = localStorage.getItem(LOGIN_EMAIL_KEY);
+    if (saved) setEmail(saved);
+  }, []);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -48,8 +56,15 @@ export default function LoginPage() {
       }
 
       const data = await res.json();
-      localStorage.setItem('ss_token', data.token);
-      localStorage.setItem('ss_user', JSON.stringify({
+
+      if (rememberMe) {
+        localStorage.setItem(LOGIN_EMAIL_KEY, email);
+      } else {
+        localStorage.removeItem(LOGIN_EMAIL_KEY);
+      }
+
+      sessionStorage.setItem('ss_token', data.token);
+      sessionStorage.setItem('ss_user', JSON.stringify({
         id: data.user.id,
         email: data.user.email,
         username: data.user.username,
@@ -158,7 +173,7 @@ export default function LoginPage() {
                 className="w-4 h-4 rounded border-slate-600 bg-slate-900 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-0"
               />
               <label htmlFor="remember" className="ml-2 text-sm text-slate-400">
-                Remember me for 30 days
+                Remember email on this device
               </label>
             </div>
 

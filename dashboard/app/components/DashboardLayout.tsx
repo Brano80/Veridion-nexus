@@ -14,7 +14,7 @@ export default function DashboardLayout({
   const [authChecked, setAuthChecked] = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem('ss_token');
+    const token = sessionStorage.getItem('ss_token');
     if (!token) {
       window.location.href = '/login';
       return;

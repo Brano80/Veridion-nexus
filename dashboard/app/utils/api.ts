@@ -20,14 +20,31 @@ function checkTrialExpired(res: Response): void {
   }
 }
 
+const SS_TOKEN_KEY = 'ss_token';
+const SS_USER_KEY = 'ss_user';
+
+/** One-time migration from legacy localStorage auth (tab-shared) to per-tab sessionStorage. */
+function migrateLegacyLocalStorageAuth(): void {
+  if (typeof window === 'undefined') return;
+  if (!sessionStorage.getItem(SS_TOKEN_KEY) && localStorage.getItem(SS_TOKEN_KEY)) {
+    const t = localStorage.getItem(SS_TOKEN_KEY);
+    const u = localStorage.getItem(SS_USER_KEY);
+    if (t) sessionStorage.setItem(SS_TOKEN_KEY, t);
+    if (u) sessionStorage.setItem(SS_USER_KEY, u);
+    localStorage.removeItem(SS_TOKEN_KEY);
+    localStorage.removeItem(SS_USER_KEY);
+  }
+}
+
 // Helper to check for 401 status and redirect to login
 function checkUnauthorized(res: Response): void {
   if (res.status === 401) {
     // Clear expired token and user data
     if (typeof window !== 'undefined') {
-      localStorage.removeItem('ss_token');
-      localStorage.removeItem('ss_user');
+      sessionStorage.removeItem(SS_TOKEN_KEY);
+      sessionStorage.removeItem(SS_USER_KEY);
       currentUserCache = null;
+      cachedToken = null;
       // Redirect to login page
       window.location.href = '/login?expired=true';
     }
@@ -50,10 +67,23 @@ export interface CurrentUser {
 }
 
 let currentUserCache: CurrentUser | null = null;
+/** Token value `currentUserCache` was loaded for; kept in sync with sessionStorage. */
+let cachedToken: string | null = null;
+
+function ensureCacheMatchesSessionToken(): void {
+  if (typeof window === 'undefined') return;
+  migrateLegacyLocalStorageAuth();
+  const t = sessionStorage.getItem(SS_TOKEN_KEY);
+  if (t !== cachedToken) {
+    currentUserCache = null;
+    cachedToken = t;
+  }
+}
 
 export function getAuthHeaders(): Record<string, string> {
   if (typeof window === 'undefined') return { 'Content-Type': 'application/json' };
-  const token = localStorage.getItem('ss_token');
+  ensureCacheMatchesSessionToken();
+  const token = sessionStorage.getItem(SS_TOKEN_KEY);
   const headers: Record<string, string> = token
     ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
     : { 'Content-Type': 'application/json' };
@@ -63,19 +93,24 @@ export function getAuthHeaders(): Record<string, string> {
 
 export function clearAuthState(): void {
   currentUserCache = null;
+  cachedToken = null;
   if (typeof window !== 'undefined') {
-    localStorage.removeItem('ss_token');
-    localStorage.removeItem('ss_user');
+    sessionStorage.removeItem(SS_TOKEN_KEY);
+    sessionStorage.removeItem(SS_USER_KEY);
   }
 }
 
 export async function getCurrentUser(): Promise<CurrentUser | null> {
-  if (currentUserCache) return currentUserCache;
-
   if (typeof window === 'undefined') return null;
 
-  const stored = localStorage.getItem('ss_user');
-  const token = localStorage.getItem('ss_token');
+  ensureCacheMatchesSessionToken();
+
+  const token = sessionStorage.getItem(SS_TOKEN_KEY);
+  if (!token) return null;
+
+  if (currentUserCache) return currentUserCache;
+
+  const stored = sessionStorage.getItem(SS_USER_KEY);
 
   if (stored && token) {
     try {
@@ -83,8 +118,10 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
       currentUserCache = user;
       return user;
     } catch {
-      localStorage.removeItem('ss_user');
-      localStorage.removeItem('ss_token');
+      sessionStorage.removeItem(SS_USER_KEY);
+      sessionStorage.removeItem(SS_TOKEN_KEY);
+      currentUserCache = null;
+      cachedToken = null;
     }
   }
 

@@ -1,17 +1,19 @@
+const SS_TOKEN_KEY = 'ss_token';
+
 export function getAuthToken(): string | null {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem('ss_token');
+  return sessionStorage.getItem(SS_TOKEN_KEY);
 }
 
 export function setAuthToken(token: string): void {
   if (typeof window !== 'undefined') {
-    localStorage.setItem('ss_token', token);
+    sessionStorage.setItem(SS_TOKEN_KEY, token);
   }
 }
 
 export function removeAuthToken(): void {
   if (typeof window !== 'undefined') {
-    localStorage.removeItem('ss_token');
+    sessionStorage.removeItem(SS_TOKEN_KEY);
   }
 }
 
