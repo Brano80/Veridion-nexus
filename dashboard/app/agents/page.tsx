@@ -169,15 +169,12 @@ function AgentListCard({
   const xVeridion = agent.card?.['x-veridion'] as Record<string, unknown> | undefined;
   const trustLevel = xVeridion?.trust_level as number | undefined;
   const isRegistered = !!agent.agentId;
-  const hasReviews = agent.reviewCount > 0;
 
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`group w-full text-left bg-slate-800 border rounded-lg p-4 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 hover:border-slate-500 hover:bg-slate-700/60 ${
-        hasReviews ? 'border-amber-800/60' : 'border-slate-700'
-      }`}
+      className="group w-full text-left bg-slate-800 border border-slate-700 rounded-lg p-4 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 hover:border-slate-500 hover:bg-slate-700/60"
     >
       <div className="flex items-start justify-between gap-2 mb-3">
         <div className="flex items-center gap-2.5 min-w-0">
@@ -224,10 +221,9 @@ function AgentListCard({
           </span>
         )}
 
-        {hasReviews && (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border bg-amber-500/10 text-amber-400 border-amber-800/50">
-            <AlertTriangle className="w-3 h-3" />
-            {agent.reviewCount} review{agent.reviewCount !== 1 ? 's' : ''}
+        {agent.reviewCount > 0 && (
+          <span className="inline-flex items-center bg-slate-700/60 text-slate-400 border-slate-600 text-[11px] px-2 py-0.5 rounded border">
+            {agent.reviewCount} pending
           </span>
         )}
       </div>

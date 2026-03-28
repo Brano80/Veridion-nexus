@@ -15,7 +15,6 @@ import {
   ChevronUp,
   Clock,
   Hash,
-  AlertTriangle,
   ShieldCheck,
   Activity,
   ArrowRightLeft,
@@ -230,12 +229,9 @@ export default function AgentDetailPanel({
             </div>
 
             {agent.reviewCount > 0 && (
-              <div className="mt-2.5 flex items-center gap-1.5 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-800/50">
-                <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                <p className="text-xs text-amber-400">
-                  {agent.reviewCount} transfer{agent.reviewCount !== 1 ? 's' : ''} pending review
-                </p>
-              </div>
+              <p className="mt-2.5 text-xs text-slate-500">
+                {agent.reviewCount} transfer{agent.reviewCount !== 1 ? 's' : ''} pending review
+              </p>
             )}
           </div>
 
