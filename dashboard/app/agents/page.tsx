@@ -1,7 +1,12 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { Cpu, RefreshCw, Plus, Shield } from 'lucide-react';
+/**
+ * Agents page — redesigned (ACM / Sovereign Shield design system).
+ * Data merge logic matches Veridion evidence event types and INTERNAL_SOURCES filtering.
+ */
+
+import { useState, useEffect, useCallback, type ComponentType } from 'react';
+import { Cpu, RefreshCw, Plus, Shield, Activity, Users, AlertTriangle } from 'lucide-react';
 import DashboardLayout from '@/app/components/DashboardLayout';
 import RegisterAgentModal from '@/app/agents/RegisterAgentModal';
 import AgentDetailPanel from '@/app/components/AgentDetailPanel';
@@ -16,7 +21,7 @@ import {
 
 const INTERNAL_SOURCES = ['human-oversight', 'sovereign-shield'];
 
-interface AgentInfo {
+export interface AgentInfo {
   name: string;
   agentId?: string;
   totalTransfers: number;
@@ -25,7 +30,6 @@ interface AgentInfo {
   reviewCount: number;
   blockCount: number;
   isActive: boolean;
-  /** Present when the agent is registered — used for JSON panel + trust level */
   card?: Record<string, unknown>;
 }
 
@@ -126,6 +130,35 @@ function mergeAgents(events: EvidenceEvent[], registeredCards: AgentCard[]): Age
   });
 }
 
+function StatCard({
+  icon: Icon,
+  label,
+  value,
+  accent = 'slate',
+}: {
+  icon: ComponentType<{ className?: string }>;
+  label: string;
+  value: number;
+  accent?: 'emerald' | 'amber' | 'red' | 'slate';
+}) {
+  const accentClasses: Record<string, string> = {
+    emerald: 'border-emerald-800/50 text-emerald-400',
+    amber: 'border-amber-800/50 text-amber-400',
+    red: 'border-red-800/50 text-red-400',
+    slate: 'border-slate-700 text-slate-300',
+  };
+
+  return (
+    <div className={`bg-slate-800 border rounded-lg p-4 ${accentClasses[accent]}`}>
+      <div className="flex items-center justify-between mb-2">
+        <Icon className="w-4 h-4 opacity-60" />
+        <span className="text-2xl font-bold">{value}</span>
+      </div>
+      <p className="text-xs text-slate-400">{label}</p>
+    </div>
+  );
+}
+
 function AgentListCard({
   agent,
   onClick,
@@ -134,41 +167,41 @@ function AgentListCard({
   onClick: () => void;
 }) {
   const xVeridion = agent.card?.['x-veridion'] as Record<string, unknown> | undefined;
-  const rawTrust = xVeridion?.trust_level;
-  const trustNum =
-    typeof rawTrust === 'number' ? rawTrust : rawTrust != null ? Number(rawTrust) : NaN;
-  const showTrust = Number.isFinite(trustNum) && trustNum > 0;
+  const trustLevel = xVeridion?.trust_level as number | undefined;
   const isRegistered = !!agent.agentId;
+  const hasReviews = agent.reviewCount > 0;
 
   return (
     <button
       type="button"
       onClick={onClick}
-      className="group w-full text-left rounded-xl border border-slate-700 bg-slate-800 p-5 hover:border-slate-500 hover:bg-slate-800/90 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+      className={`group w-full text-left bg-slate-800 border rounded-lg p-4 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 hover:border-slate-500 hover:bg-slate-700/60 ${
+        hasReviews ? 'border-amber-800/60' : 'border-slate-700'
+      }`}
     >
-      <div className="flex items-start gap-3">
-        <div className="shrink-0 rounded-lg bg-slate-700 p-2 group-hover:bg-slate-600 transition-colors">
-          <Cpu className="w-5 h-5 text-slate-300" />
+      <div className="flex items-start justify-between gap-2 mb-3">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="shrink-0 w-8 h-8 rounded-md bg-slate-700 flex items-center justify-center">
+            <Cpu className="w-4 h-4 text-slate-400" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-white truncate leading-tight">{agent.name}</p>
+            {isRegistered && (
+              <p className="text-[11px] text-slate-500 font-mono truncate mt-0.5">
+                {agent.agentId!.slice(0, 14)}…
+              </p>
+            )}
+          </div>
         </div>
-        <div className="min-w-0 flex-1">
-          <p className="font-semibold text-white truncate">{agent.name}</p>
-          {isRegistered && (
-            <p className="mt-0.5 text-xs text-slate-500 font-mono truncate">
-              {agent.agentId!.slice(0, 12)}…
-            </p>
-          )}
-        </div>
-        <span className="shrink-0 text-slate-600 group-hover:text-slate-400 transition-colors text-lg leading-none mt-0.5">
-          →
-        </span>
+        <span className="shrink-0 text-slate-600 group-hover:text-slate-400 transition-colors text-sm">→</span>
       </div>
 
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-1.5">
         <span
-          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium border ${
+          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border ${
             isRegistered
-              ? 'bg-blue-900/50 text-blue-400 border-blue-700'
-              : 'bg-slate-700 text-slate-400 border-slate-600'
+              ? 'bg-blue-500/10 text-blue-400 border-blue-500/25'
+              : 'bg-slate-700 text-slate-500 border-slate-600'
           }`}
         >
           <Shield className="w-3 h-3" />
@@ -176,23 +209,24 @@ function AgentListCard({
         </span>
 
         <span
-          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border ${
+          className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border ${
             agent.isActive
-              ? 'bg-emerald-900/50 text-emerald-400 border-emerald-700'
-              : 'bg-slate-700 text-slate-400 border-slate-600'
+              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-800/50'
+              : 'bg-slate-700 text-slate-500 border-slate-600'
           }`}
         >
           {agent.isActive ? 'Active' : 'Inactive'}
         </span>
 
-        {showTrust && (
-          <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border bg-emerald-900/40 text-emerald-400 border-emerald-700">
-            Trust {trustNum}
+        {trustLevel !== undefined && trustLevel !== null && (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border bg-slate-700/60 text-slate-300 border-slate-600">
+            Trust {trustLevel}
           </span>
         )}
 
-        {agent.reviewCount > 0 && (
-          <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium border bg-yellow-900/30 text-yellow-400 border-yellow-800">
+        {hasReviews && (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border bg-amber-500/10 text-amber-400 border-amber-800/50">
+            <AlertTriangle className="w-3 h-3" />
             {agent.reviewCount} review{agent.reviewCount !== 1 ? 's' : ''}
           </span>
         )}
@@ -217,10 +251,12 @@ export default function AgentsPage() {
 
   const loadAll = useCallback(async () => {
     try {
-      const [{ events }, { agents: regAgents }] = await Promise.all([
+      const [eventsRes, registeredRes] = await Promise.all([
         fetchEvidenceEventsWithMeta({ limit: 5000 }),
         fetchAgents(),
       ]);
+      const events = eventsRes?.events ?? [];
+      const regAgents = registeredRes?.agents ?? [];
       setAgents(mergeAgents(events, regAgents));
     } catch (err) {
       console.error('loadAll error:', err);
@@ -265,21 +301,24 @@ export default function AgentsPage() {
   const totalAgents = agents.length;
   const activeAgents = agents.filter((a) => a.isActive).length;
   const registeredAgents = agents.filter((a) => !!a.agentId).length;
+  const pendingReviews = agents.reduce((sum, a) => sum + a.reviewCount, 0);
 
   return (
     <DashboardLayout>
-      <div className="max-w-5xl mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-3">
-            <Cpu className="w-6 h-6 text-slate-400" />
-            <h1 className="text-xl font-semibold text-white">Agents</h1>
+      <div className="max-w-6xl mx-auto px-4 py-8 space-y-6">
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-white mb-1">AI System Registry</h1>
+            <p className="text-xs text-slate-500">
+              Registered agents and detected AI systems across your tenant
+            </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={handleRefresh}
               disabled={refreshing}
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-300 hover:bg-slate-700 transition-colors disabled:opacity-50"
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-600 bg-slate-800 text-sm text-slate-300 hover:bg-slate-700 transition-colors disabled:opacity-50"
             >
               <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
               Refresh
@@ -287,7 +326,7 @@ export default function AgentsPage() {
             <button
               type="button"
               onClick={() => setRegisterOpen(true)}
-              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-500 px-3 py-2 text-sm text-white font-medium transition-colors"
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-sm text-white font-medium transition-colors"
             >
               <Plus className="w-4 h-4" />
               Register Agent
@@ -295,32 +334,33 @@ export default function AgentsPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-4 mb-8">
-          {[
-            { label: 'Total Agents', value: totalAgents },
-            { label: 'Active (24h)', value: activeAgents },
-            { label: 'Registered', value: registeredAgents },
-          ].map(({ label, value }) => (
-            <div key={label} className="rounded-xl border border-slate-700 bg-slate-800 p-4">
-              <p className="text-xs text-slate-500 uppercase tracking-wide">{label}</p>
-              <p className="mt-1 text-3xl font-bold text-white">{value}</p>
-            </div>
-          ))}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard icon={Cpu} label="Total Agents" value={totalAgents} accent="slate" />
+          <StatCard
+            icon={Activity}
+            label="Active (24h)"
+            value={activeAgents}
+            accent={activeAgents > 0 ? 'emerald' : 'slate'}
+          />
+          <StatCard icon={Users} label="Registered" value={registeredAgents} accent="slate" />
+          <StatCard
+            icon={AlertTriangle}
+            label="Pending Reviews"
+            value={pendingReviews}
+            accent={pendingReviews > 0 ? 'amber' : 'slate'}
+          />
         </div>
 
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {[...Array(6)].map((_, i) => (
-              <div
-                key={i}
-                className="h-28 rounded-xl border border-slate-700 bg-slate-800 animate-pulse"
-              />
+              <div key={i} className="h-24 rounded-lg border border-slate-700 bg-slate-800 animate-pulse" />
             ))}
           </div>
         ) : agents.length === 0 ? (
-          <div className="rounded-xl border border-slate-700 bg-slate-800 p-12 text-center">
-            <Cpu className="w-10 h-10 text-slate-600 mx-auto mb-3" />
-            <p className="text-slate-400">No agents detected yet.</p>
+          <div className="bg-slate-800 border border-slate-700 rounded-lg p-12 text-center">
+            <Cpu className="w-8 h-8 text-slate-600 mx-auto mb-3" />
+            <p className="text-sm text-slate-400">No agents detected yet.</p>
             <p className="mt-1 text-xs text-slate-500">Register an agent or wait for activity.</p>
           </div>
         ) : (
