@@ -305,7 +305,7 @@ export default function AgentsPage() {
 
   return (
     <DashboardLayout>
-      <div className="max-w-6xl mx-auto px-4 py-8 space-y-6">
+      <div className="space-y-6">
         <div className="flex items-start justify-between">
           <div>
             <h1 className="text-2xl font-bold text-white mb-1">AI System Registry</h1>
@@ -334,7 +334,7 @@ export default function AgentsPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StatCard icon={Cpu} label="Total Agents" value={totalAgents} accent="slate" />
           <StatCard
             icon={Activity}
