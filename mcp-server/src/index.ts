@@ -242,6 +242,15 @@ class AccountabilityLedgerProxy {
   }
 
   private toolInvolvesPii(toolName: string, args: Record<string, unknown>): boolean {
+    const session = this.session!;
+    const custom = session.agentRecord.pii_heuristics;
+    if (custom != null) {
+      const argKeys = custom.arg_keys ?? [];
+      const toolNames = custom.tool_names ?? [];
+      const hasArgPii = argKeys.some((f) => f in args);
+      const toolPii = toolNames.some((n) => n === toolName);
+      return hasArgPii || toolPii;
+    }
     const piiFields = [
       'email', 'name', 'phone', 'address', 'user_id', 'userId',
       'person_id', 'candidate_id', 'subject_id', 'dob', 'ip_address',

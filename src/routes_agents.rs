@@ -94,6 +94,8 @@ struct AgentRow {
     public_registry_description: Option<String>,
     #[sqlx(default)]
     public_registry_contact_email: Option<String>,
+    #[sqlx(default)]
+    pii_heuristics: Option<serde_json::Value>,
 }
 
 #[derive(sqlx::FromRow)]
@@ -145,6 +147,7 @@ fn build_agent_card(agent: &AgentRow, policy_hash: &str, policy_version: i32) ->
             "public_registry_listed": agent.public_registry_listed.unwrap_or(false),
             "public_registry_description": agent.public_registry_description,
             "public_registry_contact_email": agent.public_registry_contact_email,
+            "pii_heuristics": agent.pii_heuristics,
         },
     })
 }
@@ -472,6 +475,28 @@ pub struct PatchAgentRequest {
     pub public_registry_listed: Option<bool>,
     pub public_registry_description: Option<String>,
     pub public_registry_contact_email: Option<String>,
+    /// `null` clears to DB NULL; object must have non-empty `arg_keys` and/or `tool_names` (string arrays).
+    pub pii_heuristics: Option<serde_json::Value>,
+}
+
+fn patch_pii_heuristics_valid(v: &serde_json::Value) -> bool {
+    if v.is_null() {
+        return true;
+    }
+    let Some(obj) = v.as_object() else {
+        return false;
+    };
+    let ak_ok = match obj.get("arg_keys") {
+        None | Some(serde_json::Value::Null) => false,
+        Some(serde_json::Value::Array(a)) => !a.is_empty() && a.iter().all(|x| x.is_string()),
+        _ => false,
+    };
+    let tn_ok = match obj.get("tool_names") {
+        None | Some(serde_json::Value::Null) => false,
+        Some(serde_json::Value::Array(a)) => !a.is_empty() && a.iter().all(|x| x.is_string()),
+        _ => false,
+    };
+    ak_ok || tn_ok
 }
 
 #[patch("/api/v1/agents/{agent_id}")]
@@ -489,6 +514,7 @@ pub async fn patch_agent(
     let mut sets: Vec<String> = vec!["updated_at = NOW()".to_string()];
     let mut bind_values_text: Vec<Option<String>> = Vec::new();
     let mut bind_values_bool: Vec<Option<bool>> = Vec::new();
+    let mut bind_values_json: Vec<serde_json::Value> = Vec::new();
     let mut idx = 2u32; // $1 = agent_id, $2 = tenant_id, dynamic starts at $3
 
     if let Some(listed) = body.public_registry_listed {
@@ -512,6 +538,25 @@ pub async fn patch_agent(
         bind_values_text.push(Some(email.clone()));
     }
 
+    if let Some(ref h) = body.pii_heuristics {
+        if !patch_pii_heuristics_valid(h) {
+            return HttpResponse::BadRequest().json(serde_json::json!({
+                "error": "INVALID_PII_HEURISTICS",
+                "message": "pii_heuristics must be null or an object with non-empty arg_keys and/or tool_names (arrays of strings)",
+            }));
+        }
+        match h {
+            serde_json::Value::Null => {
+                sets.push("pii_heuristics = NULL".to_string());
+            }
+            _ => {
+                idx += 1;
+                sets.push(format!("pii_heuristics = ${}::jsonb", idx));
+                bind_values_json.push(h.clone());
+            }
+        }
+    }
+
     if sets.len() <= 1 {
         return HttpResponse::BadRequest().json(serde_json::json!({
             "error": "No fields to update"
@@ -533,6 +578,9 @@ pub async fn patch_agent(
     }
     for t in &bind_values_text {
         query = query.bind(t.clone());
+    }
+    for j in &bind_values_json {
+        query = query.bind(j);
     }
 
     match query.execute(pool.get_ref()).await {

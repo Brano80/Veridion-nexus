@@ -20,6 +20,7 @@ import {
   ArrowRightLeft,
 } from 'lucide-react';
 import type { AgentInfo } from '@/app/agents/page';
+import { patchAgent } from '@/app/utils/api';
 
 interface Props {
   agent: AgentInfo;
@@ -27,6 +28,13 @@ interface Props {
   onRotateKey: (agentId: string) => Promise<string | null>;
   onDelete: (agentId: string) => Promise<void>;
   rotatedKey: string | null;
+}
+
+function splitCsv(s: string): string[] {
+  return s
+    .split(',')
+    .map((x) => x.trim())
+    .filter(Boolean);
 }
 
 function formatTimeAgo(iso: string): string {
@@ -78,6 +86,18 @@ export default function AgentDetailPanel({
   const [newKey, setNewKey] = useState<string | null>(rotatedKey);
   const [keySaved, setKeySaved] = useState(false);
 
+  const xVeridion = agent.card?.['x-veridion'] as Record<string, unknown> | undefined;
+  const piiFromCard = xVeridion?.pii_heuristics as
+    | { arg_keys?: string[]; tool_names?: string[] }
+    | null
+    | undefined;
+
+  const [piiArgKeys, setPiiArgKeys] = useState('');
+  const [piiToolNames, setPiiToolNames] = useState('');
+  const [piiSaving, setPiiSaving] = useState(false);
+  const [piiError, setPiiError] = useState<string | null>(null);
+  const [piiSavedAt, setPiiSavedAt] = useState<number | null>(null);
+
   useEffect(() => {
     if (rotatedKey) {
       setNewKey(rotatedKey);
@@ -85,9 +105,40 @@ export default function AgentDetailPanel({
     }
   }, [rotatedKey]);
 
+  useEffect(() => {
+    const ph = piiFromCard;
+    setPiiArgKeys(ph?.arg_keys?.join(', ') ?? '');
+    setPiiToolNames(ph?.tool_names?.join(', ') ?? '');
+    setPiiError(null);
+    setPiiSavedAt(null);
+  }, [agent.agentId, agent.card]);
+
   const isRegistered = !!agent.agentId;
-  const xVeridion = agent.card?.['x-veridion'] as Record<string, unknown> | undefined;
   const trustLevel = xVeridion?.trust_level as number | undefined;
+
+  const piiUsingDefaults =
+    piiFromCard == null ||
+    (!piiFromCard.arg_keys?.length && !piiFromCard.tool_names?.length);
+
+  const handleSavePii = async () => {
+    if (!agent.agentId) return;
+    setPiiSaving(true);
+    setPiiError(null);
+    try {
+      const ak = splitCsv(piiArgKeys);
+      const tn = splitCsv(piiToolNames);
+      const payload =
+        ak.length === 0 && tn.length === 0
+          ? null
+          : { arg_keys: ak, tool_names: tn };
+      await patchAgent(agent.agentId, { pii_heuristics: payload } as any);
+      setPiiSavedAt(Date.now());
+    } catch (e) {
+      setPiiError(e instanceof Error ? e.message : 'Save failed');
+    } finally {
+      setPiiSaving(false);
+    }
+  };
 
   const copyId = () => {
     if (!agent.agentId) return;
@@ -234,6 +285,59 @@ export default function AgentDetailPanel({
               </p>
             )}
           </div>
+
+          {isRegistered && (
+            <div className="rounded-lg border border-slate-700 bg-slate-800/80 p-4 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                  PII detection (MCP proxy)
+                </p>
+                {piiUsingDefaults && (
+                  <span className="text-[11px] text-slate-500 border border-slate-600 rounded px-2 py-0.5">
+                    Using defaults
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                Comma-separated lists. When set, these replace the built-in PII argument keys and write-style tool
+                heuristics for this agent. Leave both empty and save to use defaults.
+              </p>
+              <div className="space-y-2">
+                <label className="block">
+                  <span className="text-[11px] text-slate-500 mb-1 block">PII argument keys</span>
+                  <input
+                    type="text"
+                    value={piiArgKeys}
+                    onChange={(e) => setPiiArgKeys(e.target.value)}
+                    placeholder="e.g. email, name, ssn"
+                    className="w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-[11px] text-slate-500 mb-1 block">PII tool names</span>
+                  <input
+                    type="text"
+                    value={piiToolNames}
+                    onChange={(e) => setPiiToolNames(e.target.value)}
+                    placeholder="e.g. cv_parser, send_email"
+                    className="w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+                  />
+                </label>
+              </div>
+              {piiError && <p className="text-xs text-red-400">{piiError}</p>}
+              {piiSavedAt != null && !piiError && (
+                <p className="text-xs text-emerald-400">Saved. Refresh the page to sync the JSON card view.</p>
+              )}
+              <button
+                type="button"
+                onClick={() => void handleSavePii()}
+                disabled={piiSaving}
+                className="w-full rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-sm font-medium py-2 transition-colors"
+              >
+                {piiSaving ? 'Saving…' : 'Save PII settings'}
+              </button>
+            </div>
+          )}
 
           {newKey && !keySaved && (
             <div className="bg-amber-500/10 border border-amber-800/50 rounded-lg p-4">

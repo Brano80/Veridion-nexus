@@ -24,6 +24,11 @@ export interface AgentRecord {
     retention_policy: RetentionPolicy;
     a2a_card_url?: string;
     status: string;
+    /** Per-agent PII hints; null/undefined = MCP proxy uses built-in defaults */
+    pii_heuristics?: {
+        arg_keys?: string[];
+        tool_names?: string[];
+    } | null;
 }
 export interface TransferPolicy {
     destination: string;

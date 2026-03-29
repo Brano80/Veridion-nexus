@@ -106,6 +106,7 @@ pub async fn get_agent_by_oauth_client_id(
                 COALESCE(transfer_policies, '[]'::jsonb) AS transfer_policies,
                 retention_policy,
                 a2a_card_url,
+                pii_heuristics,
                 status
             FROM agents
             WHERE oauth_client_id = $1
