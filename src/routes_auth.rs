@@ -861,11 +861,16 @@ pub async fn dev_reset_password(
     }))
 }
 
-pub fn configure(cfg: &mut web::ServiceConfig) {
+/// Public auth handlers — no Bearer/API key (must stay on `middleware_tenant` exempt list).
+pub fn configure_public(cfg: &mut web::ServiceConfig) {
     cfg.service(register)
-       .service(login)
-       .service(logout)
-       .service(forgot_password)
-       .service(reset_password)
-       .service(dev_reset_password);
+        .service(login)
+        .service(logout)
+        .service(forgot_password)
+        .service(reset_password);
+}
+
+pub fn configure(cfg: &mut web::ServiceConfig) {
+    configure_public(cfg);
+    cfg.service(dev_reset_password);
 }

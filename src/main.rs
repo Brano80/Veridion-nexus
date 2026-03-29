@@ -297,6 +297,8 @@ async fn main() -> std::io::Result<()> {
     println!("  Signup:          POST /api/v1/auth/register");
     println!("  Login:           POST /api/v1/auth/login");
     println!("  Logout:          POST /api/v1/auth/logout");
+    println!("  Forgot pwd:      POST /api/v1/auth/forgot-password");
+    println!("  Reset pwd:       POST /api/v1/auth/reset-password");
     println!("  Dev reset pwd:   POST /api/v1/auth/dev-reset-password (dev only)");
     println!("  Agents register: POST /api/v1/agents");
     println!("  Agents list:     GET  /api/v1/agents");

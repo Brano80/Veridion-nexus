@@ -65,6 +65,8 @@ where
                 || path == "/api/v1/auth/register"
                 || path == "/api/v1/auth/login"
                 || path == "/api/v1/auth/logout"
+                || path == "/api/v1/auth/forgot-password"
+                || path == "/api/v1/auth/reset-password"
                 || path == "/api/v1/auth/dev-reset-password"
                 || !path.starts_with("/api/v1/")
             {
