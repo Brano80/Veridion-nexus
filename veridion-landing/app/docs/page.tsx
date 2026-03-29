@@ -16,8 +16,16 @@ const sections = [
   { id: 'shadow-mode', label: 'Shadow Mode' },
   { id: 'code-examples', label: 'Code Examples' },
   { id: 'mcp-server', label: 'MCP Server' },
+  { id: 'accountability-ledger', label: 'Accountability Ledger' },
   { id: 'limitations', label: 'Limitations' },
 ];
+
+const dashboardBase =
+  typeof process.env.NEXT_PUBLIC_DASHBOARD_URL === 'string' &&
+  process.env.NEXT_PUBLIC_DASHBOARD_URL &&
+  !process.env.NEXT_PUBLIC_DASHBOARD_URL.includes('localhost')
+    ? process.env.NEXT_PUBLIC_DASHBOARD_URL
+    : 'https://app.veridion-nexus.eu';
 
 export default function DocsPage() {
   const [activeSection, setActiveSection] = useState('quick-start');
@@ -1100,6 +1108,245 @@ async function callOpenAI(userData) {
                   </tbody>
                 </table>
               </div>
+            </section>
+
+            {/* Accountability Ledger */}
+            <section
+              id="accountability-ledger"
+              ref={(el) => { sectionRefs.current['accountability-ledger'] = el; }}
+              className="mb-16"
+            >
+              <h2 className="text-3xl font-bold text-slate-900 mb-4">Accountability Ledger</h2>
+
+              <h3 className="text-xl font-semibold text-slate-800 mb-3">What is the Accountability Ledger</h3>
+              <p className="text-slate-700 mb-6">
+                The Accountability Ledger is an MCP proxy that sits between your AI agents and upstream MCP servers. It intercepts every tool call, records it in a tamper-evident SHA-256 hash chain, and forwards the call only after logging succeeds — producing evidence suitable for EU AI Act Article 12 (record-keeping for high-risk AI systems) alongside your existing Sovereign Shield transfer checks.
+              </p>
+              <div className="overflow-x-auto mb-8">
+                <table className="w-full border-collapse min-w-[600px]">
+                  <thead>
+                    <tr className="bg-slate-200">
+                      <th className="border border-slate-300 px-4 py-2 text-left">Without Accountability Ledger</th>
+                      <th className="border border-slate-300 px-4 py-2 text-left">With Accountability Ledger</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 text-slate-700 text-sm">Tool calls leave no structured audit trail</td>
+                      <td className="border border-slate-300 px-4 py-2 text-slate-700 text-sm">Every tool call is logged with metadata and chained hashes</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 text-slate-700 text-sm">No cryptographic proof of log integrity</td>
+                      <td className="border border-slate-300 px-4 py-2 text-slate-700 text-sm">Sequential SHA-256 links detect tampering</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 text-slate-700 text-sm">Hard to demonstrate AI Act oversight to regulators</td>
+                      <td className="border border-slate-300 px-4 py-2 text-slate-700 text-sm">Evidence vault entries support Art. 12-style accountability</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <h3 className="text-xl font-semibold text-slate-800 mb-3 mt-10">How it works</h3>
+              <div className="bg-white border border-slate-200 rounded-lg p-6 mb-6">
+                <div className="space-y-2 text-sm font-mono text-slate-700 text-center">
+                  <div>AI Agent</div>
+                  <div className="text-slate-400">↓</div>
+                  <div>Accountability Ledger Proxy</div>
+                  <div className="text-slate-400">↓</div>
+                  <div>MCP Server (upstream)</div>
+                </div>
+              </div>
+              <ol className="list-decimal list-inside text-slate-700 mb-4 space-y-2">
+                <li><strong className="text-slate-800">Intercept</strong> — the proxy receives the tool call from the agent.</li>
+                <li><strong className="text-slate-800">Hash</strong> — inputs/outputs are hashed (minimisation-friendly field lists where configured).</li>
+                <li><strong className="text-slate-800">Log</strong> — an append-only record is written to the ledger with the previous entry hash.</li>
+                <li><strong className="text-slate-800">Forward</strong> — the call is passed to the real MCP server and the response is logged.</li>
+              </ol>
+              <div className="border-l-4 border-emerald-500 bg-emerald-50 p-4 rounded-r-lg mb-8">
+                <p className="text-slate-800 text-sm font-semibold mb-1">Fail-closed</p>
+                <p className="text-slate-700 text-sm">
+                  If logging to the Accountability Ledger fails, the tool call is <strong>not</strong> forwarded — the agent receives an error instead of silently bypassing compliance.
+                </p>
+              </div>
+
+              <h3 className="text-xl font-semibold text-slate-800 mb-3">Setup</h3>
+              <p className="text-slate-700 mb-4">
+                Register your agent in the{' '}
+                <a
+                  href={`${dashboardBase}/agents`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-emerald-600 hover:text-emerald-700 underline"
+                >
+                  dashboard Agents
+                </a>{' '}
+                section, then configure the MCP proxy (e.g. <code className="bg-slate-200 px-1.5 py-0.5 rounded text-sm font-mono">veridion-nexus-mcp</code> in stdio mode) with:
+              </p>
+              <div className="overflow-x-auto mb-8">
+                <table className="w-full border-collapse min-w-[640px]">
+                  <thead>
+                    <tr className="bg-slate-200">
+                      <th className="border border-slate-300 px-4 py-2 text-left">Variable</th>
+                      <th className="border border-slate-300 px-4 py-2 text-left">Required</th>
+                      <th className="border border-slate-300 px-4 py-2 text-left">Description</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 font-mono text-sm">AL_API_BASE_URL</td>
+                      <td className="border border-slate-300 px-4 py-2">Yes</td>
+                      <td className="border border-slate-300 px-4 py-2">Veridion API base URL (e.g. <code className="bg-slate-200 px-1 rounded text-xs">https://api.veridion-nexus.eu</code>)</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 font-mono text-sm">AL_SERVICE_TOKEN</td>
+                      <td className="border border-slate-300 px-4 py-2">Yes</td>
+                      <td className="border border-slate-300 px-4 py-2">Service token issued for proxy→API calls (from your tenant configuration)</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 font-mono text-sm">AL_AUTH_MODE</td>
+                      <td className="border border-slate-300 px-4 py-2">No</td>
+                      <td className="border border-slate-300 px-4 py-2"><code className="bg-slate-200 px-1 rounded text-xs">jwks</code> (default) or <code className="bg-slate-200 px-1 rounded text-xs">dev_bypass</code> for local development only</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 font-mono text-sm">UPSTREAM_MCP_MODE</td>
+                      <td className="border border-slate-300 px-4 py-2">No</td>
+                      <td className="border border-slate-300 px-4 py-2"><code className="bg-slate-200 px-1 rounded text-xs">stdio</code> (default) or <code className="bg-slate-200 px-1 rounded text-xs">sse</code></td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 font-mono text-sm">UPSTREAM_MCP_COMMAND</td>
+                      <td className="border border-slate-300 px-4 py-2">Yes (stdio)</td>
+                      <td className="border border-slate-300 px-4 py-2">Shell command to launch your upstream MCP server</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <h3 className="text-xl font-semibold text-slate-800 mb-3">What gets logged per tool call</h3>
+              <div className="overflow-x-auto mb-8">
+                <table className="w-full border-collapse min-w-[600px]">
+                  <thead>
+                    <tr className="bg-slate-200">
+                      <th className="border border-slate-300 px-4 py-2 text-left">Field</th>
+                      <th className="border border-slate-300 px-4 py-2 text-left">Description</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 font-mono text-sm">agent_id</td>
+                      <td className="border border-slate-300 px-4 py-2 text-sm text-slate-700">Registered agent identifier</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 font-mono text-sm">tool_name</td>
+                      <td className="border border-slate-300 px-4 py-2 text-sm text-slate-700">MCP tool invoked</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 font-mono text-sm">input_hash</td>
+                      <td className="border border-slate-300 px-4 py-2 text-sm text-slate-700">Hash of tool inputs (field-level minimisation where configured)</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 font-mono text-sm">output_hash</td>
+                      <td className="border border-slate-300 px-4 py-2 text-sm text-slate-700">Hash of tool outputs</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 font-mono text-sm">timestamp</td>
+                      <td className="border border-slate-300 px-4 py-2 text-sm text-slate-700">When the call was recorded</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 font-mono text-sm">latency</td>
+                      <td className="border border-slate-300 px-4 py-2 text-sm text-slate-700">End-to-end timing where measured</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 font-mono text-sm">entry_hash</td>
+                      <td className="border border-slate-300 px-4 py-2 text-sm text-slate-700">Hash chain link tying this row to the previous ledger entry</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 font-mono text-sm">eu_ai_act_category</td>
+                      <td className="border border-slate-300 px-4 py-2 text-sm text-slate-700">Annex III / risk category annotation when applicable</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <h3 className="text-xl font-semibold text-slate-800 mb-3">EU AI Act Art. 12 compliance</h3>
+              <p className="text-slate-700 mb-4">
+                Article 12 requires providers of high-risk AI systems to keep logs automatically generated by the system (to the extent such logs are under their control), in a way that ensures an appropriate level of traceability of the system&apos;s functioning throughout its lifetime. The Accountability Ledger supports this by creating immutable, time-ordered records of agent tool usage with cryptographic integrity — suitable as part of your technical documentation and audit evidence, alongside organisational measures and risk management.
+              </p>
+              <p className="text-slate-700 mb-3 text-sm font-medium">Supported Annex III high-risk use-case categories (illustrative)</p>
+              <div className="overflow-x-auto mb-4">
+                <table className="w-full border-collapse min-w-[500px]">
+                  <thead>
+                    <tr className="bg-slate-200">
+                      <th className="border border-slate-300 px-4 py-2 text-left">Category</th>
+                      <th className="border border-slate-300 px-4 py-2 text-left">Examples</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 text-sm text-slate-800">Biometrics</td>
+                      <td className="border border-slate-300 px-4 py-2 text-sm text-slate-700">Remote biometric identification</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 text-sm text-slate-800">Critical infrastructure</td>
+                      <td className="border border-slate-300 px-4 py-2 text-sm text-slate-700">Road traffic, supply of water/gas/electricity</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 text-sm text-slate-800">Education &amp; vocational training</td>
+                      <td className="border border-slate-300 px-4 py-2 text-sm text-slate-700">Access, admission, assignment, assessment</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 text-sm text-slate-800">Employment &amp; workers management</td>
+                      <td className="border border-slate-300 px-4 py-2 text-sm text-slate-700">Recruitment, promotion, termination, task allocation</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 text-sm text-slate-800">Healthcare</td>
+                      <td className="border border-slate-300 px-4 py-2 text-sm text-slate-700">Medical devices, diagnosis, treatment recommendations (where high-risk)</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 text-sm text-slate-800">Financial services</td>
+                      <td className="border border-slate-300 px-4 py-2 text-sm text-slate-700">Credit scoring, insurance pricing, trading / market abuse monitoring</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 text-sm text-slate-800">Essential services — public &amp; private</td>
+                      <td className="border border-slate-300 px-4 py-2 text-sm text-slate-700">Emergency services, benefits eligibility, other essential public services</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 text-sm text-slate-800">Law enforcement &amp; justice</td>
+                      <td className="border border-slate-300 px-4 py-2 text-sm text-slate-700">Evidence evaluation, crime analytics, administration of justice</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 text-sm text-slate-800">Migration &amp; border</td>
+                      <td className="border border-slate-300 px-4 py-2 text-sm text-slate-700">Asylum, visa, border control</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 px-4 py-2 text-sm text-slate-800">Democratic processes</td>
+                      <td className="border border-slate-300 px-4 py-2 text-sm text-slate-700">Election influence or voter profiling</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-slate-600 text-sm mb-8">
+                <strong className="text-slate-800">Hash-only vs full payload:</strong> by default the ledger stores hashes and field names (data minimisation). Full payload capture is not required for the hash chain; your DPA and logging policy should define any additional retention.
+              </p>
+
+              <h3 className="text-xl font-semibold text-slate-800 mb-3">Viewing logs and generating reports</h3>
+              <p className="text-slate-700 mb-4">
+                Open{' '}
+                <a
+                  href={`${dashboardBase}/acm`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-emerald-600 hover:text-emerald-700 underline"
+                >
+                  ACM Overview
+                </a>{' '}
+                in the dashboard to review tool-call events, transfer annotations, and oversight items tied to your agents.
+              </p>
+              <ul className="list-disc list-inside text-slate-700 space-y-2 text-sm">
+                <li>Query the audit trail and filter by agent, time range, or decision</li>
+                <li>Run hash-chain verification to prove log integrity end-to-end</li>
+                <li>Export compliance bundles as JSON for auditors or your GRC tooling</li>
+              </ul>
             </section>
 
             {/* Limitations */}
