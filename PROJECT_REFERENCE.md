@@ -1,7 +1,7 @@
 # Project Reference — Veridion API / Sovereign Shield
 
-**Version:** 2.8  
-**Last updated:** 2026-03-26
+**Version:** 2.9  
+**Last updated:** 2026-03-27
 
 This is the **single project reference** for Veridion API: vision, scope, tech stack, configuration, and current behaviour (dashboard and API). Use it to onboard, scope work, and keep the codebase and docs aligned.
 
@@ -487,29 +487,25 @@ The MCP server also contains the **Accountability Ledger (AL) proxy** — an MCP
 - **Search**: Filter by country name, agent, mechanism.
 - **Schrems III risk**: Red AlertTriangle for flagged transfers; green CheckCircle for OK.
 
-### 11.13 AI System Registry (Agents) — `dashboard/app/agents/page.tsx`
+### 11.13 AI System Registry (Agents) — `dashboard/app/agents/page.tsx` + `dashboard/app/components/AgentDetailPanel.tsx`
 
-- **Route**: `/agents`. AI agents and systems interacting with Veridion Nexus. Sidebar label: **AI System Registry**.
+- **Route**: `/agents`. Sidebar label: **AI System Registry**. Page heading: **AI System Registry** (full-width layout: outer wrapper is `space-y-6` only — no `max-w-*` / `mx-auto` / extra horizontal padding; `DashboardLayout` supplies padding, consistent with ACM Overview).
 
-- **Data**: `fetchEvidenceEvents()`, `fetchAgents()` — merges registered agents (from API) with unregistered agents detected in evidence events by `source_system`, `payload.agent_id`, `payload.agentId`.
+- **Data**: `fetchEvidenceEventsWithMeta({ limit: 5000 })`, `fetchAgents()` — `mergeAgents()` merges registered agent cards with stats from evidence events (`source_system`, `payload.agent_id` / `agentId`), excluding internal sources `['human-oversight', 'sovereign-shield']`. Event-type rollups use substring checks (e.g. BLOCKED/REVIEW) as implemented in `buildStatsFromEvents`.
 
-- **Internal sources filtered out**: `INTERNAL_SOURCES = ['sovereign-shield', 'human-oversight']` — these system sources are excluded from the agents list.
+- **KPI row (4)**: **Total Agents**, **Active (24h)**, **Registered**, **Pending Reviews** (sum of per-agent review counts). Grid: `grid-cols-2 md:grid-cols-4`, ACM-style stat cards.
 
-- **KPI cards**: Agents Detected, Active (last 24h), Registered, Unregistered.
+- **Agent list cards (front)**: Minimal tiles — agent name, short agent id when registered, badges for Registered/Unregistered, Active/Inactive, numeric **Trust {n}** from `x-veridion.trust_level`, and a muted slate **“{n} pending”** chip when `reviewCount > 0` (no warning icon; card border stays `border-slate-700`). Click opens detail.
 
-- **Agent cards**:
-  - Registered agents: green REGISTERED badge, Trust Level badge, agent_id shown in monospace below name, ACTIVE badge always shown, transfer counts (ALLOW/REVIEW/BLOCK), View Agent Card button (shows A2A-compatible JSON side panel), Policy History button (placeholder), Rotate Key button, Delete Agent button (soft delete with confirmation)
-  - Unregistered agents: ACTIVE/INACTIVE based on last 24h activity, Register Agent button (opens RegisterAgentModal)
+- **AgentDetailPanel** (slide-over): Imports `export interface AgentInfo` from `@/app/agents/page` (type-only). Shows last activity, full agent id + copy, transfer mini-stats (Total / Allow / Review / Block), quiet `text-slate-500` line for pending reviews when applicable, collapsible Agent Card JSON, **Rotate Key** / **Delete** for registered agents, new-key copy flow with “I have saved this key”. **RegisterAgentModal** (`open`, `agentName=""`, `onClose`, `onSuccess`) wraps **RegisterAgentWizard** — multi-step wizard; on success shows API key once.
 
-- **Agent authentication**: Two-layer auth — tenant API key (Authorization header) identifies the company; agent API key (`agent_api_key` in request body) identifies the specific agent. Each registered agent has its own `agt_key_` prefixed API key, stored as SHA-256 hash. Lost keys can be rotated via Rotate Key button.
+- **Agent authentication**: Two-layer auth — tenant API key (Authorization header) identifies the company; agent API key (`agent_api_key` in request body) identifies the specific agent. Each registered agent has its own `agt_key_` prefixed API key, stored as SHA-256 hash. Lost keys can be rotated from the detail panel.
 
-- **A2A Agent Card**: Registration produces an A2A-compatible Agent Card JSON with standard fields (name, description, version, url, provider, capabilities, skills, authentication) plus Veridion GDPR extension fields under `x-veridion` (agent_id, policy_version, policy_version_hash, trust_level, allowed_data_categories, allowed_destination_countries, allowed_partners, gdpr_enforcement_mode, policy_history_url).
+- **A2A Agent Card**: Registration produces an A2A-compatible Agent Card JSON with standard fields plus Veridion GDPR extension fields under `x-veridion` (agent_id, policy_version, policy_version_hash, numeric `trust_level`, allowed_data_categories, etc.).
 
-- **Soft delete**: Deleted agents set `deleted_at` timestamp (never hard-deleted). Evidence events referencing deleted agents retain their agent_id for GDPR Art. 30 audit trail.
+- **Soft delete**: Deleted agents set `deleted_at` (soft delete). Evidence events keep `agent_id` for audit trail.
 
-- **Unregistered banner**: Shown when unregistered agents exist; hidden when all agents are registered.
-
-- **RegisterAgentModal**: Form fields — name, description, version, url, provider_org, allowed_data_categories (9 GDPR categories), allowed_destination_countries (searchable multi-select), allowed_partners (tag input). On success, shows agent_api_key once with copy button and warning ('This key will only be shown once').
+- **Public registry** fields on agents (`patchAgent` / listing) exist in API and `api.ts`; the Agents page UI does not expose registry toggles or profile editing (those were removed from this view in favour of the detail panel).
 
 ---
 
@@ -537,7 +533,7 @@ The MCP server also contains the **Accountability Ledger (AL) proxy** — an MCP
 
 - **Route**: `/signup`. Self-serve tenant registration form.
 - **Styling**: Matches `dashboard/app/login/page.tsx` exactly (same card size, form elements, branding).
-- **Success page**: Redirects to success page with dashboard link after registration.
+- **Success state**: In-page success view with heading **“Welcome {company_name} to Veridion Nexus”** (uses trimmed company name from the form), trial started copy, and link to the dashboard.
 
 ---
 
@@ -622,8 +618,9 @@ The MCP server also contains the **Accountability Ledger (AL) proxy** — an MCP
 | `app/acm/page.tsx` | ACM Overview (stats dashboard) |
 | `app/acm/oversight/page.tsx` | ACM Oversight Queue (EU AI Act Art. 14) |
 | `app/acm/transfers/page.tsx` | ACM Transfers (GDPR Art. 44–49 records) |
-| `app/agents/page.tsx` | Agent Registry (registered + unregistered from events) |
-| `app/agents/RegisterAgentModal.tsx` | Register agent modal |
+| `app/agents/page.tsx` | AI System Registry — KPI row, agent grid, merges evidence + registered agents; exports `AgentInfo` type |
+| `app/components/AgentDetailPanel.tsx` | Slide-over: agent detail, stats, JSON, rotate/delete |
+| `app/agents/RegisterAgentModal.tsx` | Register agent modal (wraps RegisterAgentWizard) |
 | `app/evidence-vault/page.tsx` | Evidence Vault |
 | `app/components/DashboardLayout.tsx` | Sidebar + main wrapper |
 | `app/components/Sidebar.tsx` | Nav links (primary list + System: AI System Registry, ACM Overview, Admin; spacer between dividers where ACM heading/Oversight/Transfers were removed) |
@@ -661,8 +658,7 @@ The MCP server also contains the **Accountability Ledger (AL) proxy** — an MCP
 | `migrations/038_public_registry.sql` | Adds public_registry fields + GIN search index to agents |
 | `veridion-landing/app/registry/page.tsx` | Public registry search page (landing site) |
 | `veridion-landing/app/registry/[agent_id]/page.tsx` | Public agent compliance profile page |
-| `dashboard/app/agents/page.tsx` | Updated: registry toggle + profile editor |
-| `dashboard/app/utils/api.ts` | Updated: `patchAgent()` function |
+| `dashboard/app/utils/api.ts` | Includes `patchAgent()` for public registry fields (used where applicable) |
 
 ---
 
@@ -695,15 +691,17 @@ Pages using `useSearchParams()` are wrapped in Suspense boundaries to satisfy Ne
 **Location**: `/opt/veridion-nexus` on Hetzner Ubuntu 24.04 server
 
 **Files**:
-- `deploy.sh` — Production deployment script that: (1) changes to `/opt/veridion-nexus`, (2) runs `git pull`, (3) smart rebuilds API only if Rust/migration files changed, (4) always rebuilds dashboard with `--no-cache`, (5) uses `--env-file .env` for all docker compose commands, (6) verifies health with `curl http://localhost:8080/health`. Idempotent — safe to run multiple times.
+- `deploy.sh` — Production deployment script that: (1) changes to `/opt/veridion-nexus`, (2) runs `git pull`, (3) smart rebuilds API only if Rust/migration files changed, (4) always rebuilds **dashboard** and **landing** images with `--no-cache`, (5) uses `--env-file .env` for all docker compose commands, (6) verifies health with `curl http://localhost:8080/health`. Idempotent — safe to run multiple times.
 - `Dockerfile` — Multi-stage Rust API build (rust:1.88 builder → debian:bookworm-slim runtime)
 - `Dockerfile.dashboard` — Next.js dashboard build (node:20-alpine) with `ARG NEXT_PUBLIC_API_URL` and `ENV NEXT_PUBLIC_API_URL` set before `npm run build` to embed the API URL at build time
-- `docker-compose.prod.yml` — Production compose with postgres, api, dashboard services. Uses `--env-file .env` for environment variables.
+- `Dockerfile.landing` — Next.js marketing site (`veridion-landing/`) build (node:20-alpine)
+- `docker-compose.prod.yml` — Production compose with postgres, api, dashboard, and landing services. Uses `--env-file .env` for environment variables.
 
 **Services**:
 - **postgres**: postgres:16-alpine, named volume `veridion_api_data`
 - **api**: Built from `Dockerfile`, env from `.env`: `DATABASE_URL`, `JWT_SECRET`, `RUST_ENV=production`, `SERVER_HOST=0.0.0.0`, `SERVER_PORT=8080`, `ALLOWED_ORIGINS` (includes `https://app.veridion-nexus.eu`)
 - **dashboard**: Built from `Dockerfile.dashboard` with `NEXT_PUBLIC_API_URL` build arg. Runtime env: `NEXT_PUBLIC_API_URL=https://api.veridion-nexus.eu`. Login page uses `process.env.NEXT_PUBLIC_API_URL` for API calls.
+- **landing**: Built from `Dockerfile.landing` — marketing site on port **3001** on the server (primary public URL is **Vercel**; see below).
 
 **Deployment**:
 ```bash
@@ -720,7 +718,7 @@ The script automatically pulls latest code, intelligently rebuilds only changed 
 
 **Reverse Proxy**: Production uses **Caddy** (not Nginx) for automatic HTTPS/SSL via Let's Encrypt. See `DEPLOYMENT.md` for Caddy setup, SSL/TLS (automatic), backup procedures, and admin password reset instructions.
 
-**From a dev machine (Windows)**: `deploy.ps1` at repo root runs `git push origin main` then `ssh $env:DEPLOY_HOST 'cd /opt/veridion-nexus && ./deploy.sh'`. Set `DEPLOY_HOST` (e.g. `root@<server-ip>`) before running. Marketing site (`veridion-landing/`) deploys separately to **Vercel** (`npx vercel --prod --yes` from repo root). See `.cursor/rules/07-deploy-after-changes.mdc` and `06-veridion-landing-vercel.mdc`.
+**From a dev machine (Windows)**: `deploy.ps1` at repo root runs `git push origin main` then `ssh $env:DEPLOY_HOST 'cd /opt/veridion-nexus && ./deploy.sh'`. Set `DEPLOY_HOST` (e.g. `root@<server-ip>`) before running. Marketing site (`veridion-landing/`) deploys separately to **Vercel** (`npx vercel --prod --yes` from repo root; linked project `.vercel/project.json` — production alias `https://www.veridion-nexus.eu`). GitHub Actions (`.github/workflows/vercel-deploy.yml`) can also deploy when `VERCEL_*` secrets are set. See `README-VERCEL-DEPLOYMENT.md`.
 
 ---
 

@@ -548,6 +548,240 @@ pub async fn logout() -> HttpResponse {
     }))
 }
 
+fn sha256_hex_string(s: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(s.as_bytes());
+    format!("{:x}", hasher.finalize())
+}
+
+fn generate_password_reset_raw_token() -> String {
+    let bytes: [u8; 32] = rand::thread_rng().gen();
+    bytes.iter().map(|b| format!("{:02x}", b)).collect()
+}
+
+const FORGOT_PASSWORD_RESPONSE: &str = "If that email exists, a reset link has been sent";
+const MAX_PASSWORD_RESET_EMAILS_PER_HOUR: i64 = 3;
+
+#[derive(Deserialize)]
+pub struct ForgotPasswordRequest {
+    pub email: String,
+}
+
+#[post("/api/v1/auth/forgot-password")]
+pub async fn forgot_password(
+    pool: web::Data<PgPool>,
+    body: web::Json<ForgotPasswordRequest>,
+) -> HttpResponse {
+    let email = body.email.trim();
+    if email.is_empty() {
+        return HttpResponse::Ok().json(serde_json::json!({
+            "message": FORGOT_PASSWORD_RESPONSE
+        }));
+    }
+
+    #[derive(sqlx::FromRow)]
+    struct UserIdRow {
+        id: uuid::Uuid,
+    }
+
+    let user: Option<UserIdRow> = sqlx::query_as(
+        "SELECT id FROM users WHERE email = $1 AND active = true",
+    )
+    .bind(email)
+    .fetch_optional(pool.get_ref())
+    .await
+    .ok()
+    .flatten();
+
+    let Some(user) = user else {
+        return HttpResponse::Ok().json(serde_json::json!({
+            "message": FORGOT_PASSWORD_RESPONSE
+        }));
+    };
+
+    let count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*)::bigint FROM password_reset_tokens \
+         WHERE user_id = $1 AND created_at > NOW() - INTERVAL '1 hour'",
+    )
+    .bind(user.id)
+    .fetch_one(pool.get_ref())
+    .await
+    .unwrap_or(0);
+
+    if count >= MAX_PASSWORD_RESET_EMAILS_PER_HOUR {
+        return HttpResponse::Ok().json(serde_json::json!({
+            "message": FORGOT_PASSWORD_RESPONSE
+        }));
+    }
+
+    let raw_token = generate_password_reset_raw_token();
+    let token_hash = sha256_hex_string(&raw_token);
+    let expires_at = Utc::now() + Duration::hours(1);
+
+    if let Err(e) = sqlx::query(
+        "INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) \
+         VALUES ($1, $2, $3)",
+    )
+    .bind(user.id)
+    .bind(&token_hash)
+    .bind(expires_at)
+    .execute(pool.get_ref())
+    .await
+    {
+        log::error!("password_reset_tokens insert: {}", e);
+        return HttpResponse::Ok().json(serde_json::json!({
+            "message": FORGOT_PASSWORD_RESPONSE
+        }));
+    }
+
+    let email_to = email.to_string();
+    tokio::spawn(async move {
+        if let Some(config) = EmailConfig::from_env() {
+            let reset_url =
+                format!("https://veridion-nexus.eu/reset-password?token={}", raw_token);
+            match crate::email::send_password_reset_email(&config, &email_to, &reset_url).await {
+                Ok(()) => log::info!("Password reset email queued for {}", email_to),
+                Err(err) => log::error!("Failed to send password reset email: {}", err),
+            }
+        } else {
+            log::warn!("SMTP not configured — password reset email not sent for {}", email_to);
+        }
+    });
+
+    HttpResponse::Ok().json(serde_json::json!({
+        "message": FORGOT_PASSWORD_RESPONSE
+    }))
+}
+
+#[derive(Deserialize)]
+pub struct ResetPasswordRequest {
+    pub token: String,
+    pub new_password: String,
+}
+
+#[post("/api/v1/auth/reset-password")]
+pub async fn reset_password(
+    pool: web::Data<PgPool>,
+    body: web::Json<ResetPasswordRequest>,
+) -> HttpResponse {
+    if body.new_password.len() < 8 {
+        return HttpResponse::BadRequest().json(serde_json::json!({
+            "error": "password_too_short",
+            "message": "Password must be at least 8 characters"
+        }));
+    }
+
+    let token_trimmed = body.token.trim();
+    if token_trimmed.is_empty() {
+        return HttpResponse::BadRequest().json(serde_json::json!({
+            "error": "invalid_or_expired_token",
+            "message": "This link has expired or already been used"
+        }));
+    }
+
+    let token_hash = sha256_hex_string(token_trimmed);
+
+    let mut tx = match pool.begin().await {
+        Ok(tx) => tx,
+        Err(e) => {
+            log::error!("reset_password begin tx: {}", e);
+            return HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": "internal_error",
+                "message": "Failed to reset password"
+            }));
+        }
+    };
+
+    #[derive(sqlx::FromRow)]
+    struct TokenRow {
+        id: uuid::Uuid,
+        user_id: uuid::Uuid,
+    }
+
+    let row: Option<TokenRow> = sqlx::query_as(
+        "SELECT id, user_id FROM password_reset_tokens \
+         WHERE token_hash = $1 AND used_at IS NULL AND expires_at > NOW() \
+         FOR UPDATE",
+    )
+    .bind(&token_hash)
+    .fetch_optional(&mut *tx)
+    .await
+    .ok()
+    .flatten();
+
+    let Some(row) = row else {
+        let _ = tx.rollback().await;
+        return HttpResponse::BadRequest().json(serde_json::json!({
+            "error": "invalid_or_expired_token",
+            "message": "This link has expired or already been used"
+        }));
+    };
+
+    let password_hash = match bcrypt::hash(&body.new_password, bcrypt::DEFAULT_COST) {
+        Ok(h) => h,
+        Err(e) => {
+            let _ = tx.rollback().await;
+            log::error!("bcrypt hash error: {}", e);
+            return HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": "internal_error",
+                "message": "Failed to reset password"
+            }));
+        }
+    };
+
+    let updated = match sqlx::query(
+        "UPDATE users SET password_hash = $1 WHERE id = $2 AND active = true",
+    )
+    .bind(&password_hash)
+    .bind(row.user_id)
+    .execute(&mut *tx)
+    .await
+    {
+        Ok(r) => r.rows_affected(),
+        Err(e) => {
+            let _ = tx.rollback().await;
+            log::error!("reset_password update user: {}", e);
+            return HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": "internal_error",
+                "message": "Failed to reset password"
+            }));
+        }
+    };
+
+    if updated == 0 {
+        let _ = tx.rollback().await;
+        return HttpResponse::BadRequest().json(serde_json::json!({
+            "error": "invalid_or_expired_token",
+            "message": "This link has expired or already been used"
+        }));
+    }
+
+    if let Err(e) = sqlx::query("UPDATE password_reset_tokens SET used_at = NOW() WHERE id = $1")
+        .bind(row.id)
+        .execute(&mut *tx)
+        .await
+    {
+        let _ = tx.rollback().await;
+        log::error!("reset_password update token: {}", e);
+        return HttpResponse::InternalServerError().json(serde_json::json!({
+            "error": "internal_error",
+            "message": "Failed to reset password"
+        }));
+    }
+
+    if let Err(e) = tx.commit().await {
+        log::error!("reset_password commit: {}", e);
+        return HttpResponse::InternalServerError().json(serde_json::json!({
+            "error": "internal_error",
+            "message": "Failed to reset password"
+        }));
+    }
+
+    HttpResponse::Ok().json(serde_json::json!({
+        "message": "Password reset successfully"
+    }))
+}
+
 #[derive(Deserialize)]
 pub struct DevResetPasswordRequest {
     pub username: String,
@@ -631,5 +865,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(register)
        .service(login)
        .service(logout)
+       .service(forgot_password)
+       .service(reset_password)
        .service(dev_reset_password);
 }

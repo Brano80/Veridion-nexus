@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Send Test Transfer - Almaco</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #0f172a;
+            color: #e2e8f0;
+        }
+        .container {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 30px;
+        }
+        h1 {
+            color: #10b981;
+            margin-top: 0;
+        }
+        button {
+            background: #10b981;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        button:hover {
+            background: #059669;
+        }
+        button:disabled {
+            background: #475569;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 6px;
+            display: none;
+        }
+        .success {
+            background: #065f46;
+            border: 1px solid #10b981;
+            color: #10b981;
+        }
+        .error {
+            background: #7f1d1d;
+            border: 1px solid #ef4444;
+            color: #ef4444;
+        }
+        .info {
+            background: #1e3a8a;
+            border: 1px solid #3b82f6;
+            color: #93c5fd;
+        }
+        pre {
+            background: #0f172a;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            margin-top: 10px;
+        }
+        .note {
+            background: #1e293b;
+            border-left: 3px solid #fbbf24;
+            padding: 15px;
+            margin: 20px 0;
+            color: #fbbf24;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Send Test Transfer to Australia</h1>
+        <p>Partner: <strong>Almaco</strong></p>
+        <p>Destination: <strong>Australia (AU)</strong></p>
+        
+        <div class="note">
+            <strong>Note:</strong> This page must be opened from the Almaco dashboard (https://app.veridion-nexus.eu) 
+            while you're logged in, so it can access your session token.
+        </div>
+
+        <button id="sendBtn" onclick="sendTransfer()">Send Test Transfer</button>
+
+        <div id="result" class="result"></div>
+    </div>
+
+    <script>
+        async function sendTransfer() {
+            const btn = document.getElementById('sendBtn');
+            const resultDiv = document.getElementById('result');
+            
+            btn.disabled = true;
+            btn.textContent = 'Sending...';
+            resultDiv.style.display = 'none';
+
+            try {
+                // Get auth token from localStorage (same as dashboard uses)
+                const token = localStorage.getItem('ss_token');
+                if (!token) {
+                    throw new Error('Not logged in. Please log in to the dashboard first, then open this page.');
+                }
+
+                const transferData = {
+                    destinationCountryCode: 'AU',
+                    destinationCountry: 'Australia',
+                    dataCategories: ['email', 'name', 'ip_address'],
+                    partnerName: 'Almaco',
+                    protocol: 'HTTPS',
+                    requestPath: '/api/test',
+                    sourceIp: '192.168.1.100',
+                    destIp: '203.0.113.50',
+                    dataSize: 1024,
+                    userAgent: 'Test-Client/1.0'
+                };
+
+                const response = await fetch('/api/v1/shield/evaluate', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(transferData)
+                });
+
+                const responseText = await response.text();
+
+                if (response.status === 401) {
+                    throw new Error('Authentication failed. Please log in again.');
+                }
+
+                if (response.status === 402) {
+                    throw new Error('Trial expired. Please upgrade to Pro.');
+                }
+
+                if (!response.ok) {
+                    let errorMsg = 'Failed to evaluate transfer';
+                    try {
+                        const errorJson = JSON.parse(responseText);
+                        errorMsg = errorJson.message || errorJson.error || errorMsg;
+                    } catch {
+                        errorMsg = responseText || errorMsg;
+                    }
+                    throw new Error(errorMsg);
+                }
+
+                const result = JSON.parse(responseText);
+
+                let message = '';
+                let className = 'success';
+
+                if (result.decision === 'ALLOW') {
+                    message = '✅ Transfer ALLOWED - The transfer may proceed.';
+                } else if (result.decision === 'REVIEW') {
+                    message = '⚠️ Transfer REQUIRES REVIEW - Check the review queue in the dashboard.';
+                    className = 'info';
+                } else if (result.decision === 'BLOCK') {
+                    message = '🚫 Transfer BLOCKED - The transfer cannot proceed.';
+                    className = 'error';
+                }
+
+                resultDiv.className = `result ${className}`;
+                resultDiv.innerHTML = `
+                    <h3>${message}</h3>
+                    <pre>${JSON.stringify(result, null, 2)}</pre>
+                    <p><a href="/" style="color: #10b981;">← Back to Dashboard</a></p>
+                `;
+                resultDiv.style.display = 'block';
+
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `<h3>❌ Error</h3><p>${error.message}</p>`;
+                resultDiv.style.display = 'block';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Send Test Transfer';
+            }
+        }
+    </script>
+</body>
+</html>

@@ -132,3 +132,83 @@ curl -X POST https://api.veridion-nexus.eu/api/v1/shield/evaluate \\\n\
 
     Ok(())
 }
+
+pub async fn send_password_reset_email(
+    config: &EmailConfig,
+    to_email: &str,
+    reset_url: &str,
+) -> Result<(), String> {
+    let from: Mailbox = config
+        .smtp_from
+        .parse()
+        .map_err(|e| format!("Invalid from address: {}", e))?;
+
+    let to: Mailbox = to_email
+        .parse()
+        .map_err(|e| format!("Invalid to address: {}", e))?;
+
+    let plain_body = format!(
+        "Reset your Veridion Nexus password\n\
+         \n\
+         We received a request to reset your password. This link expires in 1 hour:\n\
+         {reset_url}\n\
+         \n\
+         If you didn't request this, you can ignore this email.\n\
+         \n\
+         — Veridion Nexus"
+    );
+
+    let html_body = format!(
+        "<div style=\"font-family: Inter, Arial, sans-serif; color: #e2e8f0; background: #0f172a; padding: 32px; border-radius: 12px; max-width: 560px;\">\
+         <h1 style=\"color: #10b981; margin-top: 0; font-size: 22px;\">Reset your password</h1>\
+         <p style=\"color: #cbd5e1; line-height: 1.6;\">\
+         We received a request to reset your Veridion Nexus password. This link expires in <strong>1 hour</strong>.\
+         </p>\
+         <div style=\"margin: 28px 0;\">\
+           <a href=\"{reset_url}\" style=\"display: inline-block; background: #10b981; color: #0f172a; font-weight: 700; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-size: 15px;\">Reset password</a>\
+         </div>\
+         <p style=\"color: #94a3b8; font-size: 13px; word-break: break-all;\">\
+         Or copy this link:<br/><span style=\"color: #64748b;\">{reset_url}</span>\
+         </p>\
+         <hr style=\"border: none; border-top: 1px solid #334155; margin: 24px 0;\" />\
+         <p style=\"color: #64748b; font-size: 13px; margin-bottom: 0;\">\
+         If you didn't request this, ignore this email — your password will stay the same.\
+         </p>\
+         <p style=\"color: #64748b; font-size: 13px; margin-top: 12px;\">— Veridion Nexus</p>\
+         </div>"
+    );
+
+    let message = Message::builder()
+        .from(from)
+        .to(to)
+        .subject("Reset your Veridion Nexus password")
+        .multipart(
+            MultiPart::alternative()
+                .singlepart(
+                    SinglePart::builder()
+                        .header(ContentType::TEXT_PLAIN)
+                        .body(plain_body),
+                )
+                .singlepart(
+                    SinglePart::builder()
+                        .header(ContentType::TEXT_HTML)
+                        .body(html_body),
+                ),
+        )
+        .map_err(|e| format!("Failed to build email: {}", e))?;
+
+    let creds = Credentials::new(config.smtp_user.clone(), config.smtp_password.clone());
+
+    let mailer = AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(&config.smtp_host)
+        .map_err(|e| format!("SMTP relay error: {}", e))?
+        .port(config.smtp_port)
+        .credentials(creds)
+        .build();
+
+    mailer
+        .send(message)
+        .await
+        .map_err(|e| format!("Failed to send email: {}", e))?;
+
+    Ok(())
+}

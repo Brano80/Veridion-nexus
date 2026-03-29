@@ -162,6 +162,16 @@ export default function LoginPage() {
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
+              <div className="mt-1.5 text-right">
+                <a
+                  href="https://veridion-nexus.eu/forgot-password"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-emerald-400 hover:text-emerald-300 transition-colors"
+                >
+                  Forgot password?
+                </a>
+              </div>
             </div>
 
             <div className="flex items-center">
