@@ -303,15 +303,14 @@ function EvidenceVaultPageContent() {
   async function handleExportPDF() {
     setPdfExporting(true);
     try {
-      // 1. Fetch all events (paginate with limit 500)
       const allEvents: EvidenceEvent[] = [];
-      let page = 1;
+      let fetchPage = 1;
       const limit = 500;
       while (true) {
-        const { events, total } = await fetchEvidenceEventsPaginated(page, limit);
+        const { events, total } = await fetchEvidenceEventsPaginated(fetchPage, limit);
         allEvents.push(...events);
         if (events.length < limit || allEvents.length >= total) break;
-        page++;
+        fetchPage++;
       }
 
       if (allEvents.length === 0) {
@@ -319,7 +318,6 @@ function EvidenceVaultPageContent() {
         return;
       }
 
-      // 2. Get integrity status and merkle roots
       let chainStatus: 'VALID' | 'TAMPERED' = integrityStatus || 'VALID';
       let merkleRoots = merkleRootsCount;
       try {
@@ -331,92 +329,342 @@ function EvidenceVaultPageContent() {
         // Use existing state if fetch fails
       }
 
-      // 3. Create jsPDF instance
+      const chainLabel = chainStatus === 'VALID' ? 'VERIFIED' : 'TAMPERED';
+      const margin = 20;
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
+      const contentRight = pageWidth - margin;
 
-      // 4. Cover page — dark header block
-      doc.setFillColor(15, 23, 42); // slate-900
-      doc.rect(0, 0, pageWidth, 50, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(18);
+      let orgName = 'Confidential';
+      try {
+        if (typeof window !== 'undefined') {
+          const raw = sessionStorage.getItem('ss_user') || localStorage.getItem('ss_user');
+          if (raw) {
+            const u = JSON.parse(raw) as {
+              tenant_name?: string;
+              company_name?: string;
+              full_name?: string;
+              email?: string;
+            };
+            const pick = (u.tenant_name || u.company_name || u.full_name || u.email || '').trim();
+            if (pick) orgName = pick;
+          }
+        }
+      } catch {
+        orgName = 'Confidential';
+      }
+
+      const sortedChrono = [...allEvents].sort((a, b) => {
+        const ta = new Date(a.occurredAt || a.createdAt || 0).getTime();
+        const tb = new Date(b.occurredAt || b.createdAt || 0).getTime();
+        return ta - tb;
+      });
+      const times = sortedChrono.map((e) => new Date(e.occurredAt || e.createdAt || 0).getTime()).filter((t) => !isNaN(t));
+      const reportPeriod =
+        times.length === 0
+          ? '—'
+          : `${new Date(Math.min(...times)).toLocaleDateString('en-GB', { dateStyle: 'long' })} — ${new Date(Math.max(...times)).toLocaleDateString('en-GB', { dateStyle: 'long' })}`;
+
+      const generatedStr = new Date().toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'medium' });
+
+      let totalTransfer = 0;
+      let allowedCount = 0;
+      let blockedCount = 0;
+      let reviewCount = 0;
+      let humanCount = 0;
+      for (const e of allEvents) {
+        totalTransfer++;
+        const label = formatEventTypeLabel(e.eventType, e.payload);
+        const ll = label.toLowerCase();
+        const decision = String(getEventDecision(e)).toUpperCase();
+        const et = (e.eventType || '').toUpperCase();
+        if (ll.includes('human decision')) humanCount++;
+        if (decision === 'BLOCK' || ll.includes('blocked')) blockedCount++;
+        else if (decision === 'REVIEW' || (ll.includes('review') && !ll.includes('human'))) reviewCount++;
+        else if (
+          decision === 'ALLOW' ||
+          ll.includes('evaluation') ||
+          ll.includes('adequate') ||
+          (et.includes('DATA_TRANSFER') && !et.includes('BLOCKED') && !et.includes('REVIEW'))
+        ) {
+          allowedCount++;
+        }
+      }
+
+      const navy: [number, number, number] = [15, 23, 42];
+      const emerald: [number, number, number] = [16, 185, 129];
+      const red: [number, number, number] = [239, 68, 68];
+      const rowAlt: [number, number, number] = [248, 250, 252];
+
+      // —— Page 1: Cover ——
+      let y = margin;
+      doc.setTextColor(...navy);
       doc.setFont('helvetica', 'bold');
-      doc.text('SOVEREIGN SHIELD — GDPR Compliance Audit Report', pageWidth / 2, 22, { align: 'center' });
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      doc.text('Evidence Vault Export — GDPR Art. 5(2), 24, 30, 32', pageWidth / 2, 32, { align: 'center' });
-
-      // White body
-      doc.setTextColor(30, 41, 59);
       doc.setFontSize(11);
-      const generated = new Date().toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'medium' });
-      doc.text(`Generated: ${generated}`, 20, 70);
-      doc.text(`Chain Status: ${chainStatus}`, 20, 78);
-      doc.text(`Total Events: ${allEvents.length}`, 20, 86);
-      doc.text(`Merkle Roots: ${merkleRoots}`, 20, 94);
+      doc.text('VERIDION NEXUS', margin, y);
+      y += 6;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.text('Sovereign Shield', margin, y);
+      y += 14;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(20);
+      doc.text('GDPR Compliance Audit Report', margin, y);
+      y += 10;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      doc.setTextColor(71, 85, 105);
+      doc.text('International Data Transfer Evidence — GDPR Art. 44–49', margin, y);
+      y += 8;
+      doc.setDrawColor(...navy);
+      doc.setLineWidth(0.4);
+      doc.line(margin, y, contentRight, y);
+      y += 10;
 
-      // 5. Evidence Events table (page 2+)
+      doc.setTextColor(...navy);
+      doc.setFontSize(10);
+      const metaLines: [string, string][] = [
+        ['Organisation:', orgName],
+        ['Report Period:', reportPeriod],
+        ['Generated:', generatedStr],
+        ['Total Events:', String(totalSealedCount)],
+        [
+          'Chain Integrity:',
+          chainLabel + (chainStatus === 'TAMPERED' ? ' — Hash chain verification failed; records may not be trustworthy.' : ''),
+        ],
+      ];
+      for (const [lab, val] of metaLines) {
+        doc.setFont('helvetica', 'bold');
+        doc.text(lab, margin, y);
+        doc.setFont('helvetica', 'normal');
+        const split = doc.splitTextToSize(val, contentRight - margin - 42);
+        doc.text(split, margin + 42, y);
+        y += split.length * 5 + 2;
+      }
+
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(8);
+      doc.setTextColor(100, 116, 139);
+      const coverFoot =
+        'This document constitutes an auditable record of international data transfer decisions pursuant to GDPR Article 30. Generated by Veridion Nexus — veridion-nexus.eu';
+      doc.text(doc.splitTextToSize(coverFoot, pageWidth - 2 * margin), margin, pageHeight - 22);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(...navy);
+      doc.text('CONFIDENTIAL — For regulatory and compliance purposes only', margin, pageHeight - 12);
+
+      // —— Page 2: Executive Summary ——
       doc.addPage();
-      const tableData = allEvents.map((e) => {
-        const raw = e.payload?.destination_country || e.payload?.destinationCountry || e.payload?.destination_country_code || e.payload?.destinationCountryCode || e.payload?.destination || '—';
-        const dest = (raw.length === 2 && raw === raw.toUpperCase() && COUNTRY_NAMES[raw])
-          ? COUNTRY_NAMES[raw]
-          : raw;
+      y = margin;
+      doc.setTextColor(...navy);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(16);
+      doc.text('Executive Summary', margin, y);
+      y += 12;
+
+      const summaryRows: [string, string][] = [
+        ['Total Transfer Events', String(totalTransfer)],
+        ['Allowed Transfers', String(allowedCount)],
+        ['Blocked Transfers', String(blockedCount)],
+        ['Pending Review', String(reviewCount)],
+        ['Human Decisions', String(humanCount)],
+        ['Merkle Roots (chain segments)', String(merkleRoots)],
+        [
+          'Chain Status',
+          chainLabel === 'VERIFIED' ? 'VERIFIED' : 'TAMPERED',
+        ],
+        ['Report Generated', generatedStr],
+      ];
+
+      autoTable(doc, {
+        startY: y,
+        head: [['Metric', 'Value']],
+        body: summaryRows,
+        margin: { left: margin, right: margin },
+        styles: {
+          font: 'helvetica',
+          fontSize: 9,
+          cellPadding: 3,
+          lineColor: [226, 232, 240],
+          lineWidth: 0.1,
+        },
+        headStyles: {
+          fillColor: navy,
+          textColor: [255, 255, 255],
+          fontStyle: 'bold',
+        },
+        columnStyles: {
+          0: { cellWidth: 75 },
+          1: { cellWidth: contentRight - margin - 75 - margin },
+        },
+        didParseCell: (data) => {
+          if (data.section === 'body' && data.column.index === 1 && data.row.index === 6) {
+            const v = String(data.cell.raw);
+            if (v === 'VERIFIED') {
+              data.cell.styles.textColor = emerald;
+              data.cell.styles.fontStyle = 'bold';
+            } else if (v === 'TAMPERED') {
+              data.cell.styles.textColor = red;
+              data.cell.styles.fontStyle = 'bold';
+            }
+          }
+        },
+      });
+
+      const docWithTable = doc as unknown as { lastAutoTable?: { finalY: number } };
+      y = (docWithTable.lastAutoTable?.finalY ?? y) + 10;
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(30, 41, 59);
+      const stmt =
+        'This report documents international data transfer decisions made by AI agents operating under GDPR Chapter V policy enforcement. Each transfer decision has been cryptographically sealed and recorded in an append-only evidence vault. The hash chain provides tamper-evident proof that records have not been altered after creation.';
+      const stmtLines = doc.splitTextToSize(stmt, pageWidth - 2 * margin);
+      doc.text(stmtLines, margin, y);
+      y += stmtLines.length * 4.2 + 6;
+
+      if (chainStatus === 'TAMPERED') {
+        const boxY = y;
+        const boxH = 22;
+        doc.setDrawColor(...red);
+        doc.setLineWidth(0.5);
+        doc.rect(margin, boxY, pageWidth - 2 * margin, boxH);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(...red);
+        doc.text('INTEGRITY NOTICE', margin + 3, boxY + 6);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        const warn =
+          'The evidence chain shows signs of tampering or corruption. Some records may have been altered. This report should be reviewed by your Data Protection Officer before submission to a supervisory authority.';
+        doc.text(doc.splitTextToSize(warn, pageWidth - 2 * margin - 6), margin + 3, boxY + 11);
+      }
+
+      // —— Appendix: chronological table ——
+      doc.addPage();
+      y = margin;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(14);
+      doc.setTextColor(...navy);
+      doc.text('Appendix A — Complete Transfer Log', margin, y);
+      y += 7;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(71, 85, 105);
+      doc.text('All transfer decisions in chronological order (oldest first)', margin, y);
+      y += 10;
+
+      const appendixBody = sortedChrono.map((e, idx) => {
+        const raw =
+          e.payload?.destination_country ||
+          e.payload?.destinationCountry ||
+          e.payload?.destination_country_code ||
+          e.payload?.destinationCountryCode ||
+          e.payload?.destination ||
+          '—';
+        const dest =
+          typeof raw === 'string' && raw.length === 2 && raw === raw.toUpperCase() && COUNTRY_NAMES[raw]
+            ? COUNTRY_NAMES[raw]
+            : String(raw);
         let countryCode = e.payload?.destination_country_code || e.payload?.destinationCountryCode || '';
         if (!countryCode) countryCode = getCountryCodeFromName(String(raw));
-        const source = (e.sourceSystem || '').toLowerCase();
-        const et = (e.eventType || '').toUpperCase();
-        const isHumanOversight = source === 'human-oversight' || et.includes('HUMAN_OVERSIGHT');
-        // Filter to only include valid GDPR article strings (exclude data categories)
-        const validArticles = e.articles?.filter((a: string) => {
-          if (!a || typeof a !== 'string') return false;
-          const article = a.trim();
-          // Only include strings that look like GDPR articles (contain "Art." or "GDPR")
-          // Exclude data categories like "email", "name", "documents", etc.
-          return (article.includes('Art.') || article.includes('GDPR') || article.includes('art.')) && !article.includes('Art. 22');
-        }) || [];
+        const srcSys = (e.sourceSystem || '').toLowerCase();
+        const etUp = (e.eventType || '').toUpperCase();
+        const isHumanOversight = srcSys === 'human-oversight' || etUp.includes('HUMAN_OVERSIGHT');
+        const validArticles =
+          e.articles?.filter((a: string) => {
+            if (!a || typeof a !== 'string') return false;
+            const article = a.trim();
+            return (article.includes('Art.') || article.includes('GDPR') || article.includes('art.')) && !article.includes('Art. 22');
+          }) || [];
         const hasValidArticles = validArticles.length > 0;
         const gdprBasis = isHumanOversight
           ? getHumanOversightLegalBasis(e.eventType || '', e.articles)
-          : (e.payload?.decision === 'BLOCK' && e.payload?.country_status === 'unknown'
+          : e.payload?.decision === 'BLOCK' && e.payload?.country_status === 'unknown'
             ? 'Art. 44 Blocked'
             : hasValidArticles
-              ? validArticles[0]
-              : e.payload?.articles?.[0] || getLegalBasis(countryCode) || '—');
-        const dataCat = e.payload?.data_categories?.[0] || e.payload?.dataCategories?.[0] || e.payload?.data_category || '—';
+              ? validArticles.join(', ')
+              : e.payload?.articles?.[0] || getLegalBasis(countryCode) || '—';
+        const rawCats = e.payload?.data_categories ?? e.payload?.dataCategories;
+        const dataCat = Array.isArray(rawCats)
+          ? rawCats.join(', ')
+          : String(rawCats ?? e.payload?.data_category ?? '—');
         const verification = e.verificationStatus || e.payload?.decision || '—';
+        const verDisplay =
+          verification === 'VERIFIED' || verification === 'BLOCK'
+            ? 'VERIFIED'
+            : verification === 'REVIEW' || verification === 'PENDING'
+              ? 'PENDING'
+              : String(verification);
+
         return [
-          new Date(e.occurredAt || e.createdAt).toLocaleString(),
+          String(idx + 1),
+          new Date(e.occurredAt || e.createdAt).toLocaleString('en-GB'),
           formatEventTypeLabel(e.eventType, e.payload),
-          String(dest).substring(0, 20),
-          String(gdprBasis).substring(0, 18),
-          String(dataCat).substring(0, 15),
-          (e.sourceSystem || '—').substring(0, 15),
-          String(verification).substring(0, 12),
+          dest,
+          gdprBasis,
+          dataCat,
+          e.sourceSystem || '—',
+          verDisplay,
         ];
       });
 
       autoTable(doc, {
-        head: [['Timestamp', 'Event Type', 'Destination', 'GDPR Basis', 'Data', 'Source', 'Verification']],
-        body: tableData,
-        startY: 20,
-        styles: { fontSize: 8 },
-        headStyles: { fillColor: [51, 65, 85] },
+        startY: y,
+        head: [['No.', 'Timestamp', 'Event Type', 'Destination', 'GDPR Basis', 'Data Categories', 'Source', 'Verification']],
+        body: appendixBody,
+        margin: { left: margin, right: margin, bottom: 18 },
+        styles: {
+          font: 'helvetica',
+          fontSize: 7,
+          cellPadding: 1.5,
+          overflow: 'linebreak',
+          valign: 'top',
+          lineColor: [226, 232, 240],
+        },
+        headStyles: {
+          fillColor: navy,
+          textColor: [255, 255, 255],
+          fontStyle: 'bold',
+          fontSize: 7,
+        },
+        alternateRowStyles: { fillColor: rowAlt },
+        columnStyles: {
+          0: { cellWidth: 10 },
+          1: { cellWidth: 22 },
+          2: { cellWidth: 28 },
+          3: { cellWidth: 24 },
+          4: { cellWidth: 30 },
+          5: { cellWidth: 24 },
+          6: { cellWidth: 28 },
+          7: { cellWidth: 18 },
+        },
+        didParseCell: (data) => {
+          if (data.section === 'body' && data.column.index === 7) {
+            const v = String(data.cell.raw);
+            if (v === 'VERIFIED') data.cell.styles.textColor = emerald;
+            if (v === 'TAMPERED' || v === 'UNVERIFIED') data.cell.styles.textColor = red;
+          }
+        },
       });
 
-      // 6. Add footers to all pages
-      const totalPages = doc.getNumberOfPages();
-      for (let i = 1; i <= totalPages; i++) {
+      const totalPdfPages = doc.getNumberOfPages();
+      for (let i = 1; i <= totalPdfPages; i++) {
         doc.setPage(i);
-        doc.setFontSize(8);
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'normal');
         doc.setTextColor(100, 116, 139);
-        doc.text('Generated by Sovereign Shield — Veridion Nexus', pageWidth / 2, pageHeight - 14, { align: 'center' });
-        doc.text(`Page ${i} of ${totalPages}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
-        doc.text('This document constitutes an auditable record per GDPR Art. 30', pageWidth / 2, pageHeight - 6, { align: 'center' });
+        doc.text(
+          `Page ${i} of ${totalPdfPages} — CONFIDENTIAL — Veridion Nexus GDPR Audit Report`,
+          pageWidth / 2,
+          pageHeight - 8,
+          { align: 'center' }
+        );
       }
 
-      doc.save('sovereign-shield-audit-report.pdf');
+      doc.save('veridion-nexus-gdpr-audit-report.pdf');
     } catch (err) {
       console.error('PDF export failed:', err);
       alert('Failed to generate PDF. Please try again.');

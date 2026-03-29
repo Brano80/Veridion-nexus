@@ -1332,14 +1332,7 @@ async function callOpenAI(userData) {
               <h3 className="text-xl font-semibold text-slate-800 mb-3">Viewing logs and generating reports</h3>
               <p className="text-slate-700 mb-4">
                 Open{' '}
-                <a
-                  href={`${dashboardBase}/acm`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-emerald-600 hover:text-emerald-700 underline"
-                >
-                  ACM Overview
-                </a>{' '}
+                ACM Overview{' '}
                 in the dashboard to review tool-call events, transfer annotations, and oversight items tied to your agents.
               </p>
               <ul className="list-disc list-inside text-slate-700 space-y-2 text-sm">
