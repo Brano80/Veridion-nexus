@@ -13,8 +13,30 @@ fn sha256_hex(input: &str) -> String {
     format!("{:x}", hasher.finalize())
 }
 
+/// Produce a deterministic JSON string with object keys sorted recursively.
+/// This survives PostgreSQL JSONB round-trips where key order is not preserved.
+pub fn canonical_json(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::Object(map) => {
+            let mut sorted: Vec<(&String, &serde_json::Value)> = map.iter().collect();
+            sorted.sort_by_key(|(k, _)| k.as_str());
+            let inner = sorted
+                .iter()
+                .map(|(k, v)| format!("{}:{}", serde_json::to_string(k).unwrap_or_default(), canonical_json(v)))
+                .collect::<Vec<_>>()
+                .join(",");
+            format!("{{{}}}", inner)
+        }
+        serde_json::Value::Array(arr) => {
+            let inner = arr.iter().map(canonical_json).collect::<Vec<_>>().join(",");
+            format!("[{}]", inner)
+        }
+        _ => serde_json::to_string(value).unwrap_or_default(),
+    }
+}
+
 pub fn compute_payload_hash(payload: &serde_json::Value) -> String {
-    let canonical = serde_json::to_string(payload).unwrap_or_default();
+    let canonical = canonical_json(payload);
     sha256_hex(&canonical)
 }
 
@@ -134,6 +156,7 @@ pub async fn create_event(pool: &PgPool, params: CreateEventParams) -> Result<Ev
         processing_duration_ms: None,
         retry_count: 0,
         error_message: None,
+        hash_version: Some(2),
         created_at: now,
         updated_at: now,
     })

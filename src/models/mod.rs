@@ -35,6 +35,8 @@ pub struct EvidenceEventRow {
     pub error_message: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    #[sqlx(default)]
+    pub hash_version: Option<i32>,
 }
 
 #[derive(Debug, Serialize)]

@@ -736,6 +736,149 @@ pub async fn rotate_api_key(
     }
 }
 
+/// One-time admin endpoint to migrate evidence_events from legacy hashing
+/// (serde_json::to_string, non-deterministic key order) to canonical hashing
+/// (sorted keys, JSONB round-trip safe).
+///
+/// After running this, verify_chain_integrity should return VALID.
+///
+/// This is the **only** place that UPDATEs payload_hash / nexus_seal on
+/// evidence_events — it is a hash-migration, not a data change.
+#[post("/api/v1/admin/recompute-hashes")]
+pub async fn recompute_hashes(
+    req: HttpRequest,
+    pool: web::Data<PgPool>,
+) -> HttpResponse {
+    if let Err(e) = verify_admin(&req, pool.get_ref()).await {
+        return e;
+    }
+
+    use crate::evidence::{compute_payload_hash, compute_nexus_seal};
+    use crate::models::EvidenceEventRow;
+
+    let source_systems: Vec<String> = match sqlx::query_scalar::<_, String>(
+        "SELECT DISTINCT source_system FROM evidence_events WHERE hash_version = 1"
+    )
+    .fetch_all(pool.get_ref())
+    .await
+    {
+        Ok(v) => v,
+        Err(e) => {
+            return HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": format!("Failed to query source systems: {}", e)
+            }));
+        }
+    };
+
+    if source_systems.is_empty() {
+        return HttpResponse::Ok().json(serde_json::json!({
+            "updated": 0,
+            "message": "No legacy-hashed events to migrate"
+        }));
+    }
+
+    let mut total_updated: u64 = 0;
+
+    for source_system in &source_systems {
+        let rows: Vec<EvidenceEventRow> = match sqlx::query_as::<_, EvidenceEventRow>(
+            "SELECT * FROM evidence_events WHERE source_system = $1 AND hash_version = 1 ORDER BY sequence_number ASC"
+        )
+        .bind(source_system)
+        .fetch_all(pool.get_ref())
+        .await
+        {
+            Ok(r) => r,
+            Err(e) => {
+                return HttpResponse::InternalServerError().json(serde_json::json!({
+                    "error": format!("Failed to fetch events for {}: {}", source_system, e)
+                }));
+            }
+        };
+
+        if rows.is_empty() {
+            continue;
+        }
+
+        // Phase 1: recompute payload_hash + nexus_seal for every row
+        let mut new_hashes: Vec<(String, String, Option<String>)> = Vec::with_capacity(rows.len());
+        for row in &rows {
+            let new_payload_hash = compute_payload_hash(&row.payload);
+            let new_seal = row.nexus_seal.as_ref().map(|_| {
+                compute_nexus_seal(&new_payload_hash, &row.previous_hash)
+            });
+            new_hashes.push((row.event_id.clone(), new_payload_hash, new_seal));
+        }
+
+        // Phase 2: recompute previous_hash chain links using new payload hashes
+        // Build event_id → new_payload_hash lookup
+        let hash_map: std::collections::HashMap<&str, &str> = new_hashes
+            .iter()
+            .map(|(eid, ph, _)| (eid.as_str(), ph.as_str()))
+            .collect();
+
+        struct Update {
+            event_id: String,
+            payload_hash: String,
+            previous_hash: String,
+            nexus_seal: Option<String>,
+        }
+
+        let mut updates: Vec<Update> = Vec::with_capacity(rows.len());
+        for (i, row) in rows.iter().enumerate() {
+            let (_, ref new_ph, _) = new_hashes[i];
+
+            let new_prev = if i == 0 {
+                row.previous_hash.clone()
+            } else {
+                let prev_eid = &rows[i - 1].event_id;
+                hash_map.get(prev_eid.as_str()).unwrap_or(&row.previous_hash.as_str()).to_string()
+            };
+
+            let new_seal = row.nexus_seal.as_ref().map(|_| {
+                compute_nexus_seal(new_ph, &new_prev)
+            });
+
+            updates.push(Update {
+                event_id: row.event_id.clone(),
+                payload_hash: new_ph.clone(),
+                previous_hash: new_prev,
+                nexus_seal: new_seal,
+            });
+        }
+
+        // Phase 3: write updates in batches
+        for chunk in updates.chunks(100) {
+            for upd in chunk {
+                let result = sqlx::query(
+                    "UPDATE evidence_events SET payload_hash = $1, previous_hash = $2, nexus_seal = $3, hash_version = 2 WHERE event_id = $4 AND source_system = $5"
+                )
+                .bind(&upd.payload_hash)
+                .bind(&upd.previous_hash)
+                .bind(&upd.nexus_seal)
+                .bind(&upd.event_id)
+                .bind(source_system)
+                .execute(pool.get_ref())
+                .await;
+
+                match result {
+                    Ok(r) => total_updated += r.rows_affected(),
+                    Err(e) => {
+                        return HttpResponse::InternalServerError().json(serde_json::json!({
+                            "error": format!("Failed to update event {}: {}", upd.event_id, e),
+                            "updated_so_far": total_updated
+                        }));
+                    }
+                }
+            }
+        }
+    }
+
+    HttpResponse::Ok().json(serde_json::json!({
+        "updated": total_updated,
+        "message": format!("Migrated {} events to canonical hashing (hash_version=2)", total_updated)
+    }))
+}
+
 pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(get_tenant_detail)
        .service(list_tenants)
@@ -743,5 +886,6 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
        .service(create_tenant)
        .service(update_tenant)
        .service(delete_tenant)
-       .service(rotate_api_key);
+       .service(rotate_api_key)
+       .service(recompute_hashes);
 }

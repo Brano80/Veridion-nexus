@@ -360,10 +360,33 @@ function EvidenceVaultPageContent() {
         const tb = new Date(b.occurredAt || b.createdAt || 0).getTime();
         return ta - tb;
       });
-      const eventTypeLower = (e: EvidenceEvent) =>
-        (e.eventType || (e as { event_type?: string }).event_type || '').toLowerCase();
-      const transferEvents = sortedChrono.filter((e) => !eventTypeLower(e).includes('policy violation'));
-      const violationEvents = sortedChrono.filter((e) => eventTypeLower(e).includes('policy violation'));
+      /** Backend stores e.g. AGENT_POLICY_VIOLATION / payload.country_status agent_policy_violation — not the phrase "policy violation" with a space. */
+      const isAgentPolicyViolationEvent = (e: EvidenceEvent): boolean => {
+        const ex = e as EvidenceEvent & { event_type?: string; type?: string };
+        const p = (e.payload || {}) as Record<string, unknown>;
+        const parts = [
+          ex.eventType,
+          ex.event_type,
+          ex.type,
+          p.event_type,
+          p.eventType,
+          p.type,
+          p.country_status,
+          p.countryStatus,
+        ]
+          .filter((x) => x != null && String(x).trim() !== '')
+          .map((x) => String(x).toLowerCase());
+        const joined = parts.join(' ');
+        const withSpaces = joined.replace(/_/g, ' ');
+        return (
+          joined.includes('agent_policy_violation') ||
+          joined.includes('policy_violation') ||
+          withSpaces.includes('agent policy violation') ||
+          withSpaces.includes('policy violation')
+        );
+      };
+      const transferEvents = sortedChrono.filter((e) => !isAgentPolicyViolationEvent(e));
+      const violationEvents = sortedChrono.filter((e) => isAgentPolicyViolationEvent(e));
       const times = sortedChrono.map((e) => new Date(e.occurredAt || e.createdAt || 0).getTime()).filter((t) => !isNaN(t));
       const reportPeriod =
         times.length === 0
