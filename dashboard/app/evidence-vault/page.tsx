@@ -360,6 +360,10 @@ function EvidenceVaultPageContent() {
         const tb = new Date(b.occurredAt || b.createdAt || 0).getTime();
         return ta - tb;
       });
+      const eventTypeLower = (e: EvidenceEvent) =>
+        (e.eventType || (e as { event_type?: string }).event_type || '').toLowerCase();
+      const transferEvents = sortedChrono.filter((e) => !eventTypeLower(e).includes('policy violation'));
+      const violationEvents = sortedChrono.filter((e) => eventTypeLower(e).includes('policy violation'));
       const times = sortedChrono.map((e) => new Date(e.occurredAt || e.createdAt || 0).getTime()).filter((t) => !isNaN(t));
       const reportPeriod =
         times.length === 0
@@ -468,8 +472,9 @@ function EvidenceVaultPageContent() {
         ['Total Transfer Events', String(totalTransfer)],
         ['Allowed Transfers', String(allowedCount)],
         ['Blocked Transfers', String(blockedCount)],
-        ['Pending Review', String(reviewCount)],
+        ['Pending Review (SCC required)', String(reviewCount)],
         ['Human Decisions', String(humanCount)],
+        ['Agent Policy Violations', String(violationEvents.length)],
         ['Merkle Roots (chain segments)', String(merkleRoots)],
         [
           'Chain Status',
@@ -500,7 +505,7 @@ function EvidenceVaultPageContent() {
           1: { cellWidth: contentRight - margin - 75 - margin },
         },
         didParseCell: (data) => {
-          if (data.section === 'body' && data.column.index === 1 && data.row.index === 6) {
+          if (data.section === 'body' && data.column.index === 1 && data.row.index === 7) {
             const v = String(data.cell.raw);
             if (v === 'VERIFIED') {
               data.cell.styles.textColor = emerald;
@@ -542,21 +547,25 @@ function EvidenceVaultPageContent() {
         doc.text(doc.splitTextToSize(warn, pageWidth - 2 * margin - 6), margin + 3, boxY + 11);
       }
 
-      // —— Appendix: chronological table ——
+      // —— Appendix A: cross-border transfers ——
       doc.addPage();
       y = margin;
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(14);
       doc.setTextColor(...navy);
-      doc.text('Appendix A — Complete Transfer Log', margin, y);
+      doc.text('Appendix A — Cross-Border Transfer Decisions', margin, y);
       y += 7;
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9);
       doc.setTextColor(71, 85, 105);
-      doc.text('All transfer decisions in chronological order (oldest first)', margin, y);
+      doc.text(
+        'Transfer evaluations, blocks, reviews, and human decisions (oldest first)',
+        margin,
+        y
+      );
       y += 10;
 
-      const appendixBody = sortedChrono.map((e, idx) => {
+      const appendixBody = transferEvents.map((e, idx) => {
         const raw =
           e.payload?.destination_country ||
           e.payload?.destinationCountry ||
@@ -647,6 +656,124 @@ function EvidenceVaultPageContent() {
             if (v === 'VERIFIED') data.cell.styles.textColor = emerald;
             if (v === 'TAMPERED' || v === 'UNVERIFIED') data.cell.styles.textColor = red;
           }
+        },
+      });
+
+      // —— Appendix B: agent policy violations ——
+      doc.addPage();
+      y = margin;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(14);
+      doc.setTextColor(...navy);
+      doc.text('Appendix B — Agent Policy Violations', margin, y);
+      y += 7;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(71, 85, 105);
+      doc.text(
+        'Recorded instances where agent actions exceeded permitted policy boundaries',
+        margin,
+        y
+      );
+      y += 8;
+      const introB =
+        'Policy violations are recorded when an agent attempts a transfer outside its permitted data categories, destination countries, or partner allowlist. These records demonstrate active policy enforcement and governance.';
+      const introBLines = doc.splitTextToSize(introB, pageWidth - 2 * margin);
+      doc.text(introBLines, margin, y);
+      y += introBLines.length * 4.2 + 8;
+
+      const buildViolationRow = (e: EvidenceEvent, idx: number): string[] => {
+        const raw =
+          e.payload?.destination_country ||
+          e.payload?.destinationCountry ||
+          e.payload?.destination_country_code ||
+          e.payload?.destinationCountryCode ||
+          e.payload?.destination ||
+          '—';
+        const dest =
+          typeof raw === 'string' && raw.length === 2 && raw === raw.toUpperCase() && COUNTRY_NAMES[raw]
+            ? COUNTRY_NAMES[raw]
+            : String(raw);
+        let countryCode = e.payload?.destination_country_code || e.payload?.destinationCountryCode || '';
+        if (!countryCode) countryCode = getCountryCodeFromName(String(raw));
+        const srcSys = (e.sourceSystem || '').toLowerCase();
+        const etUp = (e.eventType || '').toUpperCase();
+        const isHumanOversight = srcSys === 'human-oversight' || etUp.includes('HUMAN_OVERSIGHT');
+        const validArticles =
+          e.articles?.filter((a: string) => {
+            if (!a || typeof a !== 'string') return false;
+            const article = a.trim();
+            return (article.includes('Art.') || article.includes('GDPR') || article.includes('art.')) && !article.includes('Art. 22');
+          }) || [];
+        const hasValidArticles = validArticles.length > 0;
+        const gdprBasis = isHumanOversight
+          ? getHumanOversightLegalBasis(e.eventType || '', e.articles)
+          : e.payload?.decision === 'BLOCK' && e.payload?.country_status === 'unknown'
+            ? 'Art. 44 Blocked'
+            : hasValidArticles
+              ? validArticles.join(', ')
+              : e.payload?.articles?.[0] || getLegalBasis(countryCode) || '—';
+        const p = e.payload as Record<string, unknown> | undefined;
+        const notes = String(
+          p?.reason ?? p?.message ?? p?.notes ?? p?.violation_detail ?? p?.detail ?? '—'
+        );
+        const agent =
+          e.sourceSystem ||
+          String(p?.agent_id ?? p?.agentId ?? p?.agent_name ?? p?.source_agent ?? '—');
+        return [
+          String(idx + 1),
+          new Date(e.occurredAt || e.createdAt).toLocaleString('en-GB'),
+          agent,
+          dest,
+          gdprBasis,
+          notes,
+        ];
+      };
+
+      const appendixBBody =
+        violationEvents.length === 0
+          ? [
+              [
+                {
+                  content: 'No policy violations recorded in this period',
+                  colSpan: 6,
+                  styles: {
+                    textColor: emerald,
+                    fontStyle: 'bold',
+                    halign: 'center',
+                  },
+                },
+              ],
+            ]
+          : violationEvents.map((e, idx) => buildViolationRow(e, idx));
+
+      autoTable(doc, {
+        startY: y,
+        head: [['No.', 'Timestamp', 'Agent (source)', 'Destination', 'GDPR Basis', 'Notes']],
+        body: appendixBBody as Parameters<typeof autoTable>[1]['body'],
+        margin: { left: margin, right: margin, bottom: 18 },
+        styles: {
+          font: 'helvetica',
+          fontSize: 7,
+          cellPadding: 1.5,
+          overflow: 'linebreak',
+          valign: 'top',
+          lineColor: [226, 232, 240],
+        },
+        headStyles: {
+          fillColor: navy,
+          textColor: [255, 255, 255],
+          fontStyle: 'bold',
+          fontSize: 7,
+        },
+        alternateRowStyles: { fillColor: rowAlt },
+        columnStyles: {
+          0: { cellWidth: 12 },
+          1: { cellWidth: 28 },
+          2: { cellWidth: 32 },
+          3: { cellWidth: 28 },
+          4: { cellWidth: 32 },
+          5: { cellWidth: 38 },
         },
       });
 
