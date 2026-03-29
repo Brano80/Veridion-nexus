@@ -22,11 +22,20 @@ services:
     container_name: veridion-api
     environment:
       DATABASE_URL: ${DATABASE_URL}
-      JWT_SECRET: 
+      JWT_SECRET: ${JWT_SECRET}
       RUST_ENV: production
       SERVER_HOST: 0.0.0.0
       SERVER_PORT: 8080
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      SMTP_FROM: ${SMTP_FROM:-noreply@veridion-nexus.eu}
+      AL_SERVICE_TOKEN: ${AL_SERVICE_TOKEN:-}
+      NEXUS_SEAL_SALT: ${NEXUS_SEAL_SALT:-}
+      MIGRATIONS_PATH: ${MIGRATIONS_PATH:-/app/migrations}
+      RESET_MIGRATIONS: ${RESET_MIGRATIONS:-0}
     ports:
       - "8080:8080"
     depends_on:
