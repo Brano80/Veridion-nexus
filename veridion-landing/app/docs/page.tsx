@@ -998,19 +998,35 @@ async function callOpenAI(userData) {
               <p className="text-slate-700 mb-6">
                 Veridion Nexus is available as an MCP (Model Context Protocol) server. This makes GDPR transfer evaluation available as a tool in Claude and Cursor workflows, without manual API integration.
               </p>
-              <p className="text-slate-600 text-sm mb-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-                <strong className="text-slate-800">Two entry points in one npm package:</strong>{' '}
-                <strong>Sovereign Shield</strong> tools (<code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">evaluate_transfer</code>, SCC checks, compliance status, country lists) run with{' '}
-                <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">npx -y veridion-shield-mcp</code> and{' '}
-                <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">VERIDION_NEXUS_API_KEY</code>. The{' '}
-                <strong>Accountability Ledger</strong> MCP proxy (audit logging to your upstream server) uses{' '}
-                <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">npx -y veridion-nexus-mcp</code> with{' '}
-                <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">AL_API_BASE_URL</code>,{' '}
-                <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">AL_SERVICE_TOKEN</code>, and{' '}
-                <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">UPSTREAM_MCP_COMMAND</code> — see the Accountability Ledger section below.
-              </p>
+              <div className="grid md:grid-cols-2 gap-4 mb-6">
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50/80 px-4 py-3 text-sm text-slate-700">
+                  <strong className="text-slate-900 block mb-2">Sovereign Shield tools</strong>
+                  <span className="text-slate-600">Package: </span>
+                  <code className="bg-white px-1.5 py-0.5 rounded text-xs font-mono border border-emerald-100">veridion-shield-mcp</code>
+                  <br />
+                  <span className="text-slate-600">Run: </span>
+                  <code className="bg-slate-200 px-1.5 py-0.5 rounded text-xs font-mono">npx -y veridion-shield-mcp</code>
+                  <br />
+                  <span className="text-slate-600">Env: </span>
+                  <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">VERIDION_NEXUS_API_KEY</code>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                  <strong className="text-slate-900 block mb-2">Accountability Ledger proxy</strong>
+                  <span className="text-slate-600">Package: </span>
+                  <code className="bg-white px-1.5 py-0.5 rounded text-xs font-mono border border-slate-200">veridion-nexus-mcp</code>
+                  <br />
+                  <span className="text-slate-600">Run: </span>
+                  <code className="bg-slate-200 px-1.5 py-0.5 rounded text-xs font-mono">npx -y veridion-nexus-mcp</code>
+                  <br />
+                  <span className="text-slate-600">Env: </span>
+                  <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">AL_API_BASE_URL</code>,{' '}
+                  <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">AL_SERVICE_TOKEN</code>,{' '}
+                  <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">UPSTREAM_MCP_COMMAND</code>
+                  <span className="text-slate-500"> — see the Accountability Ledger section below.</span>
+                </div>
+              </div>
               <p className="text-slate-600 text-sm mb-6">
-                Latest version: <code className="bg-slate-200 px-1.5 py-0.5 rounded text-xs font-mono">veridion-nexus-mcp@1.0.10</code> (includes both binaries). The <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">evaluate_transfer</code> tool requires <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">agent_id</code> and <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">agent_api_key</code> as parameters on every call.
+                Latest <code className="bg-slate-200 px-1.5 py-0.5 rounded text-xs font-mono">veridion-nexus-mcp@1.0.10</code> (Accountability Ledger). The <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">evaluate_transfer</code> tool requires <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">agent_id</code> and <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">agent_api_key</code> as parameters on every call (Sovereign Shield / <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">veridion-shield-mcp</code>).
               </p>
 
               <div className="grid md:grid-cols-2 gap-6 mb-8">
