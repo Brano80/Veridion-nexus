@@ -143,6 +143,7 @@ export default function RegisterAgentWizard({ open, agentName, onClose, onSucces
     countries: [] as string[],
     partners: [newPartnerRow()] as PartnerRow[],
   });
+  // TODO: re-enable Oversight step when needed (step 4 UI is commented out; defaults still sent on register)
   const [oversight, setOversight] = useState({
     autonomyLevel: 2 as number,
     humanReviewFor: [] as string[],
@@ -273,12 +274,11 @@ export default function RegisterAgentWizard({ open, agentName, onClose, onSucces
     }
     if (s === 3) {
       if (transfer.countries.length === 0) return 'Select at least one destination country';
-      const validPartners = transfer.partners.filter((p) => p.name.trim());
-      if (validPartners.length === 0) return 'Add at least one partner / data processor';
     }
-    if (s === 4) {
-      if (!oversight.autonomyLevel) return 'Select an autonomy level';
-    }
+    // TODO: re-enable Oversight step when needed
+    // if (s === 4) {
+    //   if (!oversight.autonomyLevel) return 'Select an autonomy level';
+    // }
     return null;
   }
 
@@ -289,7 +289,9 @@ export default function RegisterAgentWizard({ open, agentName, onClose, onSucces
       return;
     }
     setError('');
-    setStep((x) => Math.min(5, x + 1));
+    // TODO: re-enable Oversight step when needed
+    // setStep((x) => Math.min(5, x + 1));
+    setStep((x) => Math.min(4, x + 1));
   }
 
   function goBack() {
@@ -477,7 +479,9 @@ curl -sS -X POST "https://api.veridion-nexus.eu/api/v1/shield/evaluate" \\
     );
   }
 
-  const steps = ['Identity', 'Data Policy', 'Transfer', 'Oversight', 'Review'];
+  // TODO: re-enable Oversight step when needed
+  // const steps = ['Identity', 'Data Policy', 'Transfer', 'Oversight', 'Review'];
+  const steps = ['Identity', 'Data Policy', 'Transfer', 'Review'];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto">
@@ -803,7 +807,7 @@ curl -sS -X POST "https://api.veridion-nexus.eu/api/v1/shield/evaluate" \\
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-2">Allowed Partners / Data Processors *</label>
+                <label className="block text-xs font-medium text-slate-300 mb-2">Allowed Partners / Data Processors</label>
                 {transfer.partners.map((p) => {
                   const hint = partnerSccHint(p);
                   return (
@@ -885,11 +889,14 @@ curl -sS -X POST "https://api.veridion-nexus.eu/api/v1/shield/evaluate" \\
                 >
                   + Add partner
                 </button>
+                <p className="text-[11px] text-slate-500 mt-2">
+                  Optional — partners can be managed in the SCC Registry after registration.
+                </p>
               </div>
             </div>
           )}
 
-          {/* Step 4 */}
+          {/* TODO: re-enable Oversight step when needed — Step 4 (Oversight / Autonomy) UI
           {step === 4 && (
             <div className="space-y-5 max-w-2xl">
               <div>
@@ -979,9 +986,10 @@ curl -sS -X POST "https://api.veridion-nexus.eu/api/v1/shield/evaluate" \\
               </div>
             </div>
           )}
+          */}
 
-          {/* Step 5 */}
-          {step === 5 && (
+          {/* Step 4 — Review (Transfer step 3 Next skips Oversight; was step 5) */}
+          {step === 4 && (
             <div className="space-y-4">
               <div>
                 <h3 className="text-base font-semibold text-white">Review & Confirm</h3>
@@ -1079,7 +1087,8 @@ curl -sS -X POST "https://api.veridion-nexus.eu/api/v1/shield/evaluate" \\
                 Back
               </button>
             )}
-            {step < 5 ? (
+            {/* TODO: re-enable Oversight step when needed — was step < 5 */}
+            {step < 4 ? (
               <button
                 type="button"
                 onClick={goNext}
