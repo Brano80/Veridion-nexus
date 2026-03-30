@@ -998,8 +998,19 @@ async function callOpenAI(userData) {
               <p className="text-slate-700 mb-6">
                 Veridion Nexus is available as an MCP (Model Context Protocol) server. This makes GDPR transfer evaluation available as a tool in Claude and Cursor workflows, without manual API integration.
               </p>
+              <p className="text-slate-600 text-sm mb-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                <strong className="text-slate-800">Two entry points in one npm package:</strong>{' '}
+                <strong>Sovereign Shield</strong> tools (<code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">evaluate_transfer</code>, SCC checks, compliance status, country lists) run with{' '}
+                <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">npx -y veridion-shield-mcp</code> and{' '}
+                <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">VERIDION_NEXUS_API_KEY</code>. The{' '}
+                <strong>Accountability Ledger</strong> MCP proxy (audit logging to your upstream server) uses{' '}
+                <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">npx -y veridion-nexus-mcp</code> with{' '}
+                <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">AL_API_BASE_URL</code>,{' '}
+                <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">AL_SERVICE_TOKEN</code>, and{' '}
+                <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">UPSTREAM_MCP_COMMAND</code> — see the Accountability Ledger section below.
+              </p>
               <p className="text-slate-600 text-sm mb-6">
-                Latest version: <code className="bg-slate-200 px-1.5 py-0.5 rounded text-xs font-mono">veridion-nexus-mcp@1.0.8</code>. The <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">evaluate_transfer</code> tool requires <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">agent_id</code> and <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">agent_api_key</code> as parameters on every call.
+                Latest version: <code className="bg-slate-200 px-1.5 py-0.5 rounded text-xs font-mono">veridion-nexus-mcp@1.0.10</code> (includes both binaries). The <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">evaluate_transfer</code> tool requires <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">agent_id</code> and <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">agent_api_key</code> as parameters on every call.
               </p>
 
               <div className="grid md:grid-cols-2 gap-6 mb-8">
@@ -1025,16 +1036,16 @@ async function callOpenAI(userData) {
 
               <h3 className="text-xl font-semibold text-slate-900 mb-3">Setup: Claude Desktop</h3>
               <p className="text-slate-600 text-sm mb-3">
-                Install using npx: <code className="bg-slate-200 px-1.5 py-0.5 rounded text-xs font-mono">npx -y veridion-nexus-mcp</code>
+                Sovereign Shield (install using npx): <code className="bg-slate-200 px-1.5 py-0.5 rounded text-xs font-mono">npx -y veridion-shield-mcp</code>
               </p>
               <CodeBlock
                 id="mcp-claude-config"
                 language="json"
                 code={`{
   "mcpServers": {
-    "veridion-nexus": {
+    "veridion-shield": {
       "command": "npx",
-      "args": ["-y", "veridion-nexus-mcp"],
+      "args": ["-y", "veridion-shield-mcp"],
       "env": {
         "VERIDION_NEXUS_API_KEY": "ss_test_your_key_here"
       }
@@ -1048,16 +1059,16 @@ async function callOpenAI(userData) {
 
               <h3 className="text-xl font-semibold text-slate-900 mb-3">Setup: Cursor</h3>
               <p className="text-slate-600 text-sm mb-3">
-                Install using npx: <code className="bg-slate-200 px-1.5 py-0.5 rounded text-xs font-mono">npx -y veridion-nexus-mcp</code>
+                Sovereign Shield (install using npx): <code className="bg-slate-200 px-1.5 py-0.5 rounded text-xs font-mono">npx -y veridion-shield-mcp</code>
               </p>
               <CodeBlock
                 id="mcp-cursor-config"
                 language="json"
                 code={`{
   "mcpServers": {
-    "veridion-nexus": {
+    "veridion-shield": {
       "command": "npx",
-      "args": ["-y", "veridion-nexus-mcp"],
+      "args": ["-y", "veridion-shield-mcp"],
       "env": {
         "VERIDION_NEXUS_API_KEY": "ss_test_your_key_here"
       }

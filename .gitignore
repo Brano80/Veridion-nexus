@@ -11,6 +11,9 @@ dashboard/dashboard/
 # Cursor MCP config (contains API keys)
 .cursor/mcp.json
 
+# Standalone Sovereign Shield MCP package (tracked — not ignored)
+# mcp-server-shield/
+
 # MCP registry publisher (secrets, binary)
 mcp-server/server.json
 mcp-server/mcp-publisher.exe
