@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from './components/DashboardLayout';
 import SovereignMap from './components/SovereignMap';
+import OnboardingChecklist from './components/OnboardingChecklist';
 import { RefreshCw, Shield, AlertTriangle, CheckCircle } from 'lucide-react';
 import { fetchEvidenceEventsPaginated, fetchSCCRegistries, fetchReviewQueuePending, fetchReviewQueueAll, fetchDecidedEvidenceIds, createReviewQueueItem, fetchSettings, patchSettings, EvidenceEvent, SCCRegistry } from './utils/api';
 import { buildDecidedEvidenceSet } from './utils/evidenceDecided';
@@ -641,6 +642,10 @@ export default function SovereignShieldPage() {
             </div>
           </div>
         </div>
+
+        {!loading && events.length === 0 && (
+          <OnboardingChecklist events={events} enforcementMode={enforcementMode} />
+        )}
 
         {/* Stats Grid - Row 1 */}
         <div className="grid grid-cols-4 gap-3 mb-3">
