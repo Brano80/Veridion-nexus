@@ -111,6 +111,8 @@ function EvidenceVaultPageContent() {
   const [refreshing, setRefreshing] = useState(false);
   const [integrityStatus, setIntegrityStatus] = useState<'VALID' | 'TAMPERED' | null>(null);
   const [verifying, setVerifying] = useState(false);
+  const [verificationResult, setVerificationResult] = useState<'valid' | 'tampered' | 'error' | null>(null);
+  const [lastVerifiedFlash, setLastVerifiedFlash] = useState(false);
   const [filters, setFilters] = useState({
     destinationCountry: '',
     search: searchParam || highlightedEventId || '',
@@ -159,6 +161,12 @@ function EvidenceVaultPageContent() {
     window.addEventListener('refresh-evidence-vault', handleRefresh);
     return () => window.removeEventListener('refresh-evidence-vault', handleRefresh);
   }, []);
+
+  useEffect(() => {
+    if (verificationResult !== 'valid') return;
+    const t = setTimeout(() => setVerificationResult(null), 5000);
+    return () => clearTimeout(t);
+  }, [verificationResult]);
 
   // Fix 5: Auto-run Chain Integrity verification on page load
   useEffect(() => {
@@ -271,18 +279,23 @@ function EvidenceVaultPageContent() {
   }
 
   async function handleVerifyIntegrity() {
+    setVerificationResult(null);
     setVerifying(true);
     try {
       const result = await verifyIntegrity();
       if (result.verified === true) {
         setIntegrityStatus('VALID');
         setLastVerifiedAt(new Date());
+        setLastVerifiedFlash(true);
+        window.setTimeout(() => setLastVerifiedFlash(false), 1500);
+        setVerificationResult('valid');
       } else {
         setIntegrityStatus('TAMPERED');
+        setVerificationResult('tampered');
       }
     } catch (error) {
       console.error('Failed to verify integrity:', error);
-      alert('Failed to verify integrity');
+      setVerificationResult('error');
     } finally {
       setVerifying(false);
     }
@@ -958,13 +971,76 @@ function EvidenceVaultPageContent() {
               <button
                 onClick={handleVerifyIntegrity}
                 disabled={verifying}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-600/50 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-600/50 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
               >
-                {verifying ? 'Verifying...' : 'Verify Chain Integrity'}
+                {verifying ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin shrink-0" aria-hidden />
+                    Verifying...
+                  </>
+                ) : (
+                  'Run Verification'
+                )}
               </button>
             </div>
           </div>
         </div>
+
+        {verificationResult && (
+          <div
+            className={
+              verificationResult === 'valid'
+                ? 'rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm flex items-start justify-between gap-3'
+                : 'rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm flex items-start justify-between gap-3'
+            }
+          >
+            {verificationResult === 'valid' && (
+              <>
+                <p className="text-emerald-200 flex-1">
+                  ✓ Chain integrity verified — all {totalSealedCount} events are intact
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setVerificationResult(null)}
+                  className="shrink-0 rounded p-1 text-emerald-400/80 hover:bg-emerald-500/20 hover:text-emerald-200 transition-colors"
+                  aria-label="Dismiss"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </>
+            )}
+            {verificationResult === 'tampered' && (
+              <>
+                <p className="text-red-200 flex-1">
+                  ⚠ Chain integrity check failed — records may have been altered. Contact support.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setVerificationResult(null)}
+                  className="shrink-0 rounded p-1 text-red-400/80 hover:bg-red-500/20 hover:text-red-200 transition-colors"
+                  aria-label="Dismiss"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </>
+            )}
+            {verificationResult === 'error' && (
+              <>
+                <p className="text-red-200 flex-1">
+                  Chain verification failed — please try again.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setVerificationResult(null)}
+                  className="shrink-0 rounded p-1 text-red-400/80 hover:bg-red-500/20 hover:text-red-200 transition-colors"
+                  aria-label="Dismiss"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </>
+            )}
+          </div>
+        )}
 
         {/* KPI Cards */}
         <div className="grid grid-cols-4 gap-4">
@@ -1003,7 +1079,13 @@ function EvidenceVaultPageContent() {
               </div>
             )}
           </div>
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
+          <div
+            className={`bg-slate-800 border rounded-lg p-4 transition-all duration-500 ${
+              lastVerifiedFlash
+                ? 'border-emerald-400/50 shadow-[0_0_0_3px_rgba(16,185,129,0.15)] ring-1 ring-emerald-400/30'
+                : 'border-slate-700'
+            }`}
+          >
             <div className="flex items-center justify-between mb-2">
               <div className="text-sm text-slate-400 font-medium">LAST VERIFIED</div>
               <Clock className={`w-4 h-4 ${lastVerifiedAt === null ? 'text-slate-500' : 'text-green-500'}`} />
