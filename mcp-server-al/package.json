@@ -1,0 +1,42 @@
+{
+  "name": "nexus-al-mcp",
+  "version": "0.1.0",
+  "description": "Accountability Ledger MCP proxy — tamper-evident audit trail for AI agent tool calls (EU AI Act Art. 12)",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "nexus-al-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts"
+  },
+  "keywords": [
+    "mcp",
+    "gdpr",
+    "eu-ai-act",
+    "compliance",
+    "audit",
+    "veridion",
+    "accountability-ledger"
+  ],
+  "author": "Veridion Nexus",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.0",
+    "jose": "^6.2.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.0.0"
+  },
+  "files": [
+    "dist/",
+    "src/"
+  ],
+  "engines": {
+    "node": ">=18"
+  }
+}
