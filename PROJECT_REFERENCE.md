@@ -41,7 +41,7 @@ The vision is a **single, deployable API** that owns its schema and can grow fro
 - **Backend**: Rust (Actix-web) API on `http://localhost:8080`.
 - **Frontend**: Next.js 14 dashboard (Sovereign Shield) in `dashboard/`, on `http://localhost:3000`.
 - **Landing page**: Next.js 14 in `veridion-landing/`, on `http://localhost:3001`. Contains marketing page and self-serve signup flow.
-- **MCP packages**: (1) **`veridion-shield-mcp`** — standalone npm package in `mcp-server-shield/` (Sovereign Shield tools only: `npx -y veridion-shield-mcp`, `VERIDION_NEXUS_API_KEY`). (2) **`veridion-nexus-mcp`** — repo in `mcp-server/`, published on npm (`veridion-nexus-mcp@1.0.10` as of this doc) and MCP registry (`io.github.Brano80/Veridion-nexus`). Entry `veridion-nexus-mcp` runs the **Accountability Ledger proxy** (`mcp-server/src/index.ts` + `upstream-client.ts`); **Phase 1** connects to a real upstream MCP server (stdio or SSE), intercepts tool calls, logs them to a tamper-evident audit trail, and forwards to that upstream. The same package also ships **`veridion-shield-mcp`** as a second binary pointing at `dist/shield.js` (duplicate of standalone package for convenience).
+- **MCP packages**: **`veridion-nexus-mcp`** — npm package from `mcp-server/` (`veridion-nexus-mcp@1.0.11` as of this doc), MCP registry (`io.github.Brano80/Veridion-nexus`). **Default entry** is **Sovereign Shield** tools only (`evaluate_transfer`, `check_scc_coverage`, `get_compliance_status`, `list_adequate_countries`): `npx -y veridion-nexus-mcp` with `VERIDION_NEXUS_API_KEY` (optional `VERIDION_NEXUS_API_URL`). The **Accountability Ledger MCP proxy** implementation is preserved in `mcp-server/src/al-proxy.ts` for a future **`nexus-al-mcp`** package — it is **not** compiled or published in this release. The legacy standalone **`veridion-shield-mcp`** folder `mcp-server-shield/` is **deprecated** (use `veridion-nexus-mcp` instead); see `mcp-server-shield/README.md`.
 - **Theme**: Dark (slate-900/800/700), emerald accents. Icons: `lucide-react`. Fonts: Inter, JetBrains Mono.
 
 ---
@@ -67,19 +67,20 @@ Dependencies: serde/serde_json, chrono, uuid, dotenv.
 - **Next** 14.x (App Router), **React** 18, **Tailwind CSS** 3.x, **lucide-react**, **react-simple-maps** (TopoJSON from world-atlas@2).
 - **Scripts**: `npm run dev` (port 3000), `build`, `start`, `lint`.
 
-### 4.3 MCP — Sovereign Shield (`mcp-server-shield/` and `mcp-server` shield binary)
+### 4.3 MCP — Sovereign Shield (`veridion-nexus-mcp`)
 
-- **Packages**: `veridion-shield-mcp` (standalone repo folder `mcp-server-shield/`) and the shield binary inside `veridion-nexus-mcp`.
+- **Package**: **`veridion-nexus-mcp`** — single binary `veridion-nexus-mcp` → `mcp-server/dist/index.js` (Sovereign Shield tools).
 - **Language**: TypeScript 5.x · **Runtime**: Node.js ≥18 (ESM: `"type": "module"`)
 - **Framework**: `@modelcontextprotocol/sdk` v1.27+, `zod`
 - **Transport**: stdio (Claude Desktop, Cursor)
 - **Auth**: `VERIDION_NEXUS_API_KEY` (required); optional `VERIDION_NEXUS_API_URL`
+- **Scripts**: `npm run build` (`tsc` — only `src/index.ts` emitted), `npm start` → `node dist/index.js`
+- **Deprecated**: standalone `veridion-shield-mcp` in `mcp-server-shield/` — use `veridion-nexus-mcp` instead.
 
-### 4.4 MCP — Accountability Ledger proxy (`mcp-server/`)
+### 4.4 MCP — Accountability Ledger proxy (future `nexus-al-mcp`)
 
-- Same stack as §4.3 except entry: **`veridion-nexus-mcp`** → `dist/index.js` (`AccountabilityLedgerProxy`).
-- **Extra dependencies**: `jose` (OAuth/JWT for AL)
-- **Scripts**: `npm run build` (`tsc`), `npm start` → `node dist/index.js`
+- **Source** (not built in current `mcp-server` release): `mcp-server/src/al-proxy.ts` (`AccountabilityLedgerProxy`), plus `upstream-client.ts`, `al-client.ts`, `oauth.ts`, `types/acm.ts` — excluded from `tsc` until the AL package is published separately.
+- **Stack**: Same MCP SDK as §4.3; **extra dependency** when enabled: `jose` (OAuth/JWT for AL).
 
 ---
 
@@ -94,8 +95,8 @@ veridion-api/
 ├── migrations/             # Schema 001–040 (no external path)
 ├── dashboard/              # Next.js Sovereign Shield dashboard (port 3000)
 ├── veridion-landing/       # Next.js landing page + signup flow (port 3001)
-├── mcp-server/             # veridion-nexus-mcp: AL proxy + bundled veridion-shield-mcp binary (Node.js/TypeScript)
-├── mcp-server-shield/      # Standalone veridion-shield-mcp npm package (Sovereign Shield tools only)
+├── mcp-server/             # veridion-nexus-mcp: Sovereign Shield MCP (dist/index.js); AL proxy source in src/al-proxy.ts (future nexus-al-mcp)
+├── mcp-server-shield/      # Deprecated — legacy standalone veridion-shield-mcp; use veridion-nexus-mcp
 ├── docs/adr/              # Architecture Decision Records (ADR 001: AL architecture)
 ├── .env
 ├── PROJECT_REFERENCE.md    # This file
@@ -303,20 +304,19 @@ Dashboard-facing endpoints authenticated via JWT (tenant-scoped via `get_tenant_
 
 ### 9.6 MCP — Sovereign Shield vs Accountability Ledger
 
-Two **npm** surfaces:
-
 | Package | Purpose | Install | Required env |
 |---------|---------|---------|--------------|
-| **`veridion-shield-mcp`** | Sovereign Shield tools only (`evaluate_transfer`, `check_scc_coverage`, `get_compliance_status`, `list_adequate_countries`) | `npx -y veridion-shield-mcp` | `VERIDION_NEXUS_API_KEY`; optional `VERIDION_NEXUS_API_URL` |
-| **`veridion-nexus-mcp`** | Accountability Ledger **MCP proxy** (forwards tool calls to your upstream MCP server and logs to ACM) | `npx -y veridion-nexus-mcp` | `AL_API_BASE_URL`, `AL_SERVICE_TOKEN`, `UPSTREAM_MCP_COMMAND` (and other AL/upstream vars — see §5.2 and ADR 001) |
+| **`veridion-nexus-mcp`** | **Sovereign Shield** tools (`evaluate_transfer`, `check_scc_coverage`, `get_compliance_status`, `list_adequate_countries`) | `npx -y veridion-nexus-mcp` | `VERIDION_NEXUS_API_KEY`; optional `VERIDION_NEXUS_API_URL` |
+| **`veridion-shield-mcp`** | *Deprecated* — same tools historically; use **`veridion-nexus-mcp`** | *(deprecated)* | — |
+| **`nexus-al-mcp`** *(planned)* | Accountability Ledger **MCP proxy** (upstream forwarding + ACM audit) | *Not published yet* | `AL_API_BASE_URL`, `AL_SERVICE_TOKEN`, `UPSTREAM_MCP_COMMAND` (and other AL/upstream vars — see §5.2 and ADR 001) |
 
 **Repo layout**:
-- **`mcp-server-shield/`** — source for the **standalone** `veridion-shield-mcp` package (`src/index.ts` after build → `dist/index.js`).
-- **`mcp-server/`** — **`veridion-nexus-mcp`** (`dist/index.js`, AL proxy) and a **second bin** `veridion-shield-mcp` → `dist/shield.js` (same Sovereign Shield implementation as `mcp-server/src/shield.ts`).
+- **`mcp-server/`** — **`veridion-nexus-mcp`**: `src/index.ts` → `dist/index.js` (Shield only). AL proxy lives in **`src/al-proxy.ts`** (and supporting modules), excluded from build until **`nexus-al-mcp`** is split out.
+- **`mcp-server-shield/`** — **Deprecated** standalone package; README points to `veridion-nexus-mcp`.
 
 **Agent parameters**: Tool `evaluate_transfer` takes **`agent_id`** and **`agent_api_key`** on each call (registered in dashboard Agents). Optional env vars `VERIDION_NEXUS_AGENT_ID` / `VERIDION_NEXUS_AGENT_API_KEY` in some setups are not required for the MCP tools when parameters are passed per call.
 
-**Versions (reference)**: `veridion-nexus-mcp@1.0.10`; standalone `veridion-shield-mcp@1.0.0` — confirm with `npm show`.
+**Versions (reference)**: `veridion-nexus-mcp@1.0.11` — confirm with `npm show`.
 
 **MCP registry** (umbrella listing): `io.github.Brano80/Veridion-nexus` on https://registry.modelcontextprotocol.io. Publishing uses `mcp-publisher` where applicable; keep tokens outside the repo.
 
@@ -329,20 +329,20 @@ Two **npm** surfaces:
 | `get_compliance_status` | Account compliance overview (enforcement mode, stats, pending, SCCs). |
 | `list_adequate_countries` | Countries by GDPR transfer status; optional filter. |
 
-**Setup (Shield)**: Claude Desktop — `claude_desktop_config.json`; Cursor — `.cursor/mcp.json`. Use package name **`veridion-shield-mcp`** in `args` for Sovereign Shield. See `mcp-server-shield/README.md` and **MCP Server** section in `veridion-landing/app/docs/page.tsx` (two-column split: Shield vs AL proxy).
+**Setup (Shield)**: Claude Desktop — `claude_desktop_config.json`; Cursor — `.cursor/mcp.json`. Use **`veridion-nexus-mcp`** in `args` (e.g. `["-y", "veridion-nexus-mcp"]`) with `VERIDION_NEXUS_API_KEY`. See `mcp-server/README.md`. The **docs** page (`veridion-landing/app/docs/page.tsx`) may still show older package names in places — align copy with **`veridion-nexus-mcp`** when editing the landing site.
 
 **Error handling**: 401/402/500 and network errors surface as formatted MCP text; trial **402** behaviour matches API.
 
 **Shadow Mode**: When API response reason starts with `"SHADOW MODE"`, tools append a note that enforcement is not active.
 
-#### Accountability Ledger Proxy (inside `veridion-nexus-mcp`)
+#### Accountability Ledger proxy (future `nexus-al-mcp`)
 
-The MCP server also contains the **Accountability Ledger (AL) proxy** — an MCP proxy that sits between AI agents and upstream MCP servers, intercepting every tool call to create a tamper-evident audit trail.
+The **Accountability Ledger (AL) proxy** — an MCP server that sits between AI agents and upstream MCP servers, intercepting every tool call to create a tamper-evident audit trail — is implemented in-repo but **not** shipped inside **`veridion-nexus-mcp`** in the current release (Shield-only binary). It is intended for a future **`nexus-al-mcp`** package.
 
 **Architecture**: See `docs/adr/001-al-architecture.md` (ADR).
 
-**Key files**:
-- `mcp-server/src/index.ts` — `AccountabilityLedgerProxy` (v0.2): **Phase 2** — after each `ToolCallEvent`, optional **DataTransferRecord** for non-EEA `transfer_policies` when PII heuristics match; **HumanOversightRecord** when `human_review_required`; env `AL_ORIGIN_COUNTRY`, `AL_EEA_EXTRA_COUNTRIES`. **Phase 1** upstream via `UpstreamMcpClient`, graceful shutdown.
+**Key files** (source retained; excluded from `mcp-server` `tsc` build while Shield is the only published entry):
+- `mcp-server/src/al-proxy.ts` — `AccountabilityLedgerProxy` (v0.2): **Phase 2** — after each `ToolCallEvent`, optional **DataTransferRecord** for non-EEA `transfer_policies` when PII heuristics match; **HumanOversightRecord** when `human_review_required`; env `AL_ORIGIN_COUNTRY`, `AL_EEA_EXTRA_COUNTRIES`. **Phase 1** upstream via `UpstreamMcpClient`, graceful shutdown.
 - `mcp-server/src/upstream-client.ts` — `UpstreamMcpClient`: MCP SDK `Client` connected with **stdio** (subprocess) or **SSE** (HTTP); discovers upstream tools on connect; optional reconnect on disconnect.
 - `mcp-server/src/al-client.ts` — `AlClient` class: HTTP client for Rust ACM API (`/api/acm/*`). Methods: `resolveAgent`, `recordToolCallEvent`, `createTrustAnnotation`, `degradeTrust`, `getSessionTrustLevel`, `createDataTransferRecord`, `createOversightRecord`, `updateOversightOutcome`.
 - `mcp-server/src/oauth.ts` — OAuth 2.1 token validation using `jose` (JWKS caching, `parseTraceparent` for OTel).
@@ -521,9 +521,9 @@ The MCP server also contains the **Accountability Ledger (AL) proxy** — an MCP
 - **Route**: `/docs`. Comprehensive API documentation with sidebar navigation.
 - **Sections**: Quick Start, Authentication, **Agent Registration** (link to dashboard login; users sign in and open Agents section), Evaluate Transfer, Response Reference, Error Codes, Shadow Mode, Code Examples (curl/Python/Node.js tabs), **MCP Server**, Limitations.
 - **MCP Server Section**: 
-  - Two-package split (callout + grid): **Sovereign Shield** → `npx -y veridion-shield-mcp` + `VERIDION_NEXUS_API_KEY`; **Accountability Ledger proxy** → `npx -y veridion-nexus-mcp` + AL env vars (`AL_API_BASE_URL`, `AL_SERVICE_TOKEN`, `UPSTREAM_MCP_COMMAND`, …); references `veridion-nexus-mcp@1.0.10` for the AL package
+  - **Sovereign Shield** → `npx -y veridion-nexus-mcp` + `VERIDION_NEXUS_API_KEY` (package **`veridion-nexus-mcp@1.0.11+`**). Accountability Ledger MCP proxy is **not** the published `veridion-nexus-mcp` entry in this release (planned as **`nexus-al-mcp`**); landing copy may still describe the old two-package split — update to match §9.6 when refreshing docs.
   - Comparison cards: REST API (manual integration) vs MCP Server (zero-code integration)
-  - Claude Desktop / Cursor JSON examples use **`veridion-shield-mcp`** for Sovereign Shield tools
+  - Claude Desktop / Cursor JSON examples should use **`veridion-nexus-mcp`** for Sovereign Shield tools
   - Available tools table (`evaluate_transfer`, `check_scc_coverage`, `get_compliance_status`, `list_adequate_countries`)
 - **Features**: Sticky sidebar, mobile dropdown, code examples with copy buttons, responsive design.
 
@@ -634,20 +634,20 @@ The MCP server also contains the **Accountability Ledger (AL) proxy** — an MCP
 | `app/utils/api.ts` | API client, types, trial expiry detection |
 | `app/utils/auth.ts` | Auth token utilities (placeholder for Phase 0.4) |
 
-### 16.1 File map (MCP — Shield + Accountability Ledger)
+### 16.1 File map (MCP — Sovereign Shield)
 
 | Path | Purpose |
 |------|--------|
-| `mcp-server-shield/src/index.ts` | Standalone **veridion-shield-mcp** package — Sovereign Shield tools |
-| `mcp-server-shield/package.json` | npm `veridion-shield-mcp` metadata |
-| `mcp-server/src/shield.ts` | Same Shield server; compiled to `dist/shield.js` for bundled bin in `veridion-nexus-mcp` |
+| `mcp-server/src/index.ts` | **veridion-nexus-mcp** — Sovereign Shield tools only (`dist/index.js`) |
+| `mcp-server/package.json` | npm `veridion-nexus-mcp` metadata (single `bin`) |
+| `mcp-server-shield/README.md` | **Deprecated** — points to `veridion-nexus-mcp` |
 
-### 16.2 File map (Accountability Ledger)
+### 16.2 File map (Accountability Ledger — future `nexus-al-mcp`)
 
 | Path | Purpose |
 |------|--------|
 | `docs/adr/001-al-architecture.md` | ADR: Accountability Ledger architecture decisions |
-| `mcp-server/src/index.ts` | AL MCP proxy (`AccountabilityLedgerProxy` class) |
+| `mcp-server/src/al-proxy.ts` | AL MCP proxy (`AccountabilityLedgerProxy` class); not compiled in Shield-only release |
 | `mcp-server/src/upstream-client.ts` | `UpstreamMcpClient` — real upstream MCP (stdio / SSE) |
 | `mcp-server/src/al-client.ts` | HTTP client for Rust ACM API |
 | `mcp-server/src/oauth.ts` | OAuth 2.1 token validation (jose, JWKS) |

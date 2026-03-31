@@ -5,7 +5,10 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::evidence::{self, CreateEventParams};
-use crate::shield::{Decision, TransferContext, evaluate_transfer_with_db, all_country_classifications, country_name};
+use crate::shield::{
+    classify_country, country_name, Decision, TransferContext, all_country_classifications,
+    evaluate_transfer_with_db,
+};
 use crate::review_queue;
 use crate::tenant::get_tenant_context;
 
@@ -415,8 +418,10 @@ pub async fn evaluate(
                     }
                 }
 
+                // Partner allowlist only for SCC-required destinations (same tier as shield `classify_country`).
                 let allowed_partners: Vec<String> = serde_json::from_value(agent.allowed_partners.clone()).unwrap_or_default();
-                if !allowed_partners.is_empty() {
+                let partner_policy_applies = !dest_code.is_empty() && classify_country(&dest_code) == "scc_required";
+                if !allowed_partners.is_empty() && partner_policy_applies {
                     if let Some(ref partner) = body.partner_name {
                         if !partner.is_empty() && !allowed_partners.iter().any(|p| p.eq_ignore_ascii_case(partner)) {
                             let mut violation_payload = serde_json::json!({
