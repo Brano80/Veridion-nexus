@@ -37,10 +37,12 @@ Always structure output as a Regulatory Contract:
 - GDPR Art. 44-49: International transfers
 - Art. 44: General principle (adequate safeguards)
 - Art. 45: Adequacy decisions
-- Art. 46: Appropriate safeguards (SCCs)
-- Art. 49: Derogations
-- Must classify countries: EU/EEA, Adequate, SCC-required, Blocked
-- Decisions: ALLOW (EU/EEA, Adequate), BLOCK (blocked countries), REVIEW (SCC-required, unknown)
+- Art. 46: **SCC** checks are automated via the registry; **BCR** and other Art. 46 mechanisms are **not** evaluated by runtime — document manually (`docs/REGULATORY_SCOPE.md`)
+- Art. 49: Derogations — **not automated** (roadmap / out of scope for enforcement logic)
+- Country tiers: EU/EEA, Adequate, SCC-required, **Blocked** (organizational policy — not a statutory ban on a country by name)
+- **Unknown/unclassified** destinations: **BLOCK** = conservative **product default** (other bases may exist outside the engine)
+- Static country lists: **quarterly review** against Commission sources; **last reviewed March 2026**
+- Decisions: ALLOW (EU/EEA, Adequate), BLOCK (policy-blocked tier, unclassified default), REVIEW (SCC-required, missing inputs)
 
 ### Review Queue (Human Oversight)
 - EU AI Act Art. 14: Human oversight for high-risk AI systems

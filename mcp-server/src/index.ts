@@ -86,13 +86,59 @@ function formatError(err: unknown): string {
   return `❌ Unknown error: ${String(err)}`;
 }
 
+/** GET /api/v1/scc-registries may return a bare array or `{ registries, total }` / `{ data }`. */
+function parseSccRegistriesResponse(raw: unknown): {
+  rows: Array<Record<string, unknown>>;
+  shapeWarning?: string;
+} {
+  if (Array.isArray(raw)) {
+    return { rows: raw };
+  }
+  if (raw !== null && typeof raw === "object") {
+    const o = raw as Record<string, unknown>;
+    if (Array.isArray(o.data)) {
+      return { rows: o.data as Array<Record<string, unknown>> };
+    }
+    if (Array.isArray(o.registries)) {
+      return { rows: o.registries as Array<Record<string, unknown>> };
+    }
+  }
+  return {
+    rows: [],
+    shapeWarning:
+      "SCC registries response was not a recognized format (expected a JSON array, or an object with a data or registries array).",
+  };
+}
+
+function sccDestinationCountryCode(scc: Record<string, unknown>): string {
+  return String(
+    scc.destination_country_code ?? scc.destinationCountryCode ?? ""
+  ).toUpperCase();
+}
+
+function sccPartnerName(scc: Record<string, unknown>): string {
+  return String(scc.partner_name ?? scc.partnerName ?? "");
+}
+
+function sccStatus(scc: Record<string, unknown>): string {
+  return String(scc.status ?? "—");
+}
+
+function sccExpiresAt(scc: Record<string, unknown>): unknown {
+  return scc.expires_at ?? scc.expiresAt;
+}
+
+function sccRegisteredAt(scc: Record<string, unknown>): unknown {
+  return scc.registered_at ?? scc.registeredAt;
+}
+
 // ---------------------------------------------------------------------------
 // Server
 // ---------------------------------------------------------------------------
 
 const server = new McpServer({
   name: "veridion-nexus-mcp",
-  version: "1.0.11",
+  version: "1.0.12",
 });
 
 // ---------------------------------------------------------------------------
@@ -305,11 +351,12 @@ server.registerTool(
       let text = `✅ SCC COVERAGE FOUND\n${filtered.length} active SCC(s) for ${country}:\n`;
 
       for (const scc of filtered) {
+        const exp = sccExpiresAt(scc);
         text +=
-          `\n  Partner: ${scc.partner_name ?? "—"}\n` +
-          `  Status: ${scc.status ?? "—"}\n` +
-          `  Expires: ${scc.expires_at ?? "No expiry set"}\n` +
-          `  Registered: ${scc.registered_at ?? "—"}\n`;
+          `\n  Partner: ${sccPartnerName(scc) || "—"}\n` +
+          `  Status: ${sccStatus(scc)}\n` +
+          `  Expires: ${exp != null ? String(exp) : "No expiry set"}\n` +
+          `  Registered: ${sccRegisteredAt(scc) ?? "—"}\n`;
       }
 
       text +=
@@ -350,10 +397,11 @@ server.registerTool(
         apiRequest("GET", "/api/v1/human_oversight/pending") as Promise<
           Array<Record<string, unknown>>
         >,
-        apiRequest("GET", "/api/v1/scc-registries") as Promise<
-          Array<Record<string, unknown>>
-        >,
+        apiRequest("GET", "/api/v1/scc-registries"),
       ]);
+
+      const { rows: sccRows, shapeWarning: sccShapeWarning } =
+        parseSccRegistriesResponse(sccs);
 
       const mode =
         String(settings.enforcement_mode ?? "shadow") === "enforce"
@@ -367,17 +415,20 @@ server.registerTool(
       // Calculate allowed as totalTransfers - blockedToday - pendingApprovals
       const allowed = Math.max(0, totalTransfers - blockedToday - pendingApprovals);
 
-      const activeSccCount = Array.isArray(sccs) ? sccs.length : 0;
+      const activeSccCount = sccShapeWarning ? 0 : sccRows.length;
       const now = new Date();
       const thirtyDays = 30 * 24 * 60 * 60 * 1000;
-      const expiringCount = Array.isArray(sccs)
-        ? sccs.filter((scc) => {
-            const exp = scc.expires_at;
-            if (!exp) return false;
-            const expDate = new Date(String(exp));
-            return expDate.getTime() - now.getTime() < thirtyDays;
-          }).length
-        : 0;
+      let expiringCount = 0;
+      try {
+        expiringCount = sccRows.filter((scc) => {
+          const exp = sccExpiresAt(scc);
+          if (exp == null) return false;
+          const expDate = new Date(String(exp));
+          return expDate.getTime() - now.getTime() < thirtyDays;
+        }).length;
+      } catch {
+        expiringCount = 0;
+      }
 
       let text =
         `📊 SOVEREIGN SHIELD COMPLIANCE STATUS\n` +
@@ -392,6 +443,11 @@ server.registerTool(
         `  Expiring within 30 days: ${expiringCount}\n\n` +
         `PENDING APPROVALS\n` +
         `  ${pendingCount} transfer(s) awaiting human review\n`;
+
+      if (sccShapeWarning) {
+        text +=
+          `\n⚠️ SCC registry: ${sccShapeWarning}\n`;
+      }
 
       if (pendingCount > 0) {
         text += `  ⚠️ Review required at: https://app.veridion-nexus.eu/review-queue\n`;
@@ -485,7 +541,7 @@ server.registerTool(
     description:
       "List all countries by their GDPR transfer status — EU/EEA (free flow), " +
       "adequate protection (Art. 45 adequacy decision), SCC required (Art. 46), " +
-      "or blocked (no legal basis). Use this to check a country's status before " +
+      "or blocked by organizational policy. Use this to check a country's status before " +
       "initiating a transfer, or to show a user which countries require additional " +
       "safeguards.",
     inputSchema: z.object({

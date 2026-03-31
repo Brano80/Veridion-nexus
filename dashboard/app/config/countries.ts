@@ -1,6 +1,7 @@
 /**
- * Shared country classification config (GDPR Art. 44-49).
- * Single source of truth for EU/EEA, Adequate, SCC-required, and Blocked countries.
+ * Shared country classification config (GDPR Chapter V).
+ * Single source of truth for EU/EEA, Adequate, SCC-required, and Blocked (organizational policy) tiers.
+ * Review cadence and product scope: docs/REGULATORY_SCOPE.md (repo root).
  */
 
 export const EU_EEA_COUNTRIES = new Set<string>([
@@ -160,7 +161,7 @@ export function getLegalBasis(countryCode: string): string {
   if (!countryCode) return '';
   const code = countryCode.toUpperCase();
   if (EU_EEA_COUNTRIES.has(code)) return 'Art. 45';
-  if (BLOCKED_COUNTRIES.has(code)) return 'Art. 44 Blocked';
+  if (BLOCKED_COUNTRIES.has(code)) return 'Policy blocked';
   if (ADEQUATE_COUNTRIES.has(code)) return 'Art. 45';
   if (SCC_REQUIRED_COUNTRIES.has(code)) return 'Art. 46 SCC';
   return 'Art. 46 SCC';
@@ -171,7 +172,7 @@ export function getLegalBasisFullText(countryCode: string): string {
   if (!countryCode) return '—';
   const code = countryCode.toUpperCase();
   if (EU_EEA_COUNTRIES.has(code)) return 'Art. 45 — Adequacy Decision (EU/EEA)';
-  if (BLOCKED_COUNTRIES.has(code)) return 'Art. 44 — Transfer Prohibited (Blocked)';
+  if (BLOCKED_COUNTRIES.has(code)) return 'Organizational policy — blocked destination';
   if (ADEQUATE_COUNTRIES.has(code)) return 'Art. 45 — Adequacy Decision';
   if (SCC_REQUIRED_COUNTRIES.has(code)) return 'Art. 46 — Standard Contractual Clauses Required';
   return 'Art. 46 — SCC Required (third country)';

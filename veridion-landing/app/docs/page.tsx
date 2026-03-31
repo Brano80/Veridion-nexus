@@ -562,7 +562,7 @@ app.use('/api/ai', shieldMiddleware);`}
                     language="json"
                     code={`{
   "decision": "BLOCK",
-  "reason": "China is blocked — no legal transfer mechanism available",
+  "reason": "China blocked by organizational policy — GDPR does not prohibit transfers to a country by name; this product tier is not permitted",
   "legal_basis": ["GDPR Art. 44", "GDPR Art. 46"],
   "country_status": "blocked",
   "seal_id": "seal_...",
@@ -1379,8 +1379,40 @@ async function callOpenAI(userData) {
               <p className="text-slate-700 mb-6">
                 Veridion Nexus supports demonstrable compliance — it does not guarantee it. Understand these limitations before integrating:
               </p>
+
+              <p className="text-slate-600 text-sm mb-6 border border-slate-200 rounded-lg p-4 bg-slate-50">
+                <strong className="text-slate-800">Regulatory scope summary:</strong> Chapter V alignment is described in product documentation. Country classification lists are maintained in software and reviewed periodically — <strong>last reviewed: March 2026</strong>. Reconcile against EU Commission sources at least <strong>quarterly</strong>.
+              </p>
               
               <div className="space-y-4">
+                <div className="border-l-4 border-amber-400 bg-amber-50 p-4 rounded-r-lg">
+                  <h3 className="font-semibold text-slate-900 mb-2">Art. 46 — SCC vs other safeguards</h3>
+                  <p className="text-slate-700 text-sm">
+                    The runtime enforces <strong>Standard Contractual Clauses (SCC)</strong> via your SCC registry. <strong>Binding Corporate Rules (BCR)</strong> and other appropriate safeguards under Art. 46 are <strong>not</strong> evaluated automatically — record them in your own compliance program.
+                  </p>
+                </div>
+
+                <div className="border-l-4 border-amber-400 bg-amber-50 p-4 rounded-r-lg">
+                  <h3 className="font-semibold text-slate-900 mb-2">Art. 49 derogations — out of scope</h3>
+                  <p className="text-slate-700 text-sm">
+                    Transfers that might rely on <strong>Art. 49</strong> derogations are <strong>not</strong> automated. Assessment stays with your legal process. <strong>Roadmap:</strong> possible future support for workflow or evidence capture only — not legal conclusions.
+                  </p>
+                </div>
+
+                <div className="border-l-4 border-amber-400 bg-amber-50 p-4 rounded-r-lg">
+                  <h3 className="font-semibold text-slate-900 mb-2">Blocked destinations — organizational policy</h3>
+                  <p className="text-slate-700 text-sm">
+                    The default “blocked” country tier is <strong>organizational policy</strong>, not a claim that GDPR statutorily prohibits transfers to a given country by name.
+                  </p>
+                </div>
+
+                <div className="border-l-4 border-amber-400 bg-amber-50 p-4 rounded-r-lg">
+                  <h3 className="font-semibold text-slate-900 mb-2">Unclassified destinations — conservative default</h3>
+                  <p className="text-slate-700 text-sm">
+                    Unknown or unclassified destinations may be <strong>BLOCK</strong>ed as a <strong>conservative product default</strong>. Other Chapter V mechanisms may still exist in your legal assessment outside this engine.
+                  </p>
+                </div>
+
                 <div className="border-l-4 border-amber-400 bg-amber-50 p-4 rounded-r-lg">
                   <h3 className="font-semibold text-slate-900 mb-2">Caller-provided classification</h3>
                   <p className="text-slate-700 text-sm">
@@ -1391,7 +1423,7 @@ async function callOpenAI(userData) {
                 <div className="border-l-4 border-amber-400 bg-amber-50 p-4 rounded-r-lg">
                   <h3 className="font-semibold text-slate-900 mb-2">Country list is static</h3>
                   <p className="text-slate-700 text-sm">
-                    EU adequacy decisions change. The blocked/adequate/SCC-required classification is updated manually — it does not pull live from the EU Commission. Verify current adequacy status at commission.europa.eu.
+                    EU adequacy decisions change. The blocked/adequate/SCC-required classification is updated manually — it does not pull live from the EU Commission. Verify current adequacy status at commission.europa.eu. Treat <strong>last reviewed: March 2026</strong> as a snapshot; plan at least <strong>quarterly</strong> reconciliation.
                   </p>
                 </div>
 
@@ -1419,7 +1451,7 @@ async function callOpenAI(userData) {
                 <div className="border-l-4 border-amber-400 bg-amber-50 p-4 rounded-r-lg">
                   <h3 className="font-semibold text-slate-900 mb-2">SCC verification is registry-based</h3>
                   <p className="text-slate-700 text-sm">
-                    Veridion Nexus checks whether an active SCC exists in your registry for the destination partner. It does not verify the legal validity or completeness of your SCCs.
+                    Veridion Nexus checks whether an active SCC exists in your registry for the destination partner. It does not verify the legal validity, completeness, or effectiveness of your safeguards (including supplementary measures under <strong>Schrems II</strong>), Transfer Impact Assessments, or DPAs. A registry match is <strong>not</strong> full Chapter V compliance.
                   </p>
                 </div>
               </div>

@@ -114,7 +114,7 @@ const TIER_LABEL: Record<CountryTransferTier, string> = {
   eu: 'EU/EEA — adequate protection',
   adequate: 'Adequate country',
   scc: 'SCC required — register SCC',
-  blocked: 'Blocked — no legal transfer mechanism',
+    blocked: 'Blocked — organizational policy',
 };
 
 function GdprA({ href, children }: { href: string; children: React.ReactNode }) {

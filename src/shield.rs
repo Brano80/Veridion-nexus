@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 
-// Country classification per GDPR Art. 44-49
+// Country classification per GDPR Chapter V (Art. 44-49). BLOCKED = organizational policy tier.
+// See docs/REGULATORY_SCOPE.md for scope, review cadence, and unknown-destination default.
 const EU_EEA: &[&str] = &[
     "AT","BE","BG","HR","CY","CZ","DK","EE","FI","FR","DE","GR","HU","IE","IT",
     "LV","LT","LU","MT","NL","PL","PT","RO","SK","SI","ES","SE","IS","LI","NO",
@@ -208,7 +209,10 @@ pub fn evaluate_transfer(ctx: &TransferContext) -> TransferDecision {
 
         "blocked" => TransferDecision {
             decision: Decision::BLOCK,
-            reason: format!("{} is blocked — no legal transfer mechanism available", country_name(&code)),
+            reason: format!(
+                "{} blocked by organizational policy — GDPR does not prohibit transfers to a country by name; this product tier is not permitted",
+                country_name(&code)
+            ),
             severity: "L3".into(),
             articles: vec!["GDPR Art. 44".into(), "GDPR Art. 46".into()],
             event_type: "DATA_TRANSFER_BLOCKED".into(),
@@ -250,7 +254,7 @@ pub fn evaluate_transfer(ctx: &TransferContext) -> TransferDecision {
             }
             TransferDecision {
                 decision: Decision::BLOCK,
-                reason: "No adequacy decision or SCC framework for this country — transfer blocked per GDPR Art. 44".into(),
+                reason: "Unclassified destination — transfer blocked by default (conservative product rule). Other Chapter V mechanisms (e.g. BCR) are not evaluated by this runtime.".into(),
                 severity: "L3".into(),
                 articles: vec!["GDPR Art. 44".into()],
                 event_type: "DATA_TRANSFER_BLOCKED".into(),
@@ -338,7 +342,10 @@ pub async fn evaluate_transfer_with_db(
 
         "blocked" => Ok(TransferDecision {
             decision: Decision::BLOCK,
-            reason: format!("{} is blocked — no legal transfer mechanism available", country_name(&code)),
+            reason: format!(
+                "{} blocked by organizational policy — GDPR does not prohibit transfers to a country by name; this product tier is not permitted",
+                country_name(&code)
+            ),
             severity: "L3".into(),
             articles: vec!["GDPR Art. 44".into(), "GDPR Art. 46".into()],
             event_type: "DATA_TRANSFER_BLOCKED".into(),
@@ -412,7 +419,7 @@ pub async fn evaluate_transfer_with_db(
             }
             Ok(TransferDecision {
                 decision: Decision::BLOCK,
-                reason: "No adequacy decision or SCC framework for this country — transfer blocked per GDPR Art. 44".into(),
+                reason: "Unclassified destination — transfer blocked by default (conservative product rule). Other Chapter V mechanisms (e.g. BCR) are not evaluated by this runtime.".into(),
                 severity: "L3".into(),
                 articles: vec!["GDPR Art. 44".into()],
                 event_type: "DATA_TRANSFER_BLOCKED".into(),

@@ -1,7 +1,7 @@
 # Project Reference — Veridion API / Sovereign Shield
 
 **Version:** 3.0  
-**Last updated:** 2026-03-30
+**Last updated:** 2026-03-31
 
 This is the **single project reference** for Veridion API: vision, scope, tech stack, configuration, and current behaviour (dashboard and API). Use it to onboard, scope work, and keep the codebase and docs aligned.
 
@@ -34,6 +34,17 @@ The vision is a **single, deployable API** that owns its schema and can grow fro
 
 **What it is not:** Not a fork or subset of veridion-nexus. Not a monorepo member that shares `migrations/` or `src/` with another project.
 
+### 2.1 Regulatory scope (GDPR Chapter V)
+
+Canonical write-up: **`docs/REGULATORY_SCOPE.md`**. In short:
+
+- **Art. 46**: Runtime automates **SCC** registry checks; **BCR** and other Art. 46 mechanisms are **manual / out of automated evaluation**.
+- **Art. 49** (derogations): **Not automated**; documented as out of scope; possible future roadmap item.
+- **Blocked tier**: **Organizational policy**, not “blocked by law” for a named country.
+- **Unknown / unclassified**: **BLOCK** = **conservative product default**; other bases may exist outside the engine.
+- **SCC registry match** ≠ full Schrems / TIA compliance — see public docs Limitations.
+- **Country lists**: static in `src/shield.rs` and `dashboard/app/config/countries.ts`; **last reviewed March 2026**; **quarterly review** against Commission sources recommended.
+
 ---
 
 ## 3. Overview (runtime)
@@ -41,7 +52,7 @@ The vision is a **single, deployable API** that owns its schema and can grow fro
 - **Backend**: Rust (Actix-web) API on `http://localhost:8080`.
 - **Frontend**: Next.js 14 dashboard (Sovereign Shield) in `dashboard/`, on `http://localhost:3000`.
 - **Landing page**: Next.js 14 in `veridion-landing/`, on `http://localhost:3001`. Contains marketing page and self-serve signup flow.
-- **MCP packages**: **`veridion-nexus-mcp`** — npm package from `mcp-server/` (`veridion-nexus-mcp@1.0.11` as of this doc), MCP registry (`io.github.Brano80/Veridion-nexus`). **Default entry** is **Sovereign Shield** tools only (`evaluate_transfer`, `check_scc_coverage`, `get_compliance_status`, `list_adequate_countries`): `npx -y veridion-nexus-mcp` with `VERIDION_NEXUS_API_KEY` (optional `VERIDION_NEXUS_API_URL`). The **Accountability Ledger MCP proxy** implementation is preserved in `mcp-server/src/al-proxy.ts` for a future **`nexus-al-mcp`** package — it is **not** compiled or published in this release. The legacy standalone **`veridion-shield-mcp`** folder `mcp-server-shield/` is **deprecated** (use `veridion-nexus-mcp` instead); see `mcp-server-shield/README.md`.
+- **MCP packages**: **`veridion-nexus-mcp`** — npm package from `mcp-server/` (`veridion-nexus-mcp@1.0.12` as of this doc), MCP registry (`io.github.Brano80/Veridion-nexus`). **Default entry** is **Sovereign Shield** tools only (`evaluate_transfer`, `check_scc_coverage`, `get_compliance_status`, `list_adequate_countries`): `npx -y veridion-nexus-mcp` with `VERIDION_NEXUS_API_KEY` (optional `VERIDION_NEXUS_API_URL`). The **Accountability Ledger MCP proxy** implementation is preserved in `mcp-server/src/al-proxy.ts` for a future **`nexus-al-mcp`** package — it is **not** compiled or published in this release. The legacy standalone **`veridion-shield-mcp`** folder `mcp-server-shield/` is **deprecated** (use `veridion-nexus-mcp` instead); see `mcp-server-shield/README.md`.
 - **Theme**: Dark (slate-900/800/700), emerald accents. Icons: `lucide-react`. Fonts: Inter, JetBrains Mono.
 
 ---
@@ -316,7 +327,7 @@ Dashboard-facing endpoints authenticated via JWT (tenant-scoped via `get_tenant_
 
 **Agent parameters**: Tool `evaluate_transfer` takes **`agent_id`** and **`agent_api_key`** on each call (registered in dashboard Agents). Optional env vars `VERIDION_NEXUS_AGENT_ID` / `VERIDION_NEXUS_AGENT_API_KEY` in some setups are not required for the MCP tools when parameters are passed per call.
 
-**Versions (reference)**: `veridion-nexus-mcp@1.0.11` — confirm with `npm show`.
+**Versions (reference)**: `veridion-nexus-mcp@1.0.12` — confirm with `npm show`.
 
 **MCP registry** (umbrella listing): `io.github.Brano80/Veridion-nexus` on https://registry.modelcontextprotocol.io. Publishing uses `mcp-publisher` where applicable; keep tokens outside the repo.
 
@@ -434,7 +445,7 @@ The **Accountability Ledger (AL) proxy** — an MCP server that sits between AI 
 - **Country Cards**: Each card shows GDPR article basis below badge:
   - Adequate countries: `Art. 45` (green)
   - SCC Required countries: `Art. 46(2)(c)` (orange)
-  - Blocked countries: `Art. 49 — No standard basis` (red)
+  - Blocked countries: `Organizational policy` (red)
 - **SCC Required Cards**: Include "Register SCC →" link button (`/scc-registry?country={code}`).
 - **DPF Section**: Full-width section below three columns explaining EU-US Data Privacy Framework:
   - Left column: "What is DPF?" — adoption, self-certification, Art. 45 adequacy for certified companies
@@ -521,7 +532,7 @@ The **Accountability Ledger (AL) proxy** — an MCP server that sits between AI 
 - **Route**: `/docs`. Comprehensive API documentation with sidebar navigation.
 - **Sections**: Quick Start, Authentication, **Agent Registration** (link to dashboard login; users sign in and open Agents section), Evaluate Transfer, Response Reference, Error Codes, Shadow Mode, Code Examples (curl/Python/Node.js tabs), **MCP Server**, Limitations.
 - **MCP Server Section**: 
-  - **Sovereign Shield** → `npx -y veridion-nexus-mcp` + `VERIDION_NEXUS_API_KEY` (package **`veridion-nexus-mcp@1.0.11+`**). Accountability Ledger MCP proxy is **not** the published `veridion-nexus-mcp` entry in this release (planned as **`nexus-al-mcp`**); landing copy may still describe the old two-package split — update to match §9.6 when refreshing docs.
+  - **Sovereign Shield** → `npx -y veridion-nexus-mcp` + `VERIDION_NEXUS_API_KEY` (package **`veridion-nexus-mcp@1.0.12+`**). Accountability Ledger MCP proxy is **not** the published `veridion-nexus-mcp` entry in this release (planned as **`nexus-al-mcp`**); landing copy may still describe the old two-package split — update to match §9.6 when refreshing docs.
   - Comparison cards: REST API (manual integration) vs MCP Server (zero-code integration)
   - Claude Desktop / Cursor JSON examples should use **`veridion-nexus-mcp`** for Sovereign Shield tools
   - Available tools table (`evaluate_transfer`, `check_scc_coverage`, `get_compliance_status`, `list_adequate_countries`)

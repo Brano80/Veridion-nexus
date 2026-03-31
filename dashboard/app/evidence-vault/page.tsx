@@ -628,7 +628,9 @@ function EvidenceVaultPageContent() {
         const gdprBasis = isHumanOversight
           ? getHumanOversightLegalBasis(e.eventType || '', e.articles)
           : e.payload?.decision === 'BLOCK' && e.payload?.country_status === 'unknown'
-            ? 'Art. 44 Blocked'
+            ? 'Unclassified — conservative default'
+            : e.payload?.decision === 'BLOCK' && e.payload?.country_status === 'blocked'
+            ? 'Organizational policy'
             : hasValidArticles
               ? validArticles.join(', ')
               : e.payload?.articles?.[0] || getLegalBasis(countryCode) || '—';
@@ -745,7 +747,9 @@ function EvidenceVaultPageContent() {
         const gdprBasis = isHumanOversight
           ? getHumanOversightLegalBasis(e.eventType || '', e.articles)
           : e.payload?.decision === 'BLOCK' && e.payload?.country_status === 'unknown'
-            ? 'Art. 44 Blocked'
+            ? 'Unclassified — conservative default'
+            : e.payload?.decision === 'BLOCK' && e.payload?.country_status === 'blocked'
+            ? 'Organizational policy'
             : hasValidArticles
               ? validArticles.join(', ')
               : e.payload?.articles?.[0] || getLegalBasis(countryCode) || '—';

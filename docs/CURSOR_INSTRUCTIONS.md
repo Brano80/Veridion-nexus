@@ -160,3 +160,9 @@ All scoped to the logged-in tenant via `get_tenant_context`.
 - [ ] `cd dashboard && npm run build` exits 0 — all three ACM pages compile
 - [ ] `cargo check` passes with no new errors
 - [ ] Sidebar shows ACM section with three links between Evidence Vault and System
+
+---
+
+## Regulatory scope (GDPR Chapter V)
+
+Product/legal scope for transfers is summarized in **`docs/REGULATORY_SCOPE.md`** (SCC vs BCR, blocked tier = organizational policy, Art. 49 out of scope, static lists + review cadence). Keep UI and API copy aligned with that document when changing Shield behaviour.

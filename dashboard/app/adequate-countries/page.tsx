@@ -65,7 +65,7 @@ export default function AdequateCountriesPage() {
             EU adequacy, SCC-required, and blocked destinations
           </p>
           <p className="text-slate-500 text-xs mt-2">
-            Based on EU Commission adequacy decisions where applicable. Lists may not be exhaustive or current; check official Commission sources. Last reviewed: March 2026.
+            Based on EU Commission adequacy decisions where applicable. Lists may not be exhaustive or current; check official Commission sources. Last reviewed: March 2026. Reconcile against official sources at least quarterly.
           </p>
         </div>
 
@@ -170,7 +170,7 @@ export default function AdequateCountriesPage() {
           <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 flex flex-col">
             <h2 className="text-lg font-semibold text-white mb-1">Blocked Countries</h2>
             <p className="text-slate-400 text-sm mb-4">
-              No transfer permitted under organisational policy (GDPR does not prohibit any country by name; a legal basis is required)
+              Blocked by organizational policy — not a statutory ban on a country by name under GDPR
             </p>
             <div className="grid grid-cols-1 gap-3 flex-1">
               {BLOCKED_COUNTRY_LIST.map((country) => (
@@ -180,7 +180,7 @@ export default function AdequateCountriesPage() {
                   badgeLabel="Blocked"
                   badgeClass="bg-red-500/15 text-red-400 border border-red-500/25"
                   borderHoverClass="hover:border-red-500/50"
-                  legalBasis="Art. 49 — No standard basis"
+                  legalBasis="Organizational policy"
                 />
               ))}
             </div>
@@ -248,7 +248,7 @@ export default function AdequateCountriesPage() {
         <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 space-y-2">
           <p className="text-sm text-slate-400">
             <strong className="text-white">Note:</strong> EU-Recognised adequate countries permit transfers under GDPR Article 45 without additional safeguards.
-            SCC-required countries need appropriate safeguards under Art. 46 (e.g. Standard Contractual Clauses, BCRs). In specific cases, derogations under Art. 49 may apply. Blocked countries are not permitted as transfer destinations under current organisational policy; the GDPR does not prohibit transfers to any specific country by name.
+            SCC-required countries: this product automates SCC checks only; BCRs and other Art. 46 safeguards must be evidenced manually. Art. 49 derogations are not evaluated by the runtime (see product docs / roadmap). Blocked countries: organizational policy — not a claim that GDPR prohibits that destination by name. Unclassified destinations: blocked by default (conservative product rule).
           </p>
           <p className="text-xs text-slate-400">
             Other Art. 46 transfer mechanisms — including Binding Corporate Rules (BCR) and approved codes of conduct — may also provide a valid basis for cross-border transfers where applicable.

@@ -427,7 +427,7 @@ export default function SovereignShieldPage() {
       .filter((id): id is string => !!id && !skipValues.includes(id.toLowerCase()))
   ).size;
 
-  // HIGH RISK DESTINATIONS (24H): distinct destinations on the Blocked countries list only (GDPR Art. 49 — no legal basis).
+  // HIGH RISK DESTINATIONS (24H): distinct destinations on the organizational Blocked countries list only.
   // Excludes agent policy violations (e.g. Slovakia blocked by agent policy); only counts BLOCKED_COUNTRIES.
   const highRiskDestinations = new Set(
     last24HoursTransferEvents
@@ -561,7 +561,7 @@ export default function SovereignShieldPage() {
             <div className="bg-slate-800 border border-slate-600 rounded-xl p-4 max-w-md w-full shadow-xl">
               <h3 className="text-sm font-semibold text-white mb-2">Enable Enforcement</h3>
               <p className="text-slate-300 text-xs mb-3">
-                You are about to enable enforcement. Transfers to blocked countries will be rejected. SCC-required transfers without valid SCC will be sent to Review Queue. This affects live traffic.
+                You are about to enable enforcement. Transfers to organizationally blocked destinations will be rejected. SCC-required transfers without valid SCC will be sent to Review Queue. This affects live traffic.
               </p>
               <p className="text-slate-400 text-xs mb-2">Type ENABLE_ENFORCEMENT to proceed:</p>
               <input
@@ -660,7 +660,7 @@ export default function SovereignShieldPage() {
               <AlertTriangle className={`w-3.5 h-3.5 ${highRiskDestinations === 0 ? 'text-slate-500' : 'text-red-500'}`} />
             </div>
             <div className={`text-xl font-bold ${highRiskDestinations === 0 ? 'text-slate-400' : 'text-red-400'}`}>{highRiskDestinations}</div>
-            <div className="text-[10px] text-slate-500 mt-0.5">Blocked countries (no legal basis)</div>
+            <div className="text-[10px] text-slate-500 mt-0.5">Policy-blocked destinations (24h)</div>
           </div>
           <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
             <div className="flex items-center justify-between mb-1.5">
@@ -912,9 +912,12 @@ export default function SovereignShieldPage() {
                             : getCountryCodeFromName(displayName);
                         }
                         
+                        const cs = event.payload?.country_status as string | undefined;
                         const legalBasis =
-                          event.payload?.decision === 'BLOCK' && event.payload?.country_status === 'unknown'
-                            ? 'Art. 44 Blocked'
+                          event.payload?.decision === 'BLOCK' && cs === 'unknown'
+                            ? 'Unclassified — conservative default'
+                            : event.payload?.decision === 'BLOCK' && cs === 'blocked'
+                            ? 'Organizational policy'
                             : event.payload?.articles?.[0] || getLegalBasis(countryCode) || '—';
                         
                         // Extract agent ID or endpoint (skip sovereign-shield)
