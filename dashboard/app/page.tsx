@@ -82,10 +82,7 @@ export default function SovereignShieldPage() {
       const decidedMerged = buildDecidedEvidenceSet(decidedIds, eventsArray, reviewQueueAll);
       setDecidedEvidenceIds(decidedMerged);
       const decidedSig = Array.from(decidedMerged).sort().join('|');
-      if (decidedSig !== lastDecidedIdsLogRef.current) {
-        lastDecidedIdsLogRef.current = decidedSig;
-        console.log('decidedEvidenceIds', Array.from(decidedMerged));
-      }
+      lastDecidedIdsLogRef.current = decidedSig;
       setEvents(eventsArray);
       setSccRegistries(sccArray);
       sccRegistriesRef.current = sccArray; // Update ref with latest SCC registries
@@ -198,9 +195,6 @@ export default function SovereignShieldPage() {
       return true;
     });
 
-    console.log(`Found ${needsAttention.length} events that need attention`);
-    console.log(`Existing evidence IDs in queue:`, Array.from(existingEvidenceIds));
-
     // Build set of (destination_code, partner) that already have a PENDING review (burst-grouped)
     const pendingDestinationPartners = new Set<string>();
     for (const item of reviewQueueAll) {
@@ -268,7 +262,7 @@ export default function SovereignShieldPage() {
         // Mark this destination+partner as having a pending review so we skip the rest this run
         const key = `${countryCode}::${(partner || '').trim().toLowerCase()}`;
         if (countryCode.length === 2) pendingDestinationPartners.add(key);
-        console.log(`Added event ${evidenceId} to review queue with seal ${result.sealId}`);
+        // Event added to review queue
       } catch (error) {
         console.error(`Failed to add event ${evidenceId} to review queue:`, error);
         // Continue with other events even if one fails
@@ -522,11 +516,6 @@ export default function SovereignShieldPage() {
       event.payload?.decision !== undefined
     );
   });
-
-  // Log payload structure for debugging
-  if (transferEvents.length > 0) {
-    console.log('event payload sample:', transferEvents[0]?.payload);
-  }
 
   return (
     <DashboardLayout>

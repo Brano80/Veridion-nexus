@@ -1,9 +1,14 @@
+import os
 import requests
+
+API_KEY = os.environ.get("VERIDION_API_KEY", "")
+if not API_KEY:
+    raise SystemExit("ERROR: Set VERIDION_API_KEY environment variable")
 
 r = requests.post(
     "https://api.veridion-nexus.eu/api/v1/shield/evaluate",
     headers={
-        "Authorization": "Bearer ss_test_25cc5fc40167da75ea0f34ac8b5a53ca",
+        "Authorization": f"Bearer {API_KEY}",
         "Content-Type": "application/json"
     },
     json={

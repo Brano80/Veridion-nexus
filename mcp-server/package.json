@@ -1,13 +1,12 @@
 {
   "name": "veridion-nexus-mcp",
   "mcpName": "io.github.Brano80/Veridion-nexus",
-  "version": "1.0.10",
-  "description": "Veridion Nexus MCP server - GDPR Art. 44-49 runtime compliance for AI agents",
+  "version": "1.0.11",
+  "description": "Veridion Nexus MCP server — GDPR Art. 44-49 runtime transfer enforcement for AI agents",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "veridion-nexus-mcp": "./dist/index.js",
-    "veridion-shield-mcp": "./dist/shield.js"
+    "veridion-nexus-mcp": "./dist/index.js"
   },
   "scripts": {
     "build": "tsc",

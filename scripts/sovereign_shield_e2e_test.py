@@ -4,12 +4,15 @@ Sovereign Shield End-to-End Test
 Simulates an EU SaaS startup (Almaco) with AI agent traffic.
 """
 
+import os
 import requests
 import json
 import time
 
-API_BASE = "https://api.veridion-nexus.eu"
-API_KEY = "ss_test_244c6c2a87e5ab765c3e36fef9345cd4"
+API_BASE = os.environ.get("VERIDION_API_URL", "https://api.veridion-nexus.eu")
+API_KEY = os.environ.get("VERIDION_API_KEY", "")
+if not API_KEY:
+    raise SystemExit("ERROR: Set VERIDION_API_KEY environment variable")
 
 HEADERS = {
     "Authorization": f"Bearer {API_KEY}",

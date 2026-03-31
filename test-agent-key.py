@@ -1,10 +1,13 @@
+import os
 import requests
 import time
 
 API_BASE = "https://api.veridion-nexus.eu"
-TENANT_KEY = "ss_test_25cc5fc40167da75ea0f34ac8b5a53ca"
-AGENT_ID = "agt_a1cb88597a46"
-AGENT_KEY = "agt_key_a0c720d7993f83a3229e3faa86c91d92"
+TENANT_KEY = os.environ.get("VERIDION_API_KEY", "")
+if not TENANT_KEY:
+    raise SystemExit("ERROR: Set VERIDION_API_KEY environment variable")
+AGENT_ID = os.environ.get("AGENT_ID", "agt_a1cb88597a46")
+AGENT_KEY = os.environ.get("AGENT_API_KEY", "")
 
 HEADERS = {
     "Authorization": f"Bearer {TENANT_KEY}",

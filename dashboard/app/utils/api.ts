@@ -88,7 +88,6 @@ export function getAuthHeaders(): Record<string, string> {
   const headers: Record<string, string> = token
     ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
     : { 'Content-Type': 'application/json' };
-  console.log('[getAuthHeaders] Token present:', !!token, 'Headers:', headers);
   return headers;
 }
 
@@ -284,8 +283,7 @@ export async function fetchSCCRegistries(): Promise<SCCRegistry[]> {
   checkTrialExpired(res);
   if (!res.ok) throw new Error('Failed to fetch SCC registries');
   const data = await res.json();
-  console.log('fetchSCCRegistries raw response:', JSON.stringify(data, null, 2));
-  
+
   // Backend returns { registries: [...], total: ... } — return all statuses, frontend filters by tab
   const raw = Array.isArray(data.registries) ? data.registries : Array.isArray(data) ? data : [];
 
@@ -403,8 +401,6 @@ export async function createSCCRegistry(data: {
     sccModule: data.sccModule || null,
   };
 
-  console.log('SCC Registry API Request:', JSON.stringify(requestBody, null, 2));
-
   const res = await fetch(`${API_BASE}/api/v1/scc-registries`, {
     method: 'POST',
     headers: getAuthHeaders(),
@@ -412,8 +408,7 @@ export async function createSCCRegistry(data: {
   });
   
   checkTrialExpired(res);
-  console.log('SCC Registry API Response Status:', res.status, res.statusText);
-  
+
   // Read response body once as text
   const responseText = await res.text();
   
@@ -432,8 +427,7 @@ export async function createSCCRegistry(data: {
   
   // Parse successful response
   const response = JSON.parse(responseText);
-  console.log('SCC Registry API Success Response:', response);
-  
+
   // Convert backend response to frontend format
   return {
     id: response.id,

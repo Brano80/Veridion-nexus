@@ -2,14 +2,17 @@
 """Latency test: 1 evaluate() call per adequate country."""
 
 import json
+import os
 import statistics
 import time
 import urllib.request
 
 API_URL = "https://api.veridion-nexus.eu/api/v1/shield/evaluate"
-API_KEY = "ss_test_25cc5fc40167da75ea0f34ac8b5a53ca"
-AGENT_ID = "agt_a1cb88597a46"
-AGENT_API_KEY = "agt_key_a0c720d7993f83a3229e3faa86c91d92"
+API_KEY = os.environ.get("VERIDION_API_KEY", "")
+if not API_KEY:
+    raise SystemExit("ERROR: Set VERIDION_API_KEY environment variable")
+AGENT_ID = os.environ.get("AGENT_ID", "agt_a1cb88597a46")
+AGENT_API_KEY = os.environ.get("AGENT_API_KEY", "")
 
 ADEQUATE_COUNTRIES = [
     "AD", "AR", "BR", "CA", "FO", "GG", "IL", "IM", "JP", "JE", "NZ", "KR", "CH", "GB", "UY",

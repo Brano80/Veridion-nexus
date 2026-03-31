@@ -352,7 +352,7 @@ function EvidenceVaultPageContent() {
       let orgName = 'Confidential';
       try {
         if (typeof window !== 'undefined') {
-          const raw = sessionStorage.getItem('ss_user') || localStorage.getItem('ss_user');
+          const raw = sessionStorage.getItem('ss_user');
           if (raw) {
             const u = JSON.parse(raw) as {
               tenant_name?: string;

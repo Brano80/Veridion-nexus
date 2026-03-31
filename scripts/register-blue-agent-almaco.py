@@ -17,7 +17,9 @@ import os
 import requests
 
 API_BASE = os.environ.get("VERIDION_API_URL", "https://api.veridion-nexus.eu")
-API_KEY = "ss_test_25cc5fc40167da75ea0f34ac8b5a53ca"  # Almaco tenant
+API_KEY = os.environ.get("VERIDION_API_KEY", "")
+if not API_KEY:
+    raise SystemExit("ERROR: Set VERIDION_API_KEY environment variable")
 ENDPOINT = f"{API_BASE}/api/v1/agents"
 
 HEADERS = {

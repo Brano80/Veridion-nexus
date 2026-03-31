@@ -18,7 +18,10 @@ import requests
 
 API_BASE = os.environ.get("API_BASE", "https://api.veridion-nexus.eu").rstrip("/")
 TOKEN = os.environ.get("AL_SERVICE_TOKEN", "")
-VERIDION_API_KEY = os.environ.get("VERIDION_API_KEY", "ss_test_25cc5fc40167da75ea0f34ac8b5a53ca")
+VERIDION_API_KEY = os.environ.get("VERIDION_API_KEY", "")
+if not VERIDION_API_KEY:
+    print("ERROR: Set VERIDION_API_KEY environment variable", file=sys.stderr)
+    sys.exit(1)
 TENANT_ID = os.environ.get("TENANT_ID")
 
 

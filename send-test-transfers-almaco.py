@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """Send 6 test transfers to Veridion API for Almaco tenant."""
 
+import os
 import time
 import requests
 
-API_BASE = "https://api.veridion-nexus.eu"
-API_KEY = "ss_test_25cc5fc40167da75ea0f34ac8b5a53ca"
+API_BASE = os.environ.get("VERIDION_API_URL", "https://api.veridion-nexus.eu")
+API_KEY = os.environ.get("VERIDION_API_KEY", "")
+if not API_KEY:
+    raise SystemExit("ERROR: Set VERIDION_API_KEY environment variable")
 ENDPOINT = f"{API_BASE}/api/v1/shield/evaluate"
 
 HEADERS = {

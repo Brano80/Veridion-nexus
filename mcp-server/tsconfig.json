@@ -14,5 +14,14 @@
     "declaration": true
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "test-client.ts"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "test-client.ts",
+    "src/al-proxy.ts",
+    "src/al-client.ts",
+    "src/upstream-client.ts",
+    "src/oauth.ts",
+    "src/types/acm.ts"
+  ]
 }

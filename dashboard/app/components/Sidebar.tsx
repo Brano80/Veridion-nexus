@@ -65,11 +65,6 @@ export default function Sidebar() {
             );
           })}
           <div className="border-t border-slate-700 mt-4 mb-1.5" />
-          {/* ACM section: heading + nav links removed; structure preserves spacing between dividers */}
-          <div className="px-2 py-0.5 min-h-[1.125rem]" aria-hidden />
-          <div className="flex min-h-[2.25rem] items-center px-2 py-1.5" aria-hidden />
-          <div className="flex min-h-[2.25rem] items-center px-2 py-1.5" aria-hidden />
-          <div className="border-t border-slate-700 mt-4 mb-1.5" />
           <div className="px-2 py-0.5">
             <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
               System

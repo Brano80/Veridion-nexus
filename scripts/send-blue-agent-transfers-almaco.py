@@ -10,9 +10,11 @@ import time
 import requests
 
 API_BASE = os.environ.get("VERIDION_API_URL", "https://api.veridion-nexus.eu")
-API_KEY = "ss_test_25cc5fc40167da75ea0f34ac8b5a53ca"  # Almaco tenant
+API_KEY = os.environ.get("VERIDION_API_KEY", "")
+if not API_KEY:
+    raise SystemExit("ERROR: Set VERIDION_API_KEY environment variable")
 AGENT_ID = os.environ.get("BLUE_AGENT_ID", "agt_4a345b2b5160")
-AGENT_API_KEY = os.environ.get("BLUE_AGENT_API_KEY", "agt_key_bb7eb0b468b63c2a7bcad3dd91789f3d")
+AGENT_API_KEY = os.environ.get("BLUE_AGENT_API_KEY", "")
 
 ENDPOINT = f"{API_BASE}/api/v1/shield/evaluate"
 HEADERS = {

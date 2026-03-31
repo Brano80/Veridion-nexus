@@ -1,10 +1,14 @@
 # Veridion Nexus MCP Server
 
-Two MCP servers in one package:
+**Default entry:** Sovereign Shield tools (GDPR Art. 44–49 transfer enforcement).
 
-## Sovereign Shield (GDPR transfer enforcement)
+## Usage
 
-`npx veridion-shield-mcp` (binary: `veridion-shield-mcp`)
+```bash
+npx veridion-nexus-mcp
+```
+
+**Binary:** `veridion-nexus-mcp` → `dist/index.js`
 
 **Tools:** `evaluate_transfer`, `check_scc_coverage`, `get_compliance_status`, `list_adequate_countries`
 
@@ -12,10 +16,8 @@ Two MCP servers in one package:
 
 Optional: `VERIDION_NEXUS_API_URL` (default: `https://api.veridion-nexus.eu`)
 
+---
+
 ## Accountability Ledger (MCP audit proxy)
 
-`npx veridion-nexus-mcp` (binary: `veridion-nexus-mcp`)
-
-**Requires:** `AL_API_BASE_URL`, `AL_SERVICE_TOKEN`, `UPSTREAM_MCP_COMMAND`
-
-The AL proxy forwards tool calls to an upstream MCP server and records audit events to the Veridion API.
+The AL proxy implementation lives in `src/al-proxy.ts` for a future **`nexus-al-mcp`** package. It is **not** compiled or published in this release.

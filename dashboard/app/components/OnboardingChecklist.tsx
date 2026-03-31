@@ -161,7 +161,7 @@ export default function OnboardingChecklist({ events, enforcementMode }: Props) 
               <span className="text-sm text-slate-400 flex flex-wrap items-center gap-2">
                 3. Make your first evaluate() call
                 <a
-                  href="/docs"
+                  href="https://www.veridion-nexus.eu/docs"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-emerald-400 hover:text-emerald-300 font-medium"
@@ -207,7 +207,7 @@ export default function OnboardingChecklist({ events, enforcementMode }: Props) 
               <span className="mt-0.5 h-5 w-5 shrink-0 rounded-full border-2 border-slate-500 bg-slate-800" />
               <span className="text-sm text-slate-400 flex flex-wrap items-center gap-2">
                 5. Enable enforcement mode
-                <Link href="/settings" className="text-emerald-400 hover:text-emerald-300 font-medium inline-flex items-center gap-0.5">
+                <Link href="/" className="text-emerald-400 hover:text-emerald-300 font-medium inline-flex items-center gap-0.5">
                   →
                 </Link>
               </span>
