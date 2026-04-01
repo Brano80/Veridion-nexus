@@ -281,7 +281,7 @@ class AccountabilityLedgerProxy {
 
       session.annotationRef = oversight.id;
 
-      console.log(
+      console.error(
         `[AL Proxy] HumanOversightRecord created: id=${oversight.id} ` +
         `event_ref=${eventId} session=${session.sessionId}`,
       );
@@ -291,12 +291,21 @@ class AccountabilityLedgerProxy {
   }
 
   async initSession(authHeader?: string, traceparent?: string): Promise<void> {
-    const rawToken = extractBearerToken(authHeader ?? process.env.AL_AGENT_TOKEN);
-    if (!rawToken) {
-      throw new Error('No Bearer token. Agent must supply OAuth 2.1 credentials.');
-    }
+    const authMode = process.env.AL_AUTH_MODE ?? 'jwks';
 
-    const tokenData = await validateToken(rawToken, traceparent);
+    let tokenData: Awaited<ReturnType<typeof validateToken>>;
+
+    if (authMode === 'dev_bypass') {
+      // Claude Desktop does not send a Bearer token. oauth.ts uses AL_DEV_CLIENT_ID only;
+      // the token string is ignored in dev_bypass (JWKS is never called).
+      tokenData = await validateToken('dev_bypass_no_jwt_required', traceparent);
+    } else {
+      const rawToken = extractBearerToken(authHeader ?? process.env.AL_AGENT_TOKEN);
+      if (!rawToken) {
+        throw new Error('No Bearer token. Agent must supply OAuth 2.1 credentials.');
+      }
+      tokenData = await validateToken(rawToken, traceparent);
+    }
 
     const agentRecord = await this.alClient.resolveAgent(tokenData.client_id);
     if (!agentRecord) {
@@ -327,7 +336,7 @@ class AccountabilityLedgerProxy {
       parentSpanId: tokenData.parent_span_id,
     };
 
-    console.log(
+    console.error(
       `[AL Proxy] Session started: agent=${agentRecord.display_name} ` +
       `session=${sessionId} trust=trusted`,
     );
@@ -358,7 +367,7 @@ class AccountabilityLedgerProxy {
     session.trustLevel = newLevel;
     session.annotationRef = annotation.id;
 
-    console.log(
+    console.error(
       `[AL Proxy] Trust degraded: session=${session.sessionId} ` +
       `${prev}→${newLevel} trigger=${trigger}`,
     );
@@ -369,7 +378,7 @@ class AccountabilityLedgerProxy {
     await this.initSession();
 
     const shutdown = async (signal: string) => {
-      console.log(`[AL Proxy] Received ${signal}, shutting down…`);
+      console.error(`[AL Proxy] Received ${signal}, shutting down…`);
       await this.upstream.disconnect();
       process.exit(0);
     };
@@ -378,7 +387,7 @@ class AccountabilityLedgerProxy {
 
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    console.log('[AL Proxy] Ready (v0.2). Forwarding tool calls to upstream MCP server.');
+    console.error('[AL Proxy] Ready (v0.2). Forwarding tool calls to upstream MCP server.');
   }
 
   private ensureSession(): void {

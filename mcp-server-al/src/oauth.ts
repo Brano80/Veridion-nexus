@@ -103,6 +103,7 @@ export async function validateToken(
 ): Promise<ValidatedToken> {
   const config = getConfig();
 
+  // Dev bypass must run before any JWT / JWKS work (no Bearer token in dev).
   // ── Dev bypass ──────────────────────────────────────────────────────────
   if (config.auth_mode === 'dev_bypass') {
     console.warn('[AL OAuth] DEV BYPASS ACTIVE — not validating token. Never use in production.');

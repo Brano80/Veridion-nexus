@@ -1,6 +1,6 @@
 {
   "name": "nexus-al-mcp",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "Accountability Ledger MCP proxy — tamper-evident audit trail for AI agent tool calls (EU AI Act Art. 12)",
   "type": "module",
   "main": "dist/index.js",

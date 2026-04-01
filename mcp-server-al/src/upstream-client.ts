@@ -85,7 +85,7 @@ export class UpstreamMcpClient {
     transport.onclose = () => {
       this.connected = false;
       this.tools = [];
-      console.warn(
+      console.error(
         `[AL Upstream] Upstream MCP disconnected. Reconnecting in ${this.config.reconnectMs}ms…`,
       );
       setTimeout(() => this.connect().catch(console.error), this.config.reconnectMs);
@@ -102,7 +102,7 @@ export class UpstreamMcpClient {
     const result = await this.client.listTools();
     this.tools = result.tools;
 
-    console.log(
+    console.error(
       `[AL Upstream] Connected (${this.config.mode}). ` +
       `Upstream tools: ${this.tools.map((t) => t.name).join(', ') || '(none)'}`,
     );
