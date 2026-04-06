@@ -164,33 +164,18 @@ pub async fn create_tool_call_event(
     }
 
     let event_id = Uuid::new_v4();
-    let agent_uuid = match Uuid::parse_str(&body.agent_id) {
-        Ok(id) => id,
-        Err(_) => {
-            let agent_row: Option<(Uuid,)> = sqlx::query_as(
-                "SELECT id FROM agents WHERE id::text = $1 OR oauth_client_id = $1"
-            )
-            .bind(&body.agent_id)
-            .fetch_optional(pool.get_ref())
-            .await
-            .ok()
-            .flatten();
-            match agent_row {
-                Some((id,)) => id,
-                None => return HttpResponse::BadRequest().json(serde_json::json!({
-                    "error": "Invalid agent_id"
-                })),
-            }
-        }
-    };
-
-    let session_uuid = Uuid::parse_str(&body.session_id).unwrap_or_else(|_| Uuid::new_v4());
     let tenant_uuid = match Uuid::parse_str(&body.tenant_id) {
         Ok(id) => id,
         Err(_) => return HttpResponse::BadRequest().json(serde_json::json!({
             "error": "Invalid tenant_id"
         })),
     };
+    let agent_id_str = match resolve_agent_id_for_tenant(pool.get_ref(), &body.agent_id, tenant_uuid).await {
+        Ok(s) => s,
+        Err(resp) => return resp,
+    };
+
+    let session_uuid = Uuid::parse_str(&body.session_id).unwrap_or_else(|_| Uuid::new_v4());
 
     let called_at = chrono::DateTime::parse_from_rfc3339(&body.called_at)
         .map(|dt| dt.with_timezone(&chrono::Utc))
@@ -205,7 +190,7 @@ pub async fn create_tool_call_event(
     let prev_hash: Option<String> = sqlx::query_scalar(
         "SELECT event_hash FROM tool_call_events WHERE agent_id = $1 ORDER BY created_at DESC LIMIT 1"
     )
-    .bind(agent_uuid)
+    .bind(&agent_id_str)
     .fetch_optional(pool.get_ref())
     .await
     .ok()
@@ -215,7 +200,7 @@ pub async fn create_tool_call_event(
     let canonical = format!(
         "{}{}{}{}{}{}{}{}{}",
         event_id,
-        agent_uuid,
+        agent_id_str,
         session_uuid,
         body.tool_id,
         called_at.to_rfc3339(),
@@ -248,7 +233,7 @@ pub async fn create_tool_call_event(
         ) RETURNING created_at"#,
     )
     .bind(event_id)
-    .bind(agent_uuid)
+    .bind(&agent_id_str)
     .bind(session_uuid)
     .bind(tenant_uuid)
     .bind(&body.tool_id)
@@ -326,32 +311,17 @@ pub async fn create_trust_annotation(
     }
 
     let annotation_id = Uuid::new_v4();
-    let agent_uuid = match Uuid::parse_str(&body.agent_id) {
-        Ok(id) => id,
-        Err(_) => {
-            let row: Option<(Uuid,)> = sqlx::query_as(
-                "SELECT id FROM agents WHERE id::text = $1 OR oauth_client_id = $1"
-            )
-            .bind(&body.agent_id)
-            .fetch_optional(pool.get_ref())
-            .await
-            .ok()
-            .flatten();
-            match row {
-                Some((id,)) => id,
-                None => return HttpResponse::BadRequest().json(serde_json::json!({
-                    "error": "Invalid agent_id"
-                })),
-            }
-        }
-    };
-    let session_uuid = Uuid::parse_str(&body.session_id).unwrap_or_else(|_| Uuid::new_v4());
     let tenant_uuid = match Uuid::parse_str(&body.tenant_id) {
         Ok(id) => id,
         Err(_) => return HttpResponse::BadRequest().json(serde_json::json!({
             "error": "Invalid tenant_id"
         })),
     };
+    let agent_id_str = match resolve_agent_id_for_tenant(pool.get_ref(), &body.agent_id, tenant_uuid).await {
+        Ok(s) => s,
+        Err(resp) => return resp,
+    };
+    let session_uuid = Uuid::parse_str(&body.session_id).unwrap_or_else(|_| Uuid::new_v4());
     let oversight_uuid = body.oversight_record_ref.as_deref().and_then(|s| Uuid::parse_str(s).ok());
 
     // Enforce monotonic degradation: check current trust level for this session
@@ -392,7 +362,7 @@ pub async fn create_trust_annotation(
         RETURNING created_at"#,
     )
     .bind(annotation_id)
-    .bind(agent_uuid)
+    .bind(&agent_id_str)
     .bind(session_uuid)
     .bind(tenant_uuid)
     .bind(&body.trust_level)
