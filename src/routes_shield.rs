@@ -89,7 +89,6 @@ struct AgentPolicyRow {
     name: String,
     allowed_data_categories: serde_json::Value,
     allowed_destination_countries: serde_json::Value,
-    allowed_partners: serde_json::Value,
     api_key_hash: Option<String>,
 }
 
@@ -260,7 +259,7 @@ pub async fn evaluate(
     let mut resolved_source_system: Option<String> = body.source_system.clone();
     if let Some(ref agent_id) = body.agent_id {
         let agent_row: Option<AgentPolicyRow> = sqlx::query_as(
-            "SELECT id, name, allowed_data_categories, allowed_destination_countries, allowed_partners, api_key_hash FROM agents WHERE id = $1 AND tenant_id = $2 AND status = 'active' AND deleted_at IS NULL"
+            "SELECT id, name, allowed_data_categories, allowed_destination_countries, api_key_hash FROM agents WHERE id = $1 AND tenant_id = $2 AND status = 'active' AND deleted_at IS NULL"
         )
         .bind(agent_id)
         .bind(tenant.tenant_id)
@@ -308,7 +307,14 @@ pub async fn evaluate(
                 }
                 let dest_code = body.destination_country_code.clone().unwrap_or_default().to_uppercase();
                 let allowed_countries: Vec<String> = serde_json::from_value(agent.allowed_destination_countries.clone()).unwrap_or_default();
-                if !dest_code.is_empty() && !allowed_countries.is_empty() && !allowed_countries.iter().any(|c| c.eq_ignore_ascii_case(&dest_code)) {
+                // SCC-required destinations are evaluated by shield (SCC registry / REVIEW), not the agent destination allowlist — only globally blocked countries should hard-block here.
+                let skip_dest_allowlist =
+                    !dest_code.is_empty() && classify_country(&dest_code) == "scc_required";
+                if !skip_dest_allowlist
+                    && !dest_code.is_empty()
+                    && !allowed_countries.is_empty()
+                    && !allowed_countries.iter().any(|c| c.eq_ignore_ascii_case(&dest_code))
+                {
                     let dest_name = if dest_code.is_empty() { "Unknown".to_string() } else { country_name(&dest_code) };
                     let mut violation_payload = serde_json::json!({
                         "agent_id": agent_id,
@@ -418,63 +424,7 @@ pub async fn evaluate(
                     }
                 }
 
-                // Partner allowlist only for SCC-required destinations (same tier as shield `classify_country`).
-                let allowed_partners: Vec<String> = serde_json::from_value(agent.allowed_partners.clone()).unwrap_or_default();
-                let partner_policy_applies = !dest_code.is_empty() && classify_country(&dest_code) == "scc_required";
-                if !allowed_partners.is_empty() && partner_policy_applies {
-                    if let Some(ref partner) = body.partner_name {
-                        if !partner.is_empty() && !allowed_partners.iter().any(|p| p.eq_ignore_ascii_case(partner)) {
-                            let mut violation_payload = serde_json::json!({
-                                "agent_id": agent_id,
-                                "violation": "partner",
-                                "partner_name": partner,
-                                "destination_country_code": body.destination_country_code,
-                                "destination_country": body.destination_country,
-                                "data_categories": body.data_categories,
-                                "decision": "BLOCK",
-                                "country_status": "agent_policy_violation",
-                                "reason": "Partner not permitted by agent policy",
-                            });
-                            if is_shadow {
-                                violation_payload["shadow_mode"] = serde_json::json!(true);
-                            }
-                            let params = CreateEventParams {
-                                event_type: "AGENT_POLICY_VIOLATION".into(),
-                                severity: "HIGH".into(),
-                                source_system: agent.name.clone(),
-                                regulatory_tags: vec!["GDPR".into()],
-                                articles: vec![],
-                                payload: violation_payload,
-                                correlation_id: Some(Uuid::new_v4().to_string()),
-                                causation_id: None,
-                                source_ip: body.source_ip.clone(),
-                                source_user_agent: body.user_agent.clone(),
-                                tenant_id: tenant.tenant_id,
-                            };
-                            if let Err(e) = evidence::create_event(pool.get_ref(), params).await {
-                                log::error!("Failed to create AGENT_POLICY_VIOLATION evidence (partner): {}", e);
-                            }
-                            if is_shadow {
-                                return HttpResponse::Ok().json(serde_json::json!({
-                                    "decision": "ALLOW",
-                                    "reason": format!("SHADOW MODE — would have been BLOCK: {}", "Partner not permitted by agent policy"),
-                                    "severity": "HIGH",
-                                    "articles": [],
-                                    "country_status": "agent_policy_violation",
-                                    "timestamp": Utc::now().to_rfc3339(),
-                                }));
-                            }
-                            return HttpResponse::Ok().json(serde_json::json!({
-                                "decision": "BLOCK",
-                                "reason": "Partner not permitted by agent policy",
-                                "severity": "HIGH",
-                                "articles": [],
-                                "country_status": "agent_policy_violation",
-                                "timestamp": Utc::now().to_rfc3339(),
-                            }));
-                        }
-                    }
-                }
+                // `allowed_partners` does not apply to SCC-required destinations — partner/SCC posture is decided by shield + SCC registry (REVIEW / ALLOW), not the agent allowlist.
             }
         }
     }
