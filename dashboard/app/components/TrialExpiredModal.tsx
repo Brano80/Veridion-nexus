@@ -1,6 +1,6 @@
 'use client';
 
-import { Shield, Clock, Mail, CheckCircle } from 'lucide-react';
+import { Clock, CheckCircle } from 'lucide-react';
 
 export default function TrialExpiredModal() {
   return (
@@ -55,13 +55,12 @@ export default function TrialExpiredModal() {
           </p>
         </div>
 
-        {/* CTA */}
+        {/* CTA: mailto until a live Cal.com page exists; then switch href to https://cal.com/<handle> */}
         <a
-          href="mailto:hello@veridion-nexus.eu?subject=Upgrade%20to%20Pro%20—%20Sovereign%20Shield"
+          href="mailto:hello@veridion-nexus.eu?subject=Book%20a%20call%20-%20Veridion%20upgrade&body=I%20would%20like%20to%20schedule%20a%20call%20about%20upgrading%20from%20my%20expired%20trial."
           className="w-full flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white font-bold py-3 px-6 rounded-xl transition-colors text-sm"
         >
-          <Mail className="w-4 h-4" />
-          Contact us to upgrade — hello@veridion-nexus.eu
+          Book a call to upgrade
         </a>
 
         {/* Footer note */}

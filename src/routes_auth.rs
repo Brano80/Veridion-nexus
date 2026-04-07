@@ -466,18 +466,17 @@ pub async fn login(
         }
     };
 
-    // TODO: re-enable trial enforcement when billing is ready
-    // if tenant.plan == "free_trial" {
-    //     if let Some(expires_at) = tenant.trial_expires_at {
-    //         if expires_at < Utc::now() {
-    //             return HttpResponse::PaymentRequired().json(serde_json::json!({
-    //                 "error": "trial_expired",
-    //                 "message": "Your trial has expired. Contact hello@veridion-nexus.eu to upgrade.",
-    //                 "upgrade_url": "https://veridion-nexus.eu"
-    //             }));
-    //         }
-    //     }
-    // }
+    if tenant.plan == "free_trial" {
+        if let Some(expires_at) = tenant.trial_expires_at {
+            if expires_at < Utc::now() {
+                return HttpResponse::PaymentRequired().json(serde_json::json!({
+                    "error": "trial_expired",
+                    "message": "Your trial has expired. Contact hello@veridion-nexus.eu to upgrade.",
+                    "upgrade_url": "https://veridion-nexus.eu"
+                }));
+            }
+        }
+    }
 
     let roles = if tenant.is_admin {
         vec!["admin".to_string(), "editor".to_string()]

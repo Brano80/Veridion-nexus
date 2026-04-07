@@ -13,12 +13,11 @@ export function triggerTrialExpired() {
 }
 
 // Helper to check for 402 status and trigger trial expired
-function checkTrialExpired(_res: Response): void {
-  // TODO: re-enable when billing is ready
-  // if (_res.status === 402) {
-  //   triggerTrialExpired();
-  //   throw new Error('Trial expired');
-  // }
+function checkTrialExpired(res: Response): void {
+  if (res.status === 402) {
+    triggerTrialExpired();
+    throw new Error('Trial expired');
+  }
 }
 
 const SS_TOKEN_KEY = 'ss_token';

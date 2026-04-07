@@ -1,7 +1,7 @@
 # Project Reference — Veridion API / Sovereign Shield
 
-**Version:** 3.0  
-**Last updated:** 2026-03-31
+**Version:** 3.1  
+**Last updated:** 2026-04-06
 
 This is the **single project reference** for Veridion API: vision, scope, tech stack, configuration, and current behaviour (dashboard and API). Use it to onboard, scope work, and keep the codebase and docs aligned.
 
@@ -29,7 +29,7 @@ The vision is a **single, deployable API** that owns its schema and can grow fro
 |--------|-------------|
 | **Product** | Standalone REST API plus Sovereign Shield dashboard (Next.js). Own PostgreSQL database. Own migrations. |
 | **Boundary** | No shared migrations, shared DB, or shared Rust crates with veridion-nexus or other repos. |
-| **Current scope** | Health, dev auth (JWT), CORS; Evidence Vault (events, verify-integrity, **canonical JSON payload hashing** for chain verification, `hash_version` column, admin recompute-hashes; PDF export); Sovereign Shield (ingest/evaluate with agent_id/agent_api_key for per-agent policy, evidence + review queue); SCC registries (CRUD, PATCH tia_completed, dpa_id, scc_module; auto-approve on register; **auto-expiry background job**); Human Oversight (review queue with transfer_count burst grouping, pending/decided, approve/reject, decided-evidence-ids); **Auth** (login, logout, dev-reset-password); Self-serve signup (POST /api/v1/auth/register, input validation, rate limiting 5/IP/hour, bcrypt password, async welcome email via SMTP); **Agent Registry** (POST/GET/DELETE agents, agent card, rotate key, per-agent policy enforcement); **Accountability Ledger** (MCP proxy: **Phase 1** real upstream MCP stdio/SSE via `UpstreamMcpClient`, tool call logging, SHA-256 hash-chained audit trail, context trust annotations, OAuth 2.1 agent identity, ACM Rust API routes); **Public Compliance Registry** (cross-tenant search/detail/stats, dashboard opt-in); **ACM Dashboard** (Phase 2b: ACM Overview stats, Oversight Queue with approve/reject/escalate, Transfers table — **sidebar** lists ACM Overview under System; Oversight Queue and Transfers are not in the nav but routes remain). **Two npm MCP surfaces**: standalone **`veridion-shield-mcp`** (Sovereign Shield tools only) and **`veridion-nexus-mcp`** (bundled: AL proxy + optional legacy binary layout — see §9.6). Migrations 001–043. |
+| **Current scope** | Health, dev auth (JWT), CORS; Evidence Vault (events, verify-integrity, **canonical JSON payload hashing** for chain verification, `hash_version` column, admin recompute-hashes; PDF export); Sovereign Shield (ingest/evaluate with agent_id/agent_api_key; **per-agent policy** applies to non–SCC-required destinations; **SCC-required** destinations skip agent destination/partner allowlists — enforcement is **shield + SCC registry** → REVIEW / ALLOW / BLOCK for org-blocked countries only; evidence + review queue); SCC registries (CRUD, PATCH tia_completed, dpa_id, scc_module; auto-approve on register; **auto-expiry background job**); Human Oversight (review queue with transfer_count burst grouping, pending/decided, approve/reject, decided-evidence-ids); **Auth** (login, logout, dev-reset-password); Self-serve signup (POST /api/v1/auth/register, input validation, rate limiting 5/IP/hour, bcrypt password, async welcome email via SMTP); **Agent Registry** (POST/GET/DELETE agents, agent card, rotate key, per-agent policy where applicable); **Accountability Ledger** — **`mcp-server-al/`** npm package **`nexus-al-mcp`**: MCP proxy with real upstream stdio/SSE (`UpstreamMcpClient`), tool call logging, SHA-256 hash-chained audit trail, context trust annotations, OAuth 2.1 / dev_bypass, ACM Rust API routes (`/api/acm/*`); **Public Compliance Registry** (cross-tenant search/detail/stats, dashboard opt-in); **ACM Dashboard** (Phase 2b: ACM Overview stats, Oversight Queue with approve/reject/escalate, Transfers table — **sidebar** lists ACM Overview under System; Oversight Queue and Transfers are not in the nav but routes remain). **MCP packages**: **`veridion-nexus-mcp`** (`mcp-server/`, Sovereign Shield tools only), **`nexus-al-mcp`** (`mcp-server-al/`, AL proxy). Deprecated: **`mcp-server-shield/`**. Migrations 001–043. |
 | **Planned scope** | Further dashboard features, production auth. |
 
 **What it is not:** Not a fork or subset of veridion-nexus. Not a monorepo member that shares `migrations/` or `src/` with another project.
@@ -52,7 +52,7 @@ Canonical write-up: **`docs/REGULATORY_SCOPE.md`**. In short:
 - **Backend**: Rust (Actix-web) API on `http://localhost:8080`.
 - **Frontend**: Next.js 14 dashboard (Sovereign Shield) in `dashboard/`, on `http://localhost:3000`.
 - **Landing page**: Next.js 14 in `veridion-landing/`, on `http://localhost:3001`. Contains marketing page and self-serve signup flow.
-- **MCP packages**: **`veridion-nexus-mcp`** — npm package from `mcp-server/` (`veridion-nexus-mcp@1.0.12` as of this doc), MCP registry (`io.github.Brano80/Veridion-nexus`). **Default entry** is **Sovereign Shield** tools only (`evaluate_transfer`, `check_scc_coverage`, `get_compliance_status`, `list_adequate_countries`): `npx -y veridion-nexus-mcp` with `VERIDION_NEXUS_API_KEY` (optional `VERIDION_NEXUS_API_URL`). The **Accountability Ledger MCP proxy** implementation is preserved in `mcp-server/src/al-proxy.ts` for a future **`nexus-al-mcp`** package — it is **not** compiled or published in this release. The legacy standalone **`veridion-shield-mcp`** folder `mcp-server-shield/` is **deprecated** (use `veridion-nexus-mcp` instead); see `mcp-server-shield/README.md`.
+- **MCP packages**: **`veridion-nexus-mcp`** — from `mcp-server/` (Shield tools only; `npx -y veridion-nexus-mcp`, `VERIDION_NEXUS_API_KEY`). **`nexus-al-mcp`** — from **`mcp-server-al/`** (Accountability Ledger proxy: forwards to an upstream MCP, records ACM events to the Rust API). Configure via **`mcp-server-al/.env`** (see `.env.example`): `AL_API_BASE_URL`, `AL_SERVICE_TOKEN`, `AL_AUTH_MODE`, `AL_DEV_CLIENT_ID`, `UPSTREAM_MCP_MODE`, `UPSTREAM_MCP_COMMAND` (e.g. `node …/mcp-server/dist/index.js` for Sovereign Shield upstream). Legacy **`mcp-server-shield/`** is deprecated. Optional duplicate AL sources under `mcp-server/src/al-proxy.ts` may exist for history; the **shipping** AL package is **`mcp-server-al`**.
 - **Theme**: Dark (slate-900/800/700), emerald accents. Icons: `lucide-react`. Fonts: Inter, JetBrains Mono.
 
 ---
@@ -88,10 +88,14 @@ Dependencies: serde/serde_json, chrono, uuid, dotenv.
 - **Scripts**: `npm run build` (`tsc` — only `src/index.ts` emitted), `npm start` → `node dist/index.js`
 - **Deprecated**: standalone `veridion-shield-mcp` in `mcp-server-shield/` — use `veridion-nexus-mcp` instead.
 
-### 4.4 MCP — Accountability Ledger proxy (future `nexus-al-mcp`)
+### 4.4 MCP — Accountability Ledger proxy (`nexus-al-mcp`)
 
-- **Source** (not built in current `mcp-server` release): `mcp-server/src/al-proxy.ts` (`AccountabilityLedgerProxy`), plus `upstream-client.ts`, `al-client.ts`, `oauth.ts`, `types/acm.ts` — excluded from `tsc` until the AL package is published separately.
-- **Stack**: Same MCP SDK as §4.3; **extra dependency** when enabled: `jose` (OAuth/JWT for AL).
+- **Package**: **`nexus-al-mcp`** in **`mcp-server-al/`** (`package.json` name `nexus-al-mcp`, bin `nexus-al-mcp` → `dist/index.js`).
+- **Stack**: `@modelcontextprotocol/sdk`, `jose` (OAuth/JWT); **Node** ≥18, ESM.
+- **Scripts**: `npm run build` (`tsc`), `npm start` / `npm run dev` (loads `.env` via `--env-file .env` where configured).
+- **Upstream**: `UPSTREAM_MCP_MODE=stdio` | `sse`; **`UPSTREAM_MCP_COMMAND`** launches the upstream MCP (e.g. Sovereign Shield **`mcp-server/dist/index.js`**).
+- **Rust API**: `AlClient` posts to **`/api/acm/*`** using `AL_SERVICE_TOKEN` (see §5.2).
+- **Legacy / duplicate**: `mcp-server/src/al-proxy.ts` and siblings are **not** the primary AL surface; use **`mcp-server-al`** for the Accountability Ledger proxy.
 
 ---
 
@@ -103,10 +107,11 @@ Dependencies: serde/serde_json, chrono, uuid, dotenv.
 veridion-api/
 ├── Cargo.toml
 ├── src/                    # Rust API (main.rs, routes_*, evidence, shield, routes_acm, etc.)
-├── migrations/             # Schema 001–040 (no external path)
+├── migrations/             # Schema 001–043 (no external path)
 ├── dashboard/              # Next.js Sovereign Shield dashboard (port 3000)
 ├── veridion-landing/       # Next.js landing page + signup flow (port 3001)
-├── mcp-server/             # veridion-nexus-mcp: Sovereign Shield MCP (dist/index.js); AL proxy source in src/al-proxy.ts (future nexus-al-mcp)
+├── mcp-server/             # veridion-nexus-mcp: Sovereign Shield MCP (dist/index.js)
+├── mcp-server-al/          # nexus-al-mcp: Accountability Ledger MCP proxy (dist/index.js); .env for AL + upstream
 ├── mcp-server-shield/      # Deprecated — legacy standalone veridion-shield-mcp; use veridion-nexus-mcp
 ├── docs/adr/              # Architecture Decision Records (ADR 001: AL architecture)
 ├── .env
@@ -239,7 +244,7 @@ veridion-api/
 | `POST /api/v1/action/{seal_id}/approve` | Approve review |
 | `POST /api/v1/action/{seal_id}/reject` | Reject review → `HUMAN_OVERSIGHT_REJECTED` (counted in BLOCKED 24H) |
 
-**Note:** Dashboard calls `/api/v1/shield/evaluate` via `evaluateTransfer()`. Full route list in `src/main.rs` startup log. Evidence API returns `merkleRoots` for chain integrity display. **Evaluate** accepts `agent_id` and `agent_api_key` — when provided and valid, applies per-agent policy (allowed_data_categories, allowed_destination_countries, allowed_partners) from registered agents; unregistered agents use default policy.
+**Note:** Dashboard calls `/api/v1/shield/evaluate` via `evaluateTransfer()`. Full route list in `src/main.rs` startup log. Evidence API returns `merkleRoots` for chain integrity display. **Evaluate** accepts `agent_id` and `agent_api_key` — when provided and valid, applies per-agent **`allowed_data_categories`** for all destinations, **`allowed_destination_countries`** only when the destination is **not** SCC-required (`classify_country` ≠ `scc_required`), and **does not** apply **`allowed_partners`** to SCC-required destinations (partner/SCC posture is **shield + SCC registry**: no SCC → REVIEW, valid SCC → ALLOW, org-blocked countries → BLOCK). Unregistered agents cannot evaluate (see handler).
 
 ### 9.8 Agent Registry
 
@@ -270,7 +275,7 @@ Internal API routes called by the Accountability Ledger MCP proxy. Authenticated
 | `GET /api/acm/oversight/pending` | List pending oversight (`?tenant_id=` optional). |
 | `PATCH /api/acm/oversight/{id}` | Set reviewer outcome (`approved` / `rejected` / `escalated` / `pending`), optional notes, EU AI Act compliance flag. |
 
-**Auth**: Service token via `Authorization: Bearer {AL_SERVICE_TOKEN}`. In development mode with no token configured, routes are open. Agent ID fields accept both UUID format and string agent IDs (falls back to `oauth_client_id` lookup).
+**Auth**: Service token via `Authorization: Bearer {AL_SERVICE_TOKEN}`. In development mode with no token configured, routes are open. **`agent_id`** on create routes is the **`agents.id` TEXT** value (e.g. `agt_…`), resolved per-tenant — not required to be a UUID.
 
 **Migrations 039–040**: `039` — `data_transfer_records`, `eea_countries` reference data, `acm_data_transfer_records` view. `040` — extend `human_oversight` with ACM columns; `seal_id` nullable; views `acm_human_oversight_records`, `acm_oversight_pending`.
 
@@ -319,10 +324,11 @@ Dashboard-facing endpoints authenticated via JWT (tenant-scoped via `get_tenant_
 |---------|---------|---------|--------------|
 | **`veridion-nexus-mcp`** | **Sovereign Shield** tools (`evaluate_transfer`, `check_scc_coverage`, `get_compliance_status`, `list_adequate_countries`) | `npx -y veridion-nexus-mcp` | `VERIDION_NEXUS_API_KEY`; optional `VERIDION_NEXUS_API_URL` |
 | **`veridion-shield-mcp`** | *Deprecated* — same tools historically; use **`veridion-nexus-mcp`** | *(deprecated)* | — |
-| **`nexus-al-mcp`** *(planned)* | Accountability Ledger **MCP proxy** (upstream forwarding + ACM audit) | *Not published yet* | `AL_API_BASE_URL`, `AL_SERVICE_TOKEN`, `UPSTREAM_MCP_COMMAND` (and other AL/upstream vars — see §5.2 and ADR 001) |
+| **`nexus-al-mcp`** | Accountability Ledger **MCP proxy** (upstream forwarding + ACM audit) | `cd mcp-server-al && npm run build`; run `nexus-al-mcp` or `node dist/index.js` | `AL_API_BASE_URL`, `AL_SERVICE_TOKEN`, `UPSTREAM_MCP_COMMAND`, plus `AL_AUTH_MODE` / OAuth vars — see §5.2 and `mcp-server-al/.env.example` |
 
 **Repo layout**:
-- **`mcp-server/`** — **`veridion-nexus-mcp`**: `src/index.ts` → `dist/index.js` (Shield only). AL proxy lives in **`src/al-proxy.ts`** (and supporting modules), excluded from build until **`nexus-al-mcp`** is split out.
+- **`mcp-server/`** — **`veridion-nexus-mcp`**: `src/index.ts` → `dist/index.js` (Shield only).
+- **`mcp-server-al/`** — **`nexus-al-mcp`**: AL proxy entry `src/index.ts` → `dist/index.js`; **`al-client.ts`**, **`upstream-client.ts`**, **`oauth.ts`**, **`types/acm.ts`**.
 - **`mcp-server-shield/`** — **Deprecated** standalone package; README points to `veridion-nexus-mcp`.
 
 **Agent parameters**: Tool `evaluate_transfer` takes **`agent_id`** and **`agent_api_key`** on each call (registered in dashboard Agents). Optional env vars `VERIDION_NEXUS_AGENT_ID` / `VERIDION_NEXUS_AGENT_API_KEY` in some setups are not required for the MCP tools when parameters are passed per call.
@@ -346,18 +352,20 @@ Dashboard-facing endpoints authenticated via JWT (tenant-scoped via `get_tenant_
 
 **Shadow Mode**: When API response reason starts with `"SHADOW MODE"`, tools append a note that enforcement is not active.
 
-#### Accountability Ledger proxy (future `nexus-al-mcp`)
+#### Accountability Ledger proxy (`nexus-al-mcp`)
 
-The **Accountability Ledger (AL) proxy** — an MCP server that sits between AI agents and upstream MCP servers, intercepting every tool call to create a tamper-evident audit trail — is implemented in-repo but **not** shipped inside **`veridion-nexus-mcp`** in the current release (Shield-only binary). It is intended for a future **`nexus-al-mcp`** package.
+The **Accountability Ledger (AL) proxy** is shipped as **`mcp-server-al`** (**`nexus-al-mcp`**). It is **not** part of the **`veridion-nexus-mcp`** binary (Shield-only).
 
 **Architecture**: See `docs/adr/001-al-architecture.md` (ADR).
 
-**Key files** (source retained; excluded from `mcp-server` `tsc` build while Shield is the only published entry):
-- `mcp-server/src/al-proxy.ts` — `AccountabilityLedgerProxy` (v0.2): **Phase 2** — after each `ToolCallEvent`, optional **DataTransferRecord** for non-EEA `transfer_policies` when PII heuristics match; **HumanOversightRecord** when `human_review_required`; env `AL_ORIGIN_COUNTRY`, `AL_EEA_EXTRA_COUNTRIES`. **Phase 1** upstream via `UpstreamMcpClient`, graceful shutdown.
-- `mcp-server/src/upstream-client.ts` — `UpstreamMcpClient`: MCP SDK `Client` connected with **stdio** (subprocess) or **SSE** (HTTP); discovers upstream tools on connect; optional reconnect on disconnect.
-- `mcp-server/src/al-client.ts` — `AlClient` class: HTTP client for Rust ACM API (`/api/acm/*`). Methods: `resolveAgent`, `recordToolCallEvent`, `createTrustAnnotation`, `degradeTrust`, `getSessionTrustLevel`, `createDataTransferRecord`, `createOversightRecord`, `updateOversightOutcome`.
-- `mcp-server/src/oauth.ts` — OAuth 2.1 token validation using `jose` (JWKS caching, `parseTraceparent` for OTel).
-- `mcp-server/src/types/acm.ts` — TypeScript interfaces for ACM spec v0.1 record types (`AgentRecord`, `ToolCallEventInput`, `ContextTrustAnnotationInput`, `TrustLevel`, etc.).
+**Key files** (**`mcp-server-al/src/`** — primary):
+- `mcp-server-al/src/index.ts` — `AccountabilityLedgerProxy`: upstream via `UpstreamMcpClient`, ACM logging via `AlClient`, session trust, tool forwarding.
+- `mcp-server-al/src/upstream-client.ts` — `UpstreamMcpClient`: MCP SDK **stdio** or **SSE** to upstream.
+- `mcp-server-al/src/al-client.ts` — `AlClient`: HTTP to Rust **`/api/acm/*`**.
+- `mcp-server-al/src/oauth.ts` — OAuth 2.1 / dev_bypass token handling (`jose` when JWKS).
+- `mcp-server-al/src/types/acm.ts` — ACM record types.
+
+**Optional legacy copy** under `mcp-server/src/` (e.g. `al-proxy.ts`) may exist; prefer **`mcp-server-al`** for builds and docs.
 
 **Design principles**:
 - **Fail-closed**: No log, no call. If event recording fails, the proxy does not forward the tool call.
@@ -366,7 +374,7 @@ The **Accountability Ledger (AL) proxy** — an MCP server that sits between AI 
 - **OAuth 2.1 agent identity**: Agent identity derived from Bearer token `client_id` claim, resolved via `GET /api/acm/agents?oauth_client_id={id}`. Self-reported identity is rejected.
 - **tools_permitted allowlist**: Agents can only call tools listed in their `AgentRecord.tools_permitted` array.
 
-**Environment variables**: See `env.proxy.example` and root `.env.example` for AL vars (`AL_API_BASE_URL`, `AL_SERVICE_TOKEN`, `AL_OAUTH_ISSUER`, `AL_OAUTH_AUDIENCE`, `AL_JWKS_URI`, `AL_AUTH_MODE`, `AL_DEV_CLIENT_ID`, `AL_AGENT_TOKEN`) and **Phase 1 upstream** vars (`UPSTREAM_MCP_MODE`, `UPSTREAM_MCP_COMMAND`, `UPSTREAM_MCP_ARGS`, `UPSTREAM_MCP_URL`, `UPSTREAM_MCP_RECONNECT_MS`).
+**Environment variables**: Primary copy for local runs: **`mcp-server-al/.env`** (from **`mcp-server-al/.env.example`**). Also documented in `env.proxy.example` and root `.env.example` — AL vars (`AL_API_BASE_URL`, `AL_SERVICE_TOKEN`, `AL_OAUTH_ISSUER`, `AL_OAUTH_AUDIENCE`, `AL_JWKS_URI`, `AL_AUTH_MODE`, `AL_DEV_CLIENT_ID`, `AL_AGENT_TOKEN`, `AL_ORIGIN_COUNTRY`) and upstream vars (`UPSTREAM_MCP_MODE`, `UPSTREAM_MCP_COMMAND`, `UPSTREAM_MCP_ARGS`, `UPSTREAM_MCP_URL`, `UPSTREAM_MCP_RECONNECT_MS`).
 
 **Phase 1 status (upstream)**: **Done.** The proxy uses `@modelcontextprotocol/sdk` `Client` with stdio or SSE transport; `listTools` and `callTool` forward to the configured upstream server; blocked paths (not in `tools_permitted`, upstream disconnected, upstream error) still emit `ToolCallEvent` records where applicable.
 
@@ -607,7 +615,7 @@ The **Accountability Ledger (AL) proxy** — an MCP server that sits between AI 
 ## 15. Backend (Rust) — relevant for dashboard
 
 - **Evidence**: `src/routes_evidence.rs` — list events (with pagination, filters; returns events, totalCount, merkleRoots), create event, verify-integrity. `src/evidence.rs` — `canonical_json()` + `compute_payload_hash()` for deterministic hashing; `hash_version` on rows (migration 043).
-- **Shield**: `src/routes_shield.rs` — evaluate (synchronous), ingest-logs (batch), stats, countries, requires-attention, transfers-by-destination, SCC CRUD (list, register, PATCH, delete). On register, `review_queue::approve_pending_reviews_for_scc()` auto-approves pending reviews whose evidence event matches the new SCC destination.
+- **Shield**: `src/routes_shield.rs` — evaluate (synchronous), ingest-logs (batch), stats, countries, requires-attention, transfers-by-destination, SCC CRUD (list, register, PATCH, delete). **SCC-required** destinations: agent **`allowed_destination_countries`** / **`allowed_partners`** do not block; core decision from `src/shield.rs` + SCC registry. On register, `review_queue::approve_pending_reviews_for_scc()` auto-approves pending reviews whose evidence event matches the new SCC destination.
 - **Review queue**: `src/routes_review_queue.rs`, `src/review_queue.rs` — list (with status filter), pending, decided-evidence-ids, create (with `evidence_event_id`), approve, reject. Reject creates `HUMAN_OVERSIGHT_REJECTED` evidence event. **Shadow mode propagation**: When creating `HUMAN_OVERSIGHT_REJECTED` or `HUMAN_OVERSIGHT_APPROVED` evidence events, `shadow_mode: true` is added to payload if current enforcement mode is shadow. Applies to manual approve/reject, auto-approve (SCC registration), and SLA timeout auto-block paths.
 - **Auth**: `src/routes_auth.rs`, `src/email.rs` — `POST /api/v1/auth/register`: validates inputs, rate-limits 5/IP/hour, checks email uniqueness, creates tenant + user atomically, sends async welcome email (skipped if SMTP not configured). Returns `tenant_id`, `api_key_raw` (once only), `api_key_prefix`, `trial_expires_at`. `POST /api/v1/auth/login`: email/password, bcrypt verify, returns JWT with tenant_id. `POST /api/v1/auth/dev-reset-password`: dev only, resets password by username. **Trial 402 enforcement** on login and tenant middleware (`src/middleware_tenant.rs`) is **commented out** pending billing (TODO: re-enable).
 - **Agents**: `src/routes_agents.rs` — Agent registry (register, list, get, card, rotate-key, patch, delete). Per-agent policy enforcement in shield evaluate when `agent_id` + `agent_api_key` provided. PATCH supports `public_registry_listed`, `public_registry_description`, `public_registry_contact_email`.
@@ -653,23 +661,27 @@ The **Accountability Ledger (AL) proxy** — an MCP server that sits between AI 
 | `mcp-server/package.json` | npm `veridion-nexus-mcp` metadata (single `bin`) |
 | `mcp-server-shield/README.md` | **Deprecated** — points to `veridion-nexus-mcp` |
 
-### 16.2 File map (Accountability Ledger — future `nexus-al-mcp`)
+See §16.2 for **`mcp-server-al`** (Accountability Ledger).
+
+### 16.2 File map (Accountability Ledger — `nexus-al-mcp`)
 
 | Path | Purpose |
 |------|--------|
 | `docs/adr/001-al-architecture.md` | ADR: Accountability Ledger architecture decisions |
-| `mcp-server/src/al-proxy.ts` | AL MCP proxy (`AccountabilityLedgerProxy` class); not compiled in Shield-only release |
-| `mcp-server/src/upstream-client.ts` | `UpstreamMcpClient` — real upstream MCP (stdio / SSE) |
-| `mcp-server/src/al-client.ts` | HTTP client for Rust ACM API |
-| `mcp-server/src/oauth.ts` | OAuth 2.1 token validation (jose, JWKS) |
-| `mcp-server/src/types/acm.ts` | TypeScript interfaces for ACM spec v0.1 |
-| `src/routes_acm.rs` | Rust ACM API routes (agent lookup, events, trust annotations) |
+| `mcp-server-al/package.json` | **`nexus-al-mcp`** npm package metadata |
+| `mcp-server-al/src/index.ts` | AL MCP proxy (`AccountabilityLedgerProxy`); main entry |
+| `mcp-server-al/src/upstream-client.ts` | `UpstreamMcpClient` — upstream MCP (stdio / SSE) |
+| `mcp-server-al/src/al-client.ts` | HTTP client for Rust **`/api/acm/*`** |
+| `mcp-server-al/src/oauth.ts` | OAuth 2.1 / dev_bypass token validation (`jose`) |
+| `mcp-server-al/src/types/acm.ts` | TypeScript interfaces for ACM spec v0.1 |
+| `mcp-server-al/.env.example` | Example env for local runs |
+| `src/routes_acm.rs` | Rust ACM API routes (agent lookup, events, trust annotations, transfers, oversight) |
 | `migrations/035_acm_tool_call_events.sql` | tool_call_events table (append-only, hash-chained) |
 | `migrations/036_acm_context_trust_annotations.sql` | context_trust_annotations table (session trust) |
 | `migrations/037_acm_agent_identity.sql` | Extends agents table with OAuth/EU AI Act/ACM fields |
 | `migrations/039_acm_data_transfer_records.sql` | `data_transfer_records`, `eea_countries`, ACM view |
 | `migrations/040_acm_human_oversight_extend.sql` | ACM fields on `human_oversight`, views |
-| `env.proxy.example` | Example environment variables for AL proxy |
+| `env.proxy.example` | Root example env (AL vars; mirror into `mcp-server-al/.env` as needed) |
 
 ### 16.3 File map (Public Compliance Registry)
 

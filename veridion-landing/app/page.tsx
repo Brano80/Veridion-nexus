@@ -1,12 +1,67 @@
 'use client';
 
 import { useState } from 'react';
-import { Shield, ChevronDown, ChevronUp, ArrowRight, CheckCircle, Globe, Lock, FileCheck, AlertCircle } from 'lucide-react';
+import { Shield, ChevronDown, ChevronUp, ArrowRight, CheckCircle, Globe, Lock, FileCheck, AlertCircle, Copy, X, KeyRound, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import SiteHeader from '@/components/SiteHeader';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.veridion-nexus.eu';
+
 export default function LandingPage() {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [sandboxOpen, setSandboxOpen] = useState(false);
+  const [sandboxLoading, setSandboxLoading] = useState(false);
+  const [sandboxError, setSandboxError] = useState<string | null>(null);
+  const [sandboxPayload, setSandboxPayload] = useState<{
+    sandbox_key: string;
+    example: string;
+    note?: string;
+  } | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const closeSandboxModal = () => {
+    setSandboxOpen(false);
+    setSandboxPayload(null);
+    setSandboxError(null);
+    setCopied(false);
+  };
+
+  const requestSandboxKey = async () => {
+    setSandboxLoading(true);
+    setSandboxError(null);
+    try {
+      const res = await fetch(`${API_URL}/api/public/sandbox/create`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setSandboxError(
+          typeof data.message === 'string' ? data.message : 'Could not create sandbox key'
+        );
+        setSandboxPayload(null);
+        setSandboxOpen(true);
+        return;
+      }
+      setSandboxPayload({
+        sandbox_key: data.sandbox_key,
+        example: data.example,
+        note: data.note,
+      });
+      setSandboxError(null);
+      setSandboxOpen(true);
+    } catch {
+      setSandboxError('Network error');
+      setSandboxPayload(null);
+      setSandboxOpen(true);
+    } finally {
+      setSandboxLoading(false);
+    }
+  };
+
+  const copySandboxKey = async () => {
+    if (!sandboxPayload?.sandbox_key) return;
+    await navigator.clipboard.writeText(sandboxPayload.sandbox_key);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const toggleFaq = (index: number) => {
     setOpenFaq(openFaq === index ? null : index);
@@ -57,7 +112,7 @@ export default function LandingPage() {
           </p>
 
           {/* CTA Buttons */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
+          <div className="flex flex-col sm:flex-row flex-wrap items-center justify-center gap-4 mb-12">
             <Link
               href="/signup"
               className="hero-signup-btn inline-flex items-center gap-2 px-8 py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-base font-semibold transition-all shadow-lg shadow-emerald-500/20"
@@ -65,6 +120,19 @@ export default function LandingPage() {
               Sign Up
               <ArrowRight className="w-5 h-5" />
             </Link>
+            <button
+              type="button"
+              onClick={() => void requestSandboxKey()}
+              disabled={sandboxLoading}
+              className="inline-flex items-center gap-2 px-8 py-4 bg-slate-800 hover:bg-slate-700 text-emerald-400 rounded-xl text-base font-semibold transition-colors border border-emerald-500/40 disabled:opacity-60"
+            >
+              {sandboxLoading ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <KeyRound className="w-5 h-5" />
+              )}
+              Get API Key
+            </button>
             <a
               href="#how-it-works"
               className="inline-flex items-center gap-2 px-8 py-4 bg-white/10 hover:bg-white/20 text-white rounded-xl text-base font-semibold transition-colors border border-white/20"
@@ -91,6 +159,62 @@ export default function LandingPage() {
           }
         `}} />
       </section>
+
+      {sandboxOpen && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="sandbox-modal-title"
+        >
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full shadow-2xl p-6 relative">
+            <button
+              type="button"
+              onClick={closeSandboxModal}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white p-1"
+              aria-label="Close"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <h2 id="sandbox-modal-title" className="text-lg font-bold text-white mb-2 pr-10">
+              {sandboxPayload ? 'Your sandbox API key' : 'Could not create key'}
+            </h2>
+            {sandboxError && (
+              <p className="text-sm text-red-400 mb-4">{sandboxError}</p>
+            )}
+            {sandboxPayload && (
+              <>
+                <p className="text-xs text-slate-500 mb-2 font-mono break-all bg-slate-950 border border-slate-700 rounded-lg p-3 text-emerald-300">
+                  {sandboxPayload.sandbox_key}
+                </p>
+                <div className="flex gap-2 mb-4">
+                  <button
+                    type="button"
+                    onClick={() => void copySandboxKey()}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold rounded-lg"
+                  >
+                    <Copy className="w-4 h-4" />
+                    {copied ? 'Copied' : 'Copy key'}
+                  </button>
+                </div>
+                {sandboxPayload.note && (
+                  <p className="text-xs text-slate-400 mb-4">{sandboxPayload.note}</p>
+                )}
+                <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Example</p>
+                <pre className="text-xs text-slate-300 bg-slate-950 border border-slate-700 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap break-all">
+                  {sandboxPayload.example}
+                </pre>
+                <p className="text-sm text-slate-400 mt-6 text-center">
+                  Ready for production?{' '}
+                  <Link href="/signup" className="text-emerald-400 hover:text-emerald-300 font-semibold">
+                    Create a free account →
+                  </Link>
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* SECTION 3 — Problem Statement (White) */}
       <section className="bg-white py-16">

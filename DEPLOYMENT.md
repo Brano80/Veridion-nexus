@@ -321,6 +321,24 @@ name = "generate_hash"
 path = "generate_hash.rs"
 ```
 
+## Post-deploy: verify migrations (e.g. 044 `sandbox_keys`)
+
+The API runs **SQLx migrations on startup** (`sqlx::migrate` on `./migrations` inside the container). New deploys apply pending versions automatically.
+
+After a deploy that includes **044**, confirm the table exists before relying on `POST /api/public/sandbox/create`:
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env exec postgres \
+  psql -U postgres -d veridion_api -c "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'sandbox_keys');"
+```
+
+Expect `t` (true). To see applied migration versions:
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env exec postgres \
+  psql -U postgres -d veridion_api -c "SELECT version, description FROM _sqlx_migrations ORDER BY version DESC LIMIT 8;"
+```
+
 ## Security Notes
 
 - Change default Postgres password
