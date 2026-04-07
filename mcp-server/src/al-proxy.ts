@@ -1,7 +1,6 @@
-// AL Proxy — will be published as nexus-al-mcp in a future release. Not active. Do not compile or export this file yet.
-
 /**
- * Accountability Ledger — MCP Proxy
+ * Accountability Ledger — MCP Proxy (nexus-al-mcp)
+ * Phase 1: Tool call interception, hash-chained audit trail, upstream forwarding.
  * Phase 2: DataTransferRecord + HumanOversightRecord + trust wiring.
  *
  * Architecture (ADR 001):

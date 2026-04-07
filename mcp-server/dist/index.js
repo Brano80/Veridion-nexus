@@ -424,7 +424,7 @@ const COUNTRY_DATA = {
 server.registerTool("list_adequate_countries", {
     description: "List all countries by their GDPR transfer status — EU/EEA (free flow), " +
         "adequate protection (Art. 45 adequacy decision), SCC required (Art. 46), " +
-        "or blocked (no legal basis). Use this to check a country's status before " +
+        "or blocked by organizational policy. Use this to check a country's status before " +
         "initiating a transfer, or to show a user which countries require additional " +
         "safeguards.",
     inputSchema: z.object({

@@ -122,7 +122,9 @@ const SovereignMap: React.FC<SovereignMapProps> = ({
       }
 
       // Green: adequate/EU countries with transfers in last 24h (include decided)
-      if (eventTimestamp >= twentyFourHoursAgo && !isBlocked) {
+      // Always green for EU/EEA and adequate countries regardless of stored decision
+      // (Shadow Mode stores BLOCK for enforcement purposes even when decision is ALLOW)
+      if (eventTimestamp >= twentyFourHoursAgo) {
         if (EU_EEA_COUNTRIES.has(countryCode) || ADEQUATE_COUNTRIES.has(countryCode)) {
           greenCountries.add(countryCode);
         }
@@ -146,7 +148,11 @@ const SovereignMap: React.FC<SovereignMapProps> = ({
       }
     });
 
-    // Add to redCountries: any country where decision was BLOCK (includes unknown countries)
+    // Route countries with decision=BLOCK to the correct color set based on GDPR status.
+    // EU/EEA and adequate countries are always green (Shadow Mode stores BLOCK even for
+    // allowed transfers — never let that override their inherent adequate status).
+    // SCC-required countries (e.g. US) go orange, not red.
+    // Only truly blocked countries (no legal basis) go red.
     evidenceEvents
       .filter((e) => {
         if (evidenceEventIsDecided(e, decidedEvidenceIds)) return false;
@@ -167,7 +173,24 @@ const SovereignMap: React.FC<SovereignMapProps> = ({
           .toString()
           .trim()
           .toUpperCase();
-        if (code && code.length === 2) redCountries.add(code);
+        if (!code || code.length !== 2) return;
+
+        if (EU_EEA_COUNTRIES.has(code) || ADEQUATE_COUNTRIES.has(code)) {
+          // EU/EEA or adequate: always green, never red
+          greenCountries.add(code);
+        } else if (isSccRequiredCountry(code)) {
+          // SCC-required country: orange (unresolved or covered), not red
+          const partnerName = payload.partner_name || payload.partnerName || '';
+          const hasValidSCC = hasValidSCCForPartner(sccRegistries, partnerName, code);
+          if (hasValidSCC) {
+            orangeBorderCountries.add(code);
+          } else {
+            orangeFillCountries.add(code);
+          }
+        } else {
+          // Truly blocked (no legal basis)
+          redCountries.add(code);
+        }
       });
 
     const convertedCountries: CountryData[] = [];
