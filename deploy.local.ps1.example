@@ -1,0 +1,3 @@
+# Copy to deploy.local.ps1 (gitignored) and set your SSH target.
+# Example: root@46.225.118.162 or a Host name from ~/.ssh/config
+$env:DEPLOY_HOST = 'root@YOUR_SERVER_IP'

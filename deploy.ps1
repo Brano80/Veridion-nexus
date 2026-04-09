@@ -3,12 +3,18 @@
 # 2. SSHs to server and runs deploy.sh (which applies scripts/seed_demo.sql idempotently after health check)
 #
 # Prerequisites:
-#   - Set $env:DEPLOY_HOST (e.g. "root@your-server-ip" or "user@api.veridion-nexus.eu")
+#   - Set $env:DEPLOY_HOST, or copy deploy.local.ps1.example → deploy.local.ps1 (gitignored)
 #   - SSH key configured for passwordless login
 #
 # Usage: .\deploy.ps1
 
 $ErrorActionPreference = "Stop"
+
+$localDeploy = Join-Path $PSScriptRoot 'deploy.local.ps1'
+if (Test-Path -LiteralPath $localDeploy) {
+    . $localDeploy
+    Write-Host "Loaded deploy.local.ps1" -ForegroundColor DarkGray
+}
 
 Write-Host "Deploy Veridion Nexus" -ForegroundColor Cyan
 Write-Host ""
@@ -24,7 +30,8 @@ Write-Host ""
 $deployHost = $env:DEPLOY_HOST
 if (-not $deployHost) {
     Write-Host "DEPLOY_HOST not set. To run deploy on server:" -ForegroundColor Yellow
-    Write-Host "  1. Set: `$env:DEPLOY_HOST = 'root@your-server-ip'" -ForegroundColor White
+    Write-Host "  1. Copy deploy.local.ps1.example → deploy.local.ps1 and set your host, or:" -ForegroundColor White
+    Write-Host "     `$env:DEPLOY_HOST = 'root@your-server-ip'" -ForegroundColor White
     Write-Host "  2. Run: .\deploy.ps1" -ForegroundColor White
     Write-Host ""
     Write-Host "Or SSH manually and run:" -ForegroundColor Yellow

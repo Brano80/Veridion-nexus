@@ -2,6 +2,7 @@
 .env
 *.env
 .env.local
+deploy.local.ps1
 *.log
 
 # Next.js build output
