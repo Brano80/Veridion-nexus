@@ -181,6 +181,25 @@ else
 fi
 echo ""
 
+# Load .env so POSTGRES_* can override defaults (matches docker-compose postgres service)
+if [ -f ".env" ]; then
+    set -a
+    # shellcheck disable=SC1091
+    . "./.env"
+    set +a
+fi
+POSTGRES_USER="${POSTGRES_USER:-postgres}"
+POSTGRES_DB="${POSTGRES_DB:-veridion_api}"
+
+echo "Running demo seed..."
+$COMPOSE_CMD -f docker-compose.prod.yml --env-file .env exec -T postgres \
+  psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f /scripts/seed_demo.sql || {
+    echo -e "${RED}❌ Demo seed failed${NC}"
+    exit 1
+}
+echo "Demo seed complete."
+echo ""
+
 # Check service status
 echo -e "${YELLOW}📊 Service status:${NC}"
 $COMPOSE_CMD -f docker-compose.prod.yml --env-file .env ps

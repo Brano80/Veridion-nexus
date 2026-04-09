@@ -2,13 +2,10 @@
 
 import { AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
-import SiteHeader from '@/components/SiteHeader';
 
 export default function TermsPage() {
   return (
     <div className="min-h-screen bg-white">
-      <SiteHeader />
-
       {/* Main Content */}
       <main className="pt-24 pb-16">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">

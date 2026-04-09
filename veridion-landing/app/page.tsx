@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { Shield, ChevronDown, ChevronUp, ArrowRight, CheckCircle, Globe, Lock, FileCheck, AlertCircle, Copy, X, KeyRound, Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import SiteHeader from '@/components/SiteHeader';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.veridion-nexus.eu';
 
@@ -69,8 +68,6 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <SiteHeader />
-
       {/* SECTION 2 — Hero */}
       <section className="relative pt-32 pb-20 md:pt-40 md:pb-32 min-h-screen flex items-center overflow-hidden" style={{
         background: 'radial-gradient(ellipse at center, #0a1628 0%, #080f1a 70%, #050810 100%)',
@@ -162,7 +159,7 @@ export default function LandingPage() {
 
       {sandboxOpen && (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+          className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
           aria-labelledby="sandbox-modal-title"

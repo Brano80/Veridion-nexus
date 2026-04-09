@@ -317,6 +317,8 @@ async fn main() -> std::io::Result<()> {
     println!("  Registry detail: GET  /api/public/registry/agents/{{id}}");
     println!("  Registry stats:  GET  /api/public/registry/stats");
     println!("  Public validate: POST /api/public/validate");
+    println!("  Public evaluate: POST /api/public/shield/evaluate");
+    println!("  Sandbox evaluate: POST /api/public/sandbox/evaluate");
     println!("  Sandbox key:     POST /api/public/sandbox/create");
 
     let signup_rate_limiter = web::Data::new(routes_auth::SignupRateLimiter::new());
@@ -350,6 +352,7 @@ async fn main() -> std::io::Result<()> {
             .configure(routes_acm::configure)
             .configure(routes_public_registry::configure)
             .configure(routes_public_validator::configure)
+            .service(routes_public_validator::sandbox_evaluate_handler)
     })
     .bind((server_host.as_str(), server_port))?
     .run()

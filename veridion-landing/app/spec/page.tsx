@@ -2,7 +2,6 @@
 // Place at: your-nextjs-app/app/spec/page.tsx
 
 import type { Metadata } from "next";
-import SiteHeader from "@/components/SiteHeader";
 
 export const metadata: Metadata = {
   title: "AI Agent Compliance Data Model v0.1 — Veridion Nexus",
@@ -22,8 +21,6 @@ const GITHUB_REPO = "https://github.com/Veridion-nexus/ai-agent-compliance-spec"
 export default function SpecPage() {
   return (
     <div className="min-h-screen bg-white text-gray-900">
-      <SiteHeader active="spec" />
-
       <main className="max-w-4xl mx-auto px-6 pt-24 pb-16">
         {/* Header */}
         <header className="mb-12 pb-10 border-b border-gray-200">

@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Shield, Copy, Check } from 'lucide-react';
 import Link from 'next/link';
-import SiteHeader from '@/components/SiteHeader';
 
 const sections = [
   { id: 'quick-start', label: 'Quick Start' },
@@ -87,8 +86,6 @@ export default function DocsPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <SiteHeader active="docs" />
-
       <div className="flex pt-16">
         {/* Sidebar */}
         <aside className="hidden lg:block w-64 bg-slate-50 border-r border-slate-200 h-screen sticky top-16 overflow-y-auto">

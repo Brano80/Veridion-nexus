@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import SiteHeader from '@/components/SiteHeader';
 import { Shield, Search, Globe, AlertTriangle, ChevronLeft, ChevronRight, Users, Database, Lock, ArrowRight } from 'lucide-react';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.veridion-nexus.eu';
@@ -93,8 +92,6 @@ export default function RegistryPage() {
 
   return (
     <div className="min-h-screen bg-slate-900">
-      <SiteHeader active="registry" />
-
       <div className="pt-24 pb-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Hero */}
         <div className="text-center mb-12">

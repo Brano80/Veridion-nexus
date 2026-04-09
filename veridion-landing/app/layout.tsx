@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import SiteHeader from '@/components/SiteHeader'
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://veridion-nexus.eu'),
@@ -38,7 +39,10 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="bg-slate-900 antialiased">{children}</body>
+      <body className="bg-slate-900 antialiased">
+        <SiteHeader />
+        {children}
+      </body>
     </html>
   )
 }

@@ -10,7 +10,7 @@ use crate::shield::{
     evaluate_transfer_with_db,
 };
 use crate::review_queue;
-use crate::tenant::get_tenant_context;
+use crate::tenant::{get_tenant_context, TenantContext};
 
 /// Enforcement mode: shadow = observe only (return ALLOW, record real decision); enforce = block/review as policy.
 pub async fn get_enforcement_mode(pool: &PgPool, tenant_id: uuid::Uuid) -> Result<String, String> {
@@ -233,17 +233,12 @@ pub async fn patch_settings(
     }
 }
 
-#[post("/api/v1/shield/evaluate")]
-pub async fn evaluate(
-    req: HttpRequest,
-    pool: web::Data<PgPool>,
-    body: web::Json<EvaluateRequest>,
+/// Shared evaluate implementation for `/api/v1/shield/evaluate` and `POST /api/public/shield/evaluate`.
+pub async fn evaluate_with_tenant_context(
+    pool: &PgPool,
+    tenant: &TenantContext,
+    body: EvaluateRequest,
 ) -> HttpResponse {
-    let tenant = match get_tenant_context(&req) {
-        Ok(t) => t,
-        Err(e) => return HttpResponse::from_error(e),
-    };
-
     // Require agent registration for all evaluate calls
     let has_agent_id = body.agent_id.as_ref().map_or(false, |s| !s.trim().is_empty());
     let has_agent_key = body.agent_api_key.as_ref().map_or(false, |s| !s.trim().is_empty());
@@ -263,7 +258,7 @@ pub async fn evaluate(
         )
         .bind(agent_id)
         .bind(tenant.tenant_id)
-        .fetch_optional(pool.get_ref())
+        .fetch_optional(pool)
         .await
         .ok()
         .flatten();
@@ -277,7 +272,7 @@ pub async fn evaluate(
             }
             Some(ref agent) => {
                 resolved_source_system = Some(agent.name.clone());
-                let is_shadow = get_enforcement_mode(pool.get_ref(), tenant.tenant_id).await
+                let is_shadow = get_enforcement_mode(pool, tenant.tenant_id).await
                     .map(|m| m == "shadow")
                     .unwrap_or(true);
                 // Validate agent API key if the agent has one set
@@ -343,7 +338,7 @@ pub async fn evaluate(
                         source_user_agent: body.user_agent.clone(),
                         tenant_id: tenant.tenant_id,
                     };
-                    if let Err(e) = evidence::create_event(pool.get_ref(), params).await {
+                    if let Err(e) = evidence::create_event(pool, params).await {
                         log::error!("Failed to create AGENT_POLICY_VIOLATION evidence (destination_country): {}", e);
                     }
                     if is_shadow {
@@ -399,7 +394,7 @@ pub async fn evaluate(
                                 source_user_agent: body.user_agent.clone(),
                                 tenant_id: tenant.tenant_id,
                             };
-                            if let Err(e) = evidence::create_event(pool.get_ref(), params).await {
+                            if let Err(e) = evidence::create_event(pool, params).await {
                                 log::error!("Failed to create AGENT_POLICY_VIOLATION evidence (data_categories): {}", e);
                             }
                             if is_shadow {
@@ -442,7 +437,7 @@ pub async fn evaluate(
         request_path: body.request_path.clone(),
     };
 
-    let decision = match evaluate_transfer_with_db(pool.get_ref(), &ctx).await {
+    let decision = match evaluate_transfer_with_db(pool, &ctx).await {
         Ok(d) => d,
         Err(e) => {
             return HttpResponse::InternalServerError().json(serde_json::json!({
@@ -460,7 +455,7 @@ pub async fn evaluate(
 
     let correlation_id = Uuid::new_v4().to_string();
 
-    let enforcement_mode = get_enforcement_mode(pool.get_ref(), tenant.tenant_id).await.unwrap_or_else(|_| "shadow".into());
+    let enforcement_mode = get_enforcement_mode(pool, tenant.tenant_id).await.unwrap_or_else(|_| "shadow".into());
     let is_shadow = enforcement_mode.eq_ignore_ascii_case("shadow");
 
     // Build payload with shadow_mode flag if in shadow mode
@@ -517,12 +512,12 @@ pub async fn evaluate(
         tenant_id: tenant.tenant_id,
     };
 
-    let (event_id, review_id) = match evidence::create_event(pool.get_ref(), params).await {
+    let (event_id, review_id) = match evidence::create_event(pool, params).await {
         Ok(event_row) => {
             let review_id = if create_review {
                 let action = format!("transfer_data_to_{}", dest_code.to_lowercase());
                 match review_queue::create_review(
-                    pool.get_ref(),
+                    pool,
                     "sovereign-shield",
                     &action,
                     "sovereign-shield",
@@ -539,7 +534,7 @@ pub async fn evaluate(
                 ).await {
                     Ok(seal_id) => {
                         match evidence::attach_review_seal_to_event(
-                            pool.get_ref(),
+                            pool,
                             tenant.tenant_id,
                             &event_row.event_id,
                             &seal_id,
@@ -589,6 +584,19 @@ pub async fn evaluate(
         "review_id": review_id,
         "timestamp": Utc::now().to_rfc3339(),
     }))
+}
+
+#[post("/api/v1/shield/evaluate")]
+pub async fn evaluate(
+    req: HttpRequest,
+    pool: web::Data<PgPool>,
+    body: web::Json<EvaluateRequest>,
+) -> HttpResponse {
+    let tenant = match get_tenant_context(&req) {
+        Ok(t) => t,
+        Err(e) => return HttpResponse::from_error(e),
+    };
+    evaluate_with_tenant_context(pool.get_ref(), &tenant, body.into_inner()).await
 }
 
 #[post("/api/v1/shield/ingest-logs")]

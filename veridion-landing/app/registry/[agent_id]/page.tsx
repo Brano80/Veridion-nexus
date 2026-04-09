@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import SiteHeader from '@/components/SiteHeader';
 import { Shield, Globe, AlertTriangle, ArrowLeft, ExternalLink, Mail, Clock, Cpu, CheckCircle, XCircle, FileText } from 'lucide-react';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.veridion-nexus.eu';
@@ -44,7 +43,6 @@ export default function AgentProfilePage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-900 flex flex-col">
-        <SiteHeader active="registry" />
         <div className="flex-1 flex items-center justify-center pt-16">
           <div className="animate-spin w-8 h-8 border-2 border-emerald-400 border-t-transparent rounded-full" />
         </div>
@@ -55,7 +53,6 @@ export default function AgentProfilePage() {
   if (error || !agent) {
     return (
       <div className="min-h-screen bg-slate-900 flex flex-col">
-        <SiteHeader active="registry" />
         <div className="flex-1 flex items-center justify-center pt-16">
           <div className="text-center">
             <Shield className="w-16 h-16 text-slate-600 mx-auto mb-4" />
@@ -75,8 +72,6 @@ export default function AgentProfilePage() {
 
   return (
     <div className="min-h-screen bg-slate-900">
-      <SiteHeader active="registry" />
-
       <div className="pt-24 pb-16 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <Link href="/registry" className="inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-white mb-6 transition-colors">
           <ArrowLeft className="w-4 h-4" /> Back to Registry

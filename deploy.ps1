@@ -1,6 +1,6 @@
 # Deploy Veridion Nexus to production
 # 1. Pushes latest code to origin
-# 2. SSHs to server and runs deploy.sh
+# 2. SSHs to server and runs deploy.sh (which applies scripts/seed_demo.sql idempotently after health check)
 #
 # Prerequisites:
 #   - Set $env:DEPLOY_HOST (e.g. "root@your-server-ip" or "user@api.veridion-nexus.eu")
@@ -30,6 +30,15 @@ if (-not $deployHost) {
     Write-Host "Or SSH manually and run:" -ForegroundColor Yellow
     Write-Host "  ssh user@server 'cd /opt/veridion-nexus && ./deploy.sh'" -ForegroundColor White
     exit 0
+}
+
+# Catch copy-paste of placeholder text (not a real hostname)
+$placeholderPattern = '(?i)(YOUR_SERVER|your_server_ip|your-server-ip)'
+if ($deployHost -match $placeholderPattern) {
+    Write-Host "DEPLOY_HOST looks like a placeholder, not a real server." -ForegroundColor Red
+    Write-Host "Replace it with your actual SSH target, e.g. root@203.0.113.50 or a Host name from ~/.ssh/config" -ForegroundColor Yellow
+    Write-Host "Current value: $deployHost" -ForegroundColor Gray
+    exit 1
 }
 
 Write-Host "Running deploy on $deployHost..." -ForegroundColor Yellow

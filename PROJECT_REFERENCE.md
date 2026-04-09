@@ -1,7 +1,7 @@
 # Project Reference — Veridion API / Sovereign Shield
 
-**Version:** 3.1  
-**Last updated:** 2026-04-06
+**Version:** 3.2  
+**Last updated:** 2026-04-07
 
 This is the **single project reference** for Veridion API: vision, scope, tech stack, configuration, and current behaviour (dashboard and API). Use it to onboard, scope work, and keep the codebase and docs aligned.
 
@@ -29,8 +29,8 @@ The vision is a **single, deployable API** that owns its schema and can grow fro
 |--------|-------------|
 | **Product** | Standalone REST API plus Sovereign Shield dashboard (Next.js). Own PostgreSQL database. Own migrations. |
 | **Boundary** | No shared migrations, shared DB, or shared Rust crates with veridion-nexus or other repos. |
-| **Current scope** | Health, dev auth (JWT), CORS; Evidence Vault (events, verify-integrity, **canonical JSON payload hashing** for chain verification, `hash_version` column, admin recompute-hashes; PDF export); Sovereign Shield (ingest/evaluate with agent_id/agent_api_key; **per-agent policy** applies to non–SCC-required destinations; **SCC-required** destinations skip agent destination/partner allowlists — enforcement is **shield + SCC registry** → REVIEW / ALLOW / BLOCK for org-blocked countries only; evidence + review queue); SCC registries (CRUD, PATCH tia_completed, dpa_id, scc_module; auto-approve on register; **auto-expiry background job**); Human Oversight (review queue with transfer_count burst grouping, pending/decided, approve/reject, decided-evidence-ids); **Auth** (login, logout, dev-reset-password); Self-serve signup (POST /api/v1/auth/register, input validation, rate limiting 5/IP/hour, bcrypt password, async welcome email via SMTP); **Agent Registry** (POST/GET/DELETE agents, agent card, rotate key, per-agent policy where applicable); **Accountability Ledger** — **`mcp-server-al/`** npm package **`nexus-al-mcp`**: MCP proxy with real upstream stdio/SSE (`UpstreamMcpClient`), tool call logging, SHA-256 hash-chained audit trail, context trust annotations, OAuth 2.1 / dev_bypass, ACM Rust API routes (`/api/acm/*`); **Public Compliance Registry** (cross-tenant search/detail/stats, dashboard opt-in); **ACM Dashboard** (Phase 2b: ACM Overview stats, Oversight Queue with approve/reject/escalate, Transfers table — **sidebar** lists ACM Overview under System; Oversight Queue and Transfers are not in the nav but routes remain). **MCP packages**: **`veridion-nexus-mcp`** (`mcp-server/`, Sovereign Shield tools only), **`nexus-al-mcp`** (`mcp-server-al/`, AL proxy). Deprecated: **`mcp-server-shield/`**. Migrations 001–043. |
-| **Planned scope** | Further dashboard features, production auth. |
+| **Current scope** | Health, dev auth (JWT), CORS; Evidence Vault (events, verify-integrity, **canonical JSON payload hashing** for chain verification, `hash_version` column, admin recompute-hashes; PDF export); Sovereign Shield (ingest/evaluate with agent_id/agent_api_key; **per-agent policy** applies to non–SCC-required destinations; **SCC-required** destinations skip agent destination/partner allowlists — enforcement is **shield + SCC registry** → REVIEW / ALLOW / BLOCK for org-blocked countries only; evidence + review queue; **SovereignMap** colors EU/adequate vs SCC vs org-blocked correctly even in **Shadow Mode**); SCC registries (CRUD, PATCH tia_completed, dpa_id, scc_module; auto-approve on register; **auto-expiry background job**); Human Oversight (review queue with transfer_count burst grouping, pending/decided, approve/reject, decided-evidence-ids); **Auth** (login, logout, dev-reset-password); **Trial enforcement** — expired `free_trial` tenants get **402** on login and on authenticated `/api/v1/*` calls; dashboard **`checkTrialExpired`** opens **`TrialExpiredModal`** (CTA: **mailto** to book an upgrade until a live Cal.com page exists); Self-serve signup (POST /api/v1/auth/register, input validation, rate limiting 5/IP/hour, bcrypt password, async welcome email via SMTP); **Agent Registry** (POST/GET/DELETE agents, agent card, rotate key, per-agent policy where applicable); **Accountability Ledger** — **`mcp-server-al/`** npm package **`nexus-al-mcp`**: MCP proxy with real upstream stdio/SSE (`UpstreamMcpClient`), tool call logging, SHA-256 hash-chained audit trail, context trust annotations, OAuth 2.1 / dev_bypass, ACM Rust API routes (`/api/acm/*`); **Public Compliance Registry** (cross-tenant search/detail/stats, dashboard opt-in); **Public validator & sandbox keys** — `POST /api/public/validate` (ACM-shaped JSON → article mapping), `POST /api/public/sandbox/create` (`sbx_` key, rate-limited per IP; **not** wired to Shield evaluate yet — see §9.14); landing **Get API Key** hero button; **ACM Dashboard** (Phase 2b: ACM Overview stats, Oversight Queue with approve/reject/escalate, Transfers table — **sidebar** lists ACM Overview under System; Oversight Queue and Transfers are not in the nav but routes remain). **MCP packages**: **`veridion-nexus-mcp`** (`mcp-server/`, Sovereign Shield tools only), **`nexus-al-mcp`** (`mcp-server-al/`, AL proxy). Deprecated: **`mcp-server-shield/`**. Migrations 001–044. |
+| **Planned scope** | Production auth hardening; **agent-native demo** — sandbox token → demo tenant **`/api/v1/shield/evaluate`** (§9.14). |
 
 **What it is not:** Not a fork or subset of veridion-nexus. Not a monorepo member that shares `migrations/` or `src/` with another project.
 
@@ -107,7 +107,7 @@ Dependencies: serde/serde_json, chrono, uuid, dotenv.
 veridion-api/
 ├── Cargo.toml
 ├── src/                    # Rust API (main.rs, routes_*, evidence, shield, routes_acm, etc.)
-├── migrations/             # Schema 001–043 (no external path)
+├── migrations/             # Schema 001–044 (no external path)
 ├── dashboard/              # Next.js Sovereign Shield dashboard (port 3000)
 ├── veridion-landing/       # Next.js landing page + signup flow (port 3001)
 ├── mcp-server/             # veridion-nexus-mcp: Sovereign Shield MCP (dist/index.js)
@@ -119,7 +119,7 @@ veridion-api/
 └── …
 ```
 
-**Migrations:** 43 (001–043). Key tables: `users`, `tenants`, `compliance_records`, `human_oversight`, `evidence_events`, `scc_registries`, `system_settings`, `agents`, `policy_versions`, `tool_call_events`, `context_trust_annotations`. Migration **022** adds `evidence_event_id` to `compliance_records`. **023** adds `tia_completed` (Transfer Impact Assessment) to `scc_registries`. **024** adds `dpa_id` and `scc_module` to `scc_registries`. **025** creates `system_settings` (key/value) with PRIMARY KEY on `key`. **026** creates `tenants` table and adds `tenant_id` columns to all data tables for multi-tenancy; updates `system_settings` to drop old PRIMARY KEY and add UNIQUE constraint on `(key, tenant_id)` for multi-tenant support. **027** adds FK constraint `users.company_id → tenants.id`. **028** links admin user to admin tenant. **029** seeds `system_settings` for admin tenant with `enforcement_mode='shadow'` using `ON CONFLICT (key, tenant_id)`. **030** adds `transfer_count` to `compliance_records` (burst grouping for review queue). **031** creates `agents` and `policy_versions` tables (agent registry, per-agent policy). **032** adds `api_key_hash` to `agents`. **033** adds `deleted_at` to `agents` (soft delete). **035** creates `tool_call_events` table (ACM ToolCallEvent — append-only, SHA-256 hash-chained, UUID FK to agents, JSONB inputs/outputs, OTel trace_id/parent_span_id, context_trust_level, legal_basis, purpose, eu_ai_act_risk_level; NO UPDATE/DELETE rules; `acm_tool_call_events` view). **036** creates `context_trust_annotations` table (ACM ContextTrustAnnotation — session-level trust tracking, monotonic degradation trusted→degraded→untrusted, sources_in_context JSONB, triggered_human_review; `acm_session_trust_summary` view for current trust level). **037** extends `agents` table with ACM AgentRecord fields (oauth_client_id, oauth_issuer, oauth_scope, eu_ai_act_risk_level, processes_personal_data, automated_decision_making, deployment_environment, deployment_region, data_residency, transfer_policies JSONB, tools_permitted JSONB, a2a_card_url, retention_policy JSONB; `acm_agent_records` view). **038** adds Public Compliance Registry fields on `agents` (`public_registry_listed`, `public_registry_description`, `public_registry_contact_email`, `public_registry_listed_at`) plus indexes for listing and full-text search. **039** creates `data_transfer_records` (ACM DataTransferRecord), `eea_countries`, view `acm_data_transfer_records`. **040** extends `human_oversight` for ACM (nullable `seal_id`, `agent_id`, `event_ref`, `review_trigger`, `reviewer_outcome`, etc.), views `acm_human_oversight_records` and `acm_oversight_pending`. **043** adds `hash_version` on `evidence_events` and supports recomputing stored `payload_hash` values using **canonical JSON** (recursive key sort) so on-chain verification stays consistent after PostgreSQL JSONB reordering; admin `POST /api/v1/admin/recompute-hashes` backfills legacy rows. Full list in `migrations/`.
+**Migrations:** 44 (001–044). Key tables: `users`, `tenants`, `compliance_records`, `human_oversight`, `evidence_events`, `scc_registries`, `system_settings`, `agents`, `policy_versions`, `tool_call_events`, `context_trust_annotations`. Migration **022** adds `evidence_event_id` to `compliance_records`. **023** adds `tia_completed` (Transfer Impact Assessment) to `scc_registries`. **024** adds `dpa_id` and `scc_module` to `scc_registries`. **025** creates `system_settings` (key/value) with PRIMARY KEY on `key`. **026** creates `tenants` table and adds `tenant_id` columns to all data tables for multi-tenancy; updates `system_settings` to drop old PRIMARY KEY and add UNIQUE constraint on `(key, tenant_id)` for multi-tenant support. **027** adds FK constraint `users.company_id → tenants.id`. **028** links admin user to admin tenant. **029** seeds `system_settings` for admin tenant with `enforcement_mode='shadow'` using `ON CONFLICT (key, tenant_id)`. **030** adds `transfer_count` to `compliance_records` (burst grouping for review queue). **031** creates `agents` and `policy_versions` tables (agent registry, per-agent policy). **032** adds `api_key_hash` to `agents`. **033** adds `deleted_at` to `agents` (soft delete). **035** creates `tool_call_events` table (ACM ToolCallEvent — append-only, SHA-256 hash-chained, UUID FK to agents, JSONB inputs/outputs, OTel trace_id/parent_span_id, context_trust_level, legal_basis, purpose, eu_ai_act_risk_level; NO UPDATE/DELETE rules; `acm_tool_call_events` view). **036** creates `context_trust_annotations` table (ACM ContextTrustAnnotation — session-level trust tracking, monotonic degradation trusted→degraded→untrusted, sources_in_context JSONB, triggered_human_review; `acm_session_trust_summary` view for current trust level). **037** extends `agents` table with ACM AgentRecord fields (oauth_client_id, oauth_issuer, oauth_scope, eu_ai_act_risk_level, processes_personal_data, automated_decision_making, deployment_environment, deployment_region, data_residency, transfer_policies JSONB, tools_permitted JSONB, a2a_card_url, retention_policy JSONB; `acm_agent_records` view). **038** adds Public Compliance Registry fields on `agents` (`public_registry_listed`, `public_registry_description`, `public_registry_contact_email`, `public_registry_listed_at`) plus indexes for listing and full-text search. **039** creates `data_transfer_records` (ACM DataTransferRecord), `eea_countries`, view `acm_data_transfer_records`. **040** extends `human_oversight` for ACM (nullable `seal_id`, `agent_id`, `event_ref`, `review_trigger`, `reviewer_outcome`, etc.), views `acm_human_oversight_records` and `acm_oversight_pending`. **043** adds `hash_version` on `evidence_events` and supports recomputing stored `payload_hash` values using **canonical JSON** (recursive key sort) so on-chain verification stays consistent after PostgreSQL JSONB reordering; admin `POST /api/v1/admin/recompute-hashes` backfills legacy rows. **044** creates **`sandbox_keys`** (hashed `sbx_` API keys issued by `POST /api/public/sandbox/create`, IP + timestamp for rate limiting). Full list in `migrations/`.
 
 ### 5.2 Configuration
 
@@ -317,6 +317,49 @@ Dashboard-facing endpoints authenticated via JWT (tenant-scoped via `get_tenant_
 **Auth**: Public endpoints (`/api/public/registry/*`) require no authentication — they are designed for DPOs and compliance officers to discover agents. The PATCH endpoint is tenant-scoped (standard JWT auth).
 
 **Migration 038**: Adds `public_registry_listed`, `public_registry_description`, `public_registry_contact_email`, `public_registry_listed_at` to `agents` table with GIN full-text search index.
+
+### 9.13 Public validator and sandbox API keys (shipped)
+
+No tenant middleware — routes under `/api/public/` (same exemption pattern as §9.11: paths do not start with `/api/v1/`, so **`TenantAuthMiddleware` passes them through** without API key/JWT).
+
+| Method + path | Purpose |
+|---------------|--------|
+| `POST /api/public/validate` | Accepts JSON body shaped like an ACM ToolCallEvent. Returns **`valid`**, **`missing_fields`**, **`articles_triggered`** (EU AI Act Art. 12(1)(a), 14, 9; GDPR Art. 30, 5(1)(e) warnings), **`warnings`**. No auth. |
+| `POST /api/public/sandbox/create` | Issues a **`sbx_`** + 32 hex char key; stores **SHA-256** hash, **key_prefix**, client **IP** (from `X-Forwarded-For` / peer). **Rate limit:** max **3 keys per IP per 24 hours** (429 if exceeded). Returns **`sandbox_key`**, **`expires_in`**, **`note`**, **`example`** (example **`curl`** for the validator). No auth. **Migration 044:** table **`sandbox_keys`**. |
+
+**Landing (`veridion-landing/app/page.tsx`)**: Hero **“Get API Key”** calls **`POST …/api/public/sandbox/create`** (`NEXT_PUBLIC_API_URL`), opens a dark modal with the key, copy button, example command, link to **`/signup`**. Key is not persisted client-side after close.
+
+### 9.14 Agent-native demo flow (planned)
+
+**Goal:** Allow an AI agent with web browsing capability to **autonomously** discover Veridion, obtain a sandbox key, run a **real** compliance evaluation, and return a meaningful assessment to the user — **no human in the loop** and **no signup required**.
+
+**Why:** In an agentic world, a potential customer may instruct their agent: *“find me GDPR compliance software with an MCP gateway, test it, report back.”* If Veridion can be discovered, tested, and assessed autonomously, it shows up in that result with a **real evaluation** rather than only a marketing page.
+
+**Current state (partially built):**
+
+- `POST /api/public/sandbox/create` — returns an **`sbx_` key**, no auth (migration **044**, rate-limited **3/IP/24h**).
+- `POST /api/public/validate` — schema validation + EU AI Act / GDPR article mapping, no auth.
+- Landing **“Get API Key”** button calls **`sandbox/create`** and shows the key + example **`curl`** (validator).
+
+**Gap:** **`sbx_` keys are not wired to Shield evaluation.** An agent can validate a schema but **cannot** run a real **GDPR Chapter V** transfer evaluation via **`POST /api/v1/shield/evaluate`** without a **full registered account** (tenant API key + registered agent).
+
+**Planned build — demo tenant:**
+
+- Pre-seed a **demo tenant** in the database with a fixed **demo API key**.
+- `POST /api/public/sandbox/create` returns a **short-lived token** that **proxies** to the demo tenant’s **`POST /api/v1/shield/evaluate`** — read-only, rate-limited, **no durable tenant data** beyond the session design goal.
+- The **`example`** field in the sandbox response includes a **real `evaluate_transfer` / evaluate curl** (not only the validator).
+- An agent that calls **evaluate** via the sandbox gets back **ALLOW / REVIEW / BLOCK** with a **cryptographic seal** — a result it can report to the user as meaningful.
+
+**UX distinction vs Public Compliance Registry:**
+
+| Entry point | Audience | Moment |
+|-------------|----------|--------|
+| **`/api/public/registry/agents`** | DPOs, auditors | *“I already exist — find me.”* |
+| **`/api/public/validate`** + **`/api/public/sandbox/create`** | Developers, agents | *“I’m building something — test it now.”* |
+
+These are **different moments in the journey** and should stay **distinct** on the landing site (registry vs developer/sandbox flows).
+
+**Not yet built.** Prerequisites: **demo tenant seed script** + **sandbox proxy layer** to Shield evaluate.
 
 ### 9.6 MCP — Sovereign Shield vs Accountability Ledger
 
@@ -535,6 +578,12 @@ The **Accountability Ledger (AL) proxy** is shipped as **`mcp-server-al`** (**`n
 
 ## 12. Landing page (`veridion-landing/`)
 
+### 12.0 Home — `veridion-landing/app/page.tsx`
+
+- **Route**: `/` (marketing hero on Vercel / server port 3001 in Docker).
+- **CTAs**: Sign Up, **Get API Key** (calls **`POST /api/public/sandbox/create`** via `NEXT_PUBLIC_API_URL`, modal with `sbx_` key + example curl — see §9.13), **See How It Works** (in-page anchor).
+- **Distinction**: Hero / sandbox = *build & test*; **`/registry`** (§12.2) = *discover listed agents* — present as separate journeys (see §9.14).
+
 ### 12.1 Documentation page — `veridion-landing/app/docs/page.tsx`
 
 - **Route**: `/docs`. Comprehensive API documentation with sidebar navigation.
@@ -564,9 +613,9 @@ The **Accountability Ledger (AL) proxy** is shipped as **`mcp-server-al`** (**`n
 
 ## 13. Shared components
 
-- **SovereignMap.tsx**: Maps `EvidenceEvent[]` to country status (adequate/SCC/blocked) and transfer counts; outputs for WorldMap. Markers type: `{ lat: number; lng: number; code: string; name: string; color: string }[]`.
+- **SovereignMap.tsx**: Maps `EvidenceEvent[]` to country status (adequate/SCC/blocked) and transfer counts; outputs for WorldMap. **Shadow Mode:** EU/EEA and **adequate** countries stay **green** (evidence may still store BLOCK); **SCC-required** destinations map to **orange** (SCC border/fill by registry); only **org-blocked / non-adequate non-SCC** BLOCK decisions go **red**. Markers type: `{ lat: number; lng: number; code: string; name: string; color: string }[]`.
 - **WorldMap.tsx**: react-simple-maps; 400px map, legend, tooltips; fill by status. Accepts `markers` prop for small country markers.
-- **TrialExpiredModal.tsx**: Full-screen modal for trial expiry (Pro CTA, etc.). Wired via `onTrialExpired` / `DashboardLayout`. **Current behaviour (2026-03):** server-side trial enforcement and client `checkTrialExpired()` triggers are **commented out** (`TODO: re-enable when billing is ready`) so trials do not block login or API calls; modal remains in the tree but is not shown until re-enabled.
+- **TrialExpiredModal.tsx**: Full-screen modal for trial expiry. Wired via `onTrialExpired` / `DashboardLayout`. **CTA:** **“Book a call to upgrade”** → **`mailto:hello@veridion-nexus.eu`** with prefilled subject/body (swap to a live **`https://cal.com/<handle>`** when published). **Enforcement:** Expired **`free_trial`** → **402** on login (`routes_auth`) and on **`/api/v1/*`** (`middleware_tenant`); `api.ts` **`checkTrialExpired`** opens this modal.
 - **DashboardLayout.tsx**: Registers trial-expiry callback and renders `TrialExpiredModal` when triggered. All dashboard pages use this layout.
 
 ---
@@ -574,7 +623,7 @@ The **Accountability Ledger (AL) proxy** is shipped as **`mcp-server-al`** (**`n
 ## 14. API client — `dashboard/app/utils/api.ts`
 
 - **Base**: Uses relative URL (`API_BASE = ''`) so Next.js rewrites proxy to backend (avoids CORS). Types: `EvidenceEvent`, `SCCRegistry`, `ReviewQueueItem`.
-- **Trial Expiry Detection**: Helpers `onTrialExpired`, `triggerTrialExpired`, `checkTrialExpired(res)` — **`checkTrialExpired` body is currently commented out** (no modal on 402 until billing re-enabled). Fetch wrappers still call `checkTrialExpired(res)` for future use.
+- **Trial Expiry Detection**: Helpers `onTrialExpired`, `triggerTrialExpired`, `checkTrialExpired(res)` — on **402** response, **`triggerTrialExpired()`** runs and an error is thrown (modal via `DashboardLayout`).
 - **401 Unauthorized Handling**: Global 401 handler:
   - `checkUnauthorized(res)` — helper checks response status 401 (expired/invalid JWT token)
   - Clears expired token and user data from localStorage (`ss_token`, `ss_user`)
@@ -617,10 +666,11 @@ The **Accountability Ledger (AL) proxy** is shipped as **`mcp-server-al`** (**`n
 - **Evidence**: `src/routes_evidence.rs` — list events (with pagination, filters; returns events, totalCount, merkleRoots), create event, verify-integrity. `src/evidence.rs` — `canonical_json()` + `compute_payload_hash()` for deterministic hashing; `hash_version` on rows (migration 043).
 - **Shield**: `src/routes_shield.rs` — evaluate (synchronous), ingest-logs (batch), stats, countries, requires-attention, transfers-by-destination, SCC CRUD (list, register, PATCH, delete). **SCC-required** destinations: agent **`allowed_destination_countries`** / **`allowed_partners`** do not block; core decision from `src/shield.rs` + SCC registry. On register, `review_queue::approve_pending_reviews_for_scc()` auto-approves pending reviews whose evidence event matches the new SCC destination.
 - **Review queue**: `src/routes_review_queue.rs`, `src/review_queue.rs` — list (with status filter), pending, decided-evidence-ids, create (with `evidence_event_id`), approve, reject. Reject creates `HUMAN_OVERSIGHT_REJECTED` evidence event. **Shadow mode propagation**: When creating `HUMAN_OVERSIGHT_REJECTED` or `HUMAN_OVERSIGHT_APPROVED` evidence events, `shadow_mode: true` is added to payload if current enforcement mode is shadow. Applies to manual approve/reject, auto-approve (SCC registration), and SLA timeout auto-block paths.
-- **Auth**: `src/routes_auth.rs`, `src/email.rs` — `POST /api/v1/auth/register`: validates inputs, rate-limits 5/IP/hour, checks email uniqueness, creates tenant + user atomically, sends async welcome email (skipped if SMTP not configured). Returns `tenant_id`, `api_key_raw` (once only), `api_key_prefix`, `trial_expires_at`. `POST /api/v1/auth/login`: email/password, bcrypt verify, returns JWT with tenant_id. `POST /api/v1/auth/dev-reset-password`: dev only, resets password by username. **Trial 402 enforcement** on login and tenant middleware (`src/middleware_tenant.rs`) is **commented out** pending billing (TODO: re-enable).
+- **Auth**: `src/routes_auth.rs`, `src/email.rs` — `POST /api/v1/auth/register`: validates inputs, rate-limits 5/IP/hour, checks email uniqueness, creates tenant + user atomically, sends async welcome email (skipped if SMTP not configured). Returns `tenant_id`, `api_key_raw` (once only), `api_key_prefix`, `trial_expires_at`. `POST /api/v1/auth/login`: email/password, bcrypt verify, returns JWT with tenant_id; **`free_trial` + past `trial_expires_at`** → **402** `trial_expired`. `POST /api/v1/auth/dev-reset-password`: dev only, resets password by username. **Trial enforcement:** `src/middleware_tenant.rs` returns **402** for expired **`free_trial`** on **`/api/v1/*`** (after JWT/API key resolution).
 - **Agents**: `src/routes_agents.rs` — Agent registry (register, list, get, card, rotate-key, patch, delete). Per-agent policy enforcement in shield evaluate when `agent_id` + `agent_api_key` provided. PATCH supports `public_registry_listed`, `public_registry_description`, `public_registry_contact_email`.
 - **ACM (Accountability Ledger)**: `src/routes_acm.rs` — Internal API for the AL MCP proxy (authenticated via `AL_SERVICE_TOKEN`) plus dashboard-facing endpoints (authenticated via JWT/tenant context). Proxy routes: agent lookup by `oauth_client_id`, tool call event creation with hash chaining, trust annotations with monotonic degradation, data transfer records, oversight records. Dashboard routes: `GET /api/v1/acm/stats`, `GET /api/v1/acm/oversight`, `PATCH /api/v1/acm/oversight/{id}`, `GET /api/v1/acm/transfers` — all tenant-scoped with agent name joins.
 - **Public Registry**: `src/routes_public_registry.rs` — Public, cross-tenant search/detail/stats endpoints for the compliance registry. No auth required. Full-text search with GIN index, filterable by risk level, region, data residency.
+- **Public validator / sandbox**: `src/routes_public_validator.rs` — `POST /api/public/validate`, `POST /api/public/sandbox/create` (see §9.13). **`sandbox_keys`** table (migration **044**).
 
 ---
 
@@ -693,6 +743,14 @@ See §16.2 for **`mcp-server-al`** (Accountability Ledger).
 | `veridion-landing/app/registry/[agent_id]/page.tsx` | Public agent compliance profile page |
 | `dashboard/app/utils/api.ts` | Includes `patchAgent()` for public registry fields (used where applicable) |
 
+### 16.4 File map (Public validator & sandbox keys)
+
+| Path | Purpose |
+|------|--------|
+| `src/routes_public_validator.rs` | `POST /api/public/validate`, `POST /api/public/sandbox/create` |
+| `migrations/044_sandbox_keys.sql` | `sandbox_keys` table (hashed keys, IP, rate-limit support) |
+| `veridion-landing/app/page.tsx` | Hero **Get API Key** + sandbox modal |
+
 ---
 
 ## 17. Build and deployment
@@ -715,7 +773,8 @@ Pages using `useSearchParams()` are wrapped in Suspense boundaries to satisfy Ne
 
 ### 17.2 Trial expiry handling
 
-- **Backend / frontend (2026-03):** Trial **402** responses and `checkTrialExpired()` modal triggers are **disabled** (commented, TODO re-enable when billing is ready). When re-enabled: middleware + login return 402 for expired `free_trial`; `api.ts` will show `TrialExpiredModal` again.
+- **Backend:** `free_trial` + `trial_expires_at` in the past → **402** `trial_expired` on **`POST /api/v1/auth/login`** and on authenticated **`/api/v1/*`** (`middleware_tenant`).
+- **Frontend:** `checkTrialExpired(res)` in `dashboard/app/utils/api.ts` triggers **`TrialExpiredModal`** (mailto CTA — see §13).
 
 ### 17.3 Production deployment
 
