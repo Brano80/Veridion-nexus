@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Shield, ChevronDown, ChevronUp, ArrowRight, CheckCircle, Globe, Lock, FileCheck, AlertCircle, Copy, X, KeyRound, Loader2 } from 'lucide-react';
+import { Shield, ChevronDown, ChevronUp, ArrowRight, CheckCircle, Globe, Lock, FileCheck, Copy, X, KeyRound, Loader2, EyeOff, Clock, FileText, Activity } from 'lucide-react';
 import Link from 'next/link';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.veridion-nexus.eu';
@@ -229,7 +229,7 @@ export default function LandingPage() {
 
           <div className="grid md:grid-cols-2 gap-4">
             <div className="bg-slate-50 rounded-xl p-6 shadow-sm border border-emerald-500/30">
-              <AlertCircle className="w-10 h-10 text-red-500 mb-4" />
+              <EyeOff className="w-10 h-10 text-slate-500 mb-4" strokeWidth={1.5} aria-hidden />
               <h3 className="text-lg font-semibold text-slate-900 mb-2">No Visibility</h3>
               <p className="text-sm text-slate-600">
                 You cannot demonstrate compliance with transfers you cannot see. Without runtime instrumentation, there is no record of which transfers occurred, where data went, or whether adequate safeguards were in place.
@@ -237,7 +237,7 @@ export default function LandingPage() {
             </div>
 
             <div className="bg-slate-50 rounded-xl p-6 shadow-sm border border-emerald-500/30">
-              <AlertCircle className="w-10 h-10 text-red-500 mb-4" />
+              <Clock className="w-10 h-10 text-slate-500 mb-4" strokeWidth={1.5} aria-hidden />
               <h3 className="text-lg font-semibold text-slate-900 mb-2">Manual Audits Are Too Late</h3>
               <p className="text-sm text-slate-600">
                 By the time a DPA or auditor requests evidence, it is too late to create it. GDPR Art. 30 requires records of processing activities, and retroactive documentation does not satisfy the accountability principle under Art. 5(2).
@@ -245,7 +245,7 @@ export default function LandingPage() {
             </div>
 
             <div className="bg-slate-50 rounded-xl p-6 shadow-sm border border-emerald-500/30">
-              <AlertCircle className="w-10 h-10 text-red-500 mb-4" />
+              <FileText className="w-10 h-10 text-slate-500 mb-4" strokeWidth={1.5} aria-hidden />
               <h3 className="text-lg font-semibold text-slate-900 mb-2">A DPA Is Not Enough</h3>
               <p className="text-sm text-slate-600">
                 A Data Processing Agreement establishes the contractual framework, but GDPR Art. 5(2) requires you to demonstrate compliance per transfer. A DPA alone cannot provide the per-transfer audit trail regulators expect.
@@ -253,7 +253,7 @@ export default function LandingPage() {
             </div>
 
             <div className="bg-slate-50 rounded-xl p-6 shadow-sm border border-emerald-500/30">
-              <AlertCircle className="w-10 h-10 text-red-500 mb-4" />
+              <Activity className="w-10 h-10 text-slate-500 mb-4" strokeWidth={1.5} aria-hidden />
               <h3 className="text-lg font-semibold text-slate-900 mb-2">No Enforcement Without Observability</h3>
               <p className="text-sm text-slate-600">
                 Without runtime evaluation, transfers to non-adequate countries proceed unchecked. You cannot enforce what you cannot observe. Shadow Mode lets you see exactly what would be enforced before you enable blocking.
