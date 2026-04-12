@@ -79,7 +79,7 @@ pub struct AgentQuery {
 #[get("/api/acm/agents")]
 pub async fn get_agent_by_oauth_client_id(
     req: HttpRequest,
-    pool: web::Data<PgPool>,
+    state: web::Data<crate::state::AppState>,
     query: web::Query<AgentQuery>,
 ) -> HttpResponse {
     if let Err(resp) = verify_service_token(&req) {
@@ -115,7 +115,7 @@ pub async fn get_agent_by_oauth_client_id(
         ) t"#,
     )
     .bind(&query.oauth_client_id)
-    .fetch_optional(pool.get_ref())
+    .fetch_optional(&state.pool)
     .await
     .ok()
     .flatten();
@@ -156,7 +156,7 @@ pub struct CreateToolCallEventRequest {
 #[post("/api/acm/events")]
 pub async fn create_tool_call_event(
     req: HttpRequest,
-    pool: web::Data<PgPool>,
+    state: web::Data<crate::state::AppState>,
     body: web::Json<CreateToolCallEventRequest>,
 ) -> HttpResponse {
     if let Err(resp) = verify_service_token(&req) {
@@ -170,7 +170,7 @@ pub async fn create_tool_call_event(
             "error": "Invalid tenant_id"
         })),
     };
-    let agent_id_str = match resolve_agent_id_for_tenant(pool.get_ref(), &body.agent_id, tenant_uuid).await {
+    let agent_id_str = match resolve_agent_id_for_tenant(&state.pool, &body.agent_id, tenant_uuid).await {
         Ok(s) => s,
         Err(resp) => return resp,
     };
@@ -191,7 +191,7 @@ pub async fn create_tool_call_event(
         "SELECT event_hash FROM tool_call_events WHERE agent_id = $1 ORDER BY created_at DESC LIMIT 1"
     )
     .bind(&agent_id_str)
-    .fetch_optional(pool.get_ref())
+    .fetch_optional(&state.pool)
     .await
     .ok()
     .flatten();
@@ -211,7 +211,7 @@ pub async fn create_tool_call_event(
     );
     let event_hash = sha256_hex(&canonical);
 
-    let result = sqlx::query_scalar::<_, chrono::DateTime<chrono::Utc>>(
+    let insert_result = sqlx::query_scalar::<_, chrono::DateTime<chrono::Utc>>(
         r#"INSERT INTO tool_call_events (
             event_id, agent_id, session_id, tenant_id,
             tool_id, tool_version, called_at,
@@ -254,20 +254,58 @@ pub async fn create_tool_call_event(
     .bind(&event_hash)
     .bind(annotation_uuid)
     .bind(oversight_uuid)
-    .fetch_one(pool.get_ref())
+    .fetch_one(&state.pool)
     .await;
 
-    match result {
-        Ok(created_at) => HttpResponse::Created().json(serde_json::json!({
+    let created_at = match insert_result {
+        Ok(t) => t,
+        Err(e) => {
+            log::error!("Failed to create tool_call_event: {}", e);
+            return HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": format!("Failed to create event: {}", e)
+            }));
+        }
+    };
+
+    let canonical_json = crate::signing::tool_call_event_signing_canonical(
+        &event_id,
+        &agent_id_str,
+        &body.tool_id,
+        &session_uuid,
+        &event_hash,
+        created_at,
+    );
+    let (signature, signing_key_id) =
+        crate::signing::sign_event(&state.signing_keys, &canonical_json);
+
+    let updated = sqlx::query(
+        r#"UPDATE tool_call_events SET signature = $1, signing_key_id = $2 WHERE event_id = $3"#,
+    )
+    .bind(&signature)
+    .bind(&signing_key_id)
+    .bind(event_id)
+    .execute(&state.pool)
+    .await;
+
+    match updated {
+        Ok(rows) if rows.rows_affected() == 1 => HttpResponse::Created().json(serde_json::json!({
             "data": {
                 "id": event_id.to_string(),
                 "created_at": created_at.to_rfc3339(),
+                "signature": signature,
+                "signing_key_id": signing_key_id,
             }
         })),
-        Err(e) => {
-            log::error!("Failed to create tool_call_event: {}", e);
+        Ok(_) => {
+            log::error!("UPDATE tool_call_events signature: no row for event_id {}", event_id);
             HttpResponse::InternalServerError().json(serde_json::json!({
-                "error": format!("Failed to create event: {}", e)
+                "error": "Failed to persist signature"
+            }))
+        }
+        Err(e) => {
+            log::error!("UPDATE tool_call_events signature: {}", e);
+            HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": format!("Failed to persist signature: {}", e)
             }))
         }
     }
@@ -296,7 +334,7 @@ fn default_true() -> bool { true }
 #[post("/api/acm/trust-annotations")]
 pub async fn create_trust_annotation(
     req: HttpRequest,
-    pool: web::Data<PgPool>,
+    state: web::Data<crate::state::AppState>,
     body: web::Json<CreateTrustAnnotationRequest>,
 ) -> HttpResponse {
     if let Err(resp) = verify_service_token(&req) {
@@ -317,7 +355,7 @@ pub async fn create_trust_annotation(
             "error": "Invalid tenant_id"
         })),
     };
-    let agent_id_str = match resolve_agent_id_for_tenant(pool.get_ref(), &body.agent_id, tenant_uuid).await {
+    let agent_id_str = match resolve_agent_id_for_tenant(&state.pool, &body.agent_id, tenant_uuid).await {
         Ok(s) => s,
         Err(resp) => return resp,
     };
@@ -331,7 +369,7 @@ pub async fn create_trust_annotation(
            ORDER BY annotated_at DESC LIMIT 1"#,
     )
     .bind(session_uuid)
-    .fetch_optional(pool.get_ref())
+    .fetch_optional(&state.pool)
     .await
     .ok()
     .flatten();
@@ -371,7 +409,7 @@ pub async fn create_trust_annotation(
     .bind(body.session_trust_persistent)
     .bind(body.triggered_human_review)
     .bind(oversight_uuid)
-    .fetch_one(pool.get_ref())
+    .fetch_one(&state.pool)
     .await;
 
     match result {
@@ -400,7 +438,7 @@ pub struct SessionPath {
 #[get("/api/acm/trust-annotations/session/{session_id}/current")]
 pub async fn get_session_trust_level(
     req: HttpRequest,
-    pool: web::Data<PgPool>,
+    state: web::Data<crate::state::AppState>,
     path: web::Path<SessionPath>,
 ) -> HttpResponse {
     if let Err(resp) = verify_service_token(&req) {
@@ -427,7 +465,7 @@ pub async fn get_session_trust_level(
            LIMIT 1"#,
     )
     .bind(session_uuid)
-    .fetch_optional(pool.get_ref())
+    .fetch_optional(&state.pool)
     .await
     .ok()
     .flatten();
@@ -464,7 +502,7 @@ pub struct CreateDataTransferRecordRequest {
 #[post("/api/acm/transfers")]
 pub async fn create_data_transfer_record(
     req: HttpRequest,
-    pool: web::Data<PgPool>,
+    state: web::Data<crate::state::AppState>,
     body: web::Json<CreateDataTransferRecordRequest>,
 ) -> HttpResponse {
     if let Err(resp) = verify_service_token(&req) {
@@ -475,7 +513,7 @@ pub async fn create_data_transfer_record(
         Ok(id) => id,
         Err(_) => return HttpResponse::BadRequest().json(serde_json::json!({"error": "invalid tenant_id"})),
     };
-    let agent_id_str = match resolve_agent_id_for_tenant(pool.get_ref(), &body.agent_id, tenant_id).await {
+    let agent_id_str = match resolve_agent_id_for_tenant(&state.pool, &body.agent_id, tenant_id).await {
         Ok(s) => s,
         Err(resp) => return resp,
     };
@@ -539,7 +577,7 @@ pub async fn create_data_transfer_record(
     .bind(&body.derogation_basis)
     .bind(&body.backup_mechanism)
     .bind(transfer_timestamp)
-    .fetch_one(pool.get_ref())
+    .fetch_one(&state.pool)
     .await;
 
     match row {
@@ -559,7 +597,7 @@ pub async fn create_data_transfer_record(
 }
 
 #[patch("/api/acm/transfers/schrems-iii-review")]
-pub async fn schrems_iii_bulk_review(req: HttpRequest, pool: web::Data<PgPool>) -> HttpResponse {
+pub async fn schrems_iii_bulk_review(req: HttpRequest, state: web::Data<crate::state::AppState>) -> HttpResponse {
     if let Err(resp) = verify_service_token(&req) {
         return resp;
     }
@@ -574,7 +612,7 @@ pub async fn schrems_iii_bulk_review(req: HttpRequest, pool: web::Data<PgPool>) 
           AND schrems_iii_risk = false
         "#,
     )
-    .execute(pool.get_ref())
+    .execute(&state.pool)
     .await;
 
     match result {
@@ -611,7 +649,7 @@ pub struct UpdateOversightOutcomeRequest {
 #[post("/api/acm/oversight")]
 pub async fn create_oversight_record(
     req: HttpRequest,
-    pool: web::Data<PgPool>,
+    state: web::Data<crate::state::AppState>,
     body: web::Json<CreateOversightRecordRequest>,
 ) -> HttpResponse {
     if let Err(resp) = verify_service_token(&req) {
@@ -622,7 +660,7 @@ pub async fn create_oversight_record(
         Ok(id) => id,
         Err(_) => return HttpResponse::BadRequest().json(serde_json::json!({"error": "invalid tenant_id"})),
     };
-    let agent_id_str = match resolve_agent_id_for_tenant(pool.get_ref(), &body.agent_id, tenant_id).await {
+    let agent_id_str = match resolve_agent_id_for_tenant(&state.pool, &body.agent_id, tenant_id).await {
         Ok(s) => s,
         Err(resp) => return resp,
     };
@@ -662,7 +700,7 @@ pub async fn create_oversight_record(
     .bind(tenant_id)
     .bind(&body.review_trigger)
     .bind(&body.notes)
-    .fetch_one(pool.get_ref())
+    .fetch_one(&state.pool)
     .await;
 
     match row {
@@ -673,7 +711,7 @@ pub async fn create_oversight_record(
                 )
                 .bind(id)
                 .bind(event_id)
-                .execute(pool.get_ref())
+                .execute(&state.pool)
                 .await;
             }
 
@@ -713,7 +751,7 @@ struct OversightPendingRow {
 #[get("/api/acm/oversight/pending")]
 pub async fn list_pending_oversight(
     req: HttpRequest,
-    pool: web::Data<PgPool>,
+    state: web::Data<crate::state::AppState>,
     query: web::Query<std::collections::HashMap<String, String>>,
 ) -> HttpResponse {
     if let Err(resp) = verify_service_token(&req) {
@@ -739,7 +777,7 @@ pub async fn list_pending_oversight(
             "#,
         )
         .bind(tid)
-        .fetch_all(pool.get_ref())
+        .fetch_all(&state.pool)
         .await
     } else {
         sqlx::query_as::<_, OversightPendingRow>(
@@ -754,7 +792,7 @@ pub async fn list_pending_oversight(
             LIMIT 100
             "#,
         )
-        .fetch_all(pool.get_ref())
+        .fetch_all(&state.pool)
         .await
     };
 
@@ -770,7 +808,7 @@ pub async fn list_pending_oversight(
 #[patch("/api/acm/oversight/{id}")]
 pub async fn update_oversight_outcome(
     req: HttpRequest,
-    pool: web::Data<PgPool>,
+    state: web::Data<crate::state::AppState>,
     path: web::Path<String>,
     body: web::Json<UpdateOversightOutcomeRequest>,
 ) -> HttpResponse {
@@ -817,7 +855,7 @@ pub async fn update_oversight_outcome(
     .bind(&body.notes)
     .bind(legacy_status)
     .bind(oversight_id)
-    .execute(pool.get_ref())
+    .execute(&state.pool)
     .await;
 
     match result {
@@ -862,7 +900,7 @@ pub struct DashboardOversightQuery {
 #[get("/api/v1/acm/oversight")]
 pub async fn dashboard_list_oversight(
     req: HttpRequest,
-    pool: web::Data<PgPool>,
+    state: web::Data<crate::state::AppState>,
     query: web::Query<DashboardOversightQuery>,
 ) -> HttpResponse {
     let tenant = match get_tenant_context(&req) {
@@ -888,7 +926,7 @@ pub async fn dashboard_list_oversight(
                    LIMIT 200"#,
             )
             .bind(tenant.tenant_id)
-            .fetch_all(pool.get_ref())
+            .fetch_all(&state.pool)
             .await
         }
         "decided" => {
@@ -907,7 +945,7 @@ pub async fn dashboard_list_oversight(
                    LIMIT 200"#,
             )
             .bind(tenant.tenant_id)
-            .fetch_all(pool.get_ref())
+            .fetch_all(&state.pool)
             .await
         }
         _ => {
@@ -924,7 +962,7 @@ pub async fn dashboard_list_oversight(
                    LIMIT 200"#,
             )
             .bind(tenant.tenant_id)
-            .fetch_all(pool.get_ref())
+            .fetch_all(&state.pool)
             .await
         }
     };
@@ -944,7 +982,7 @@ pub async fn dashboard_list_oversight(
 #[patch("/api/v1/acm/oversight/{id}")]
 pub async fn dashboard_resolve_oversight(
     req: HttpRequest,
-    pool: web::Data<PgPool>,
+    state: web::Data<crate::state::AppState>,
     path: web::Path<String>,
     body: web::Json<UpdateOversightOutcomeRequest>,
 ) -> HttpResponse {
@@ -991,7 +1029,7 @@ pub async fn dashboard_resolve_oversight(
     .bind(legacy_status)
     .bind(oversight_id)
     .bind(tenant.tenant_id)
-    .execute(pool.get_ref())
+    .execute(&state.pool)
     .await;
 
     match result {
@@ -1030,7 +1068,7 @@ struct DashboardTransferRow {
 #[get("/api/v1/acm/transfers")]
 pub async fn dashboard_list_transfers(
     req: HttpRequest,
-    pool: web::Data<PgPool>,
+    state: web::Data<crate::state::AppState>,
 ) -> HttpResponse {
     let tenant = match get_tenant_context(&req) {
         Ok(t) => t,
@@ -1051,7 +1089,7 @@ pub async fn dashboard_list_transfers(
            LIMIT 500"#,
     )
     .bind(tenant.tenant_id)
-    .fetch_all(pool.get_ref())
+    .fetch_all(&state.pool)
     .await;
 
     match rows {
@@ -1079,7 +1117,7 @@ struct AcmStatsResponse {
 #[get("/api/v1/acm/stats")]
 pub async fn dashboard_acm_stats(
     req: HttpRequest,
-    pool: web::Data<PgPool>,
+    state: web::Data<crate::state::AppState>,
 ) -> HttpResponse {
     let tenant = match get_tenant_context(&req) {
         Ok(t) => t,
@@ -1088,27 +1126,27 @@ pub async fn dashboard_acm_stats(
 
     let oversight_pending: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM human_oversight WHERE tenant_id = $1 AND (reviewer_outcome = 'pending' OR (reviewer_outcome IS NULL AND status = 'PENDING'))"
-    ).bind(tenant.tenant_id).fetch_one(pool.get_ref()).await.unwrap_or(0);
+    ).bind(tenant.tenant_id).fetch_one(&state.pool).await.unwrap_or(0);
 
     let oversight_decided: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM human_oversight WHERE tenant_id = $1 AND reviewer_outcome IS NOT NULL AND reviewer_outcome != 'pending'"
-    ).bind(tenant.tenant_id).fetch_one(pool.get_ref()).await.unwrap_or(0);
+    ).bind(tenant.tenant_id).fetch_one(&state.pool).await.unwrap_or(0);
 
     let transfers_total: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM data_transfer_records WHERE tenant_id = $1"
-    ).bind(tenant.tenant_id).fetch_one(pool.get_ref()).await.unwrap_or(0);
+    ).bind(tenant.tenant_id).fetch_one(&state.pool).await.unwrap_or(0);
 
     let transfers_schrems_risk: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM data_transfer_records WHERE tenant_id = $1 AND schrems_iii_risk = true"
-    ).bind(tenant.tenant_id).fetch_one(pool.get_ref()).await.unwrap_or(0);
+    ).bind(tenant.tenant_id).fetch_one(&state.pool).await.unwrap_or(0);
 
     let tool_call_events_total: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM tool_call_events WHERE tenant_id = $1"
-    ).bind(tenant.tenant_id).fetch_one(pool.get_ref()).await.unwrap_or(0);
+    ).bind(tenant.tenant_id).fetch_one(&state.pool).await.unwrap_or(0);
 
     let trust_degraded_sessions: i64 = sqlx::query_scalar(
         "SELECT COUNT(DISTINCT session_id) FROM context_trust_annotations WHERE tenant_id = $1 AND trust_level IN ('degraded', 'untrusted')"
-    ).bind(tenant.tenant_id).fetch_one(pool.get_ref()).await.unwrap_or(0);
+    ).bind(tenant.tenant_id).fetch_one(&state.pool).await.unwrap_or(0);
 
     HttpResponse::Ok().json(serde_json::json!({
         "data": {
@@ -1122,11 +1160,93 @@ pub async fn dashboard_acm_stats(
     }))
 }
 
+// ── GET /api/acm/events/{event_id}/verify ───────────────────────────────────
+
+#[derive(sqlx::FromRow)]
+struct ToolCallEventVerifyRow {
+    agent_id: String,
+    tool_id: String,
+    session_id: Uuid,
+    event_hash: String,
+    created_at: chrono::DateTime<chrono::Utc>,
+    signature: Option<String>,
+    signing_key_id: Option<String>,
+}
+
+#[get("/api/acm/events/{event_id}/verify")]
+pub async fn verify_tool_call_event(
+    req: HttpRequest,
+    state: web::Data<crate::state::AppState>,
+    path: web::Path<Uuid>,
+) -> HttpResponse {
+    if let Err(resp) = verify_service_token(&req) {
+        return resp;
+    }
+
+    let event_id = path.into_inner();
+
+    let row = match sqlx::query_as::<_, ToolCallEventVerifyRow>(
+        r#"SELECT agent_id, tool_id, session_id, event_hash, created_at, signature, signing_key_id
+           FROM tool_call_events WHERE event_id = $1"#,
+    )
+    .bind(event_id)
+    .fetch_optional(&state.pool)
+    .await
+    {
+        Ok(Some(r)) => r,
+        Ok(None) => {
+            return HttpResponse::NotFound().json(serde_json::json!({
+                "error": "event not found"
+            }));
+        }
+        Err(e) => {
+            log::error!("verify_tool_call_event: {}", e);
+            return HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": "database error"
+            }));
+        }
+    };
+
+    let Some(ref signature) = row.signature else {
+        return HttpResponse::Ok().json(serde_json::json!({
+            "verified": false,
+            "reason": "unsigned"
+        }));
+    };
+
+    let canonical_json = crate::signing::tool_call_event_signing_canonical(
+        &event_id,
+        &row.agent_id,
+        &row.tool_id,
+        &row.session_id,
+        &row.event_hash,
+        row.created_at,
+    );
+
+    let public_key_b64 = crate::signing::public_key_b64(&state.signing_keys);
+    let ok = crate::signing::verify_signature(&public_key_b64, &canonical_json, signature);
+
+    if ok {
+        HttpResponse::Ok().json(serde_json::json!({
+            "verified": true,
+            "event_id": event_id.to_string(),
+            "key_id": row.signing_key_id.unwrap_or_default(),
+            "algorithm": "Ed25519"
+        }))
+    } else {
+        HttpResponse::Ok().json(serde_json::json!({
+            "verified": false,
+            "reason": "invalid_signature"
+        }))
+    }
+}
+
 // ── Configure ────────────────────────────────────────────────────────────────
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(get_agent_by_oauth_client_id)
         .service(create_tool_call_event)
+        .service(verify_tool_call_event)
         .service(create_trust_annotation)
         .service(get_session_trust_level)
         .service(create_data_transfer_record)

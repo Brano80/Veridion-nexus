@@ -1,7 +1,7 @@
 //! Public ACM record validator and sandbox API keys — no authentication.
 
 use actix_web::body;
-use actix_web::{web, HttpRequest, HttpResponse, post};
+use actix_web::{get, web, HttpRequest, HttpResponse, post};
 use rand::Rng;
 use std::collections::BTreeSet;
 use serde::Deserialize;
@@ -11,6 +11,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::routes_shield::{evaluate_with_tenant_context, EvaluateRequest};
+use crate::signing;
 use crate::tenant::TenantContext;
 
 /// Fixed demo tenant id — must match `scripts/seed_demo.sql`.
@@ -457,7 +458,7 @@ struct SandboxCreateResponse {
 
 /// POST /api/public/sandbox/create — issue a sandbox API key (rate-limited per IP).
 #[post("/api/public/sandbox/create")]
-pub async fn create_sandbox_key(req: HttpRequest, pool: web::Data<PgPool>) -> HttpResponse {
+pub async fn create_sandbox_key(req: HttpRequest, state: web::Data<crate::state::AppState>) -> HttpResponse {
     let ip = client_ip(&req);
 
     let count: i64 = sqlx::query_scalar(
@@ -465,7 +466,7 @@ pub async fn create_sandbox_key(req: HttpRequest, pool: web::Data<PgPool>) -> Ht
            WHERE ip_address = $1 AND created_at > NOW() - INTERVAL '24 hours'"#,
     )
     .bind(&ip)
-    .fetch_one(pool.get_ref())
+    .fetch_one(&state.pool)
     .await
     .unwrap_or(0);
 
@@ -494,7 +495,7 @@ pub async fn create_sandbox_key(req: HttpRequest, pool: web::Data<PgPool>) -> Ht
     .bind(&key_hash)
     .bind(&key_prefix)
     .bind(&ip)
-    .execute(pool.get_ref())
+    .execute(&state.pool)
     .await;
 
     if let Err(e) = insert {
@@ -524,10 +525,10 @@ pub async fn create_sandbox_key(req: HttpRequest, pool: web::Data<PgPool>) -> Ht
 /// No `Authorization` header. If `agent_id` / `agent_api_key` are omitted, the pre-seeded demo agent is used.
 #[post("/api/public/shield/evaluate")]
 pub async fn public_shield_evaluate(
-    pool: web::Data<PgPool>,
+    state: web::Data<crate::state::AppState>,
     body: web::Json<EvaluateRequest>,
 ) -> HttpResponse {
-    let tenant = match load_demo_tenant(pool.get_ref()).await {
+    let tenant = match load_demo_tenant(&state.pool).await {
         Ok(t) => t,
         Err(r) => return r,
     };
@@ -540,21 +541,21 @@ pub async fn public_shield_evaluate(
         body.agent_api_key = Some(DEMO_AGENT_API_KEY.to_string());
     }
 
-    evaluate_with_tenant_context(pool.get_ref(), &tenant, body).await
+    evaluate_with_tenant_context(&state.pool, &tenant, body).await
 }
 
 /// POST /api/public/sandbox/evaluate — Bearer `sbx_*` key required; runs Shield evaluate for the demo tenant.
 #[post("/api/public/sandbox/evaluate")]
 pub async fn sandbox_evaluate_handler(
     req: HttpRequest,
-    pool: web::Data<PgPool>,
+    state: web::Data<crate::state::AppState>,
     body: web::Json<SandboxEvaluateBody>,
 ) -> HttpResponse {
     let raw_key = match bearer_sandbox_raw_key(&req) {
         Ok(k) => k,
         Err(r) => return r,
     };
-    match sandbox_key_is_valid(pool.get_ref(), &raw_key).await {
+    match sandbox_key_is_valid(&state.pool, &raw_key).await {
         Ok(true) => {}
         Ok(false) => {
             return HttpResponse::Unauthorized().json(serde_json::json!({
@@ -564,7 +565,7 @@ pub async fn sandbox_evaluate_handler(
         Err(r) => return r,
     }
 
-    let tenant = match load_demo_tenant(pool.get_ref()).await {
+    let tenant = match load_demo_tenant(&state.pool).await {
         Ok(t) => t,
         Err(r) => return r,
     };
@@ -577,12 +578,24 @@ pub async fn sandbox_evaluate_handler(
         eval_req.agent_api_key = Some(DEMO_AGENT_API_KEY.to_string());
     }
 
-    let res = evaluate_with_tenant_context(pool.get_ref(), &tenant, eval_req).await;
+    let res = evaluate_with_tenant_context(&state.pool, &tenant, eval_req).await;
     append_sandbox_flag(res).await
+}
+
+/// GET /api/public/keys/signing — Ed25519 public key for verifying `tool_call_events.signature`.
+#[get("/api/public/keys/signing")]
+pub async fn public_signing_key(state: web::Data<crate::state::AppState>) -> HttpResponse {
+    HttpResponse::Ok().json(serde_json::json!({
+        "key_id": state.signing_keys.key_id,
+        "algorithm": "Ed25519",
+        "public_key": signing::public_key_b64(&state.signing_keys),
+        "usage": "Verify tool_call_events.signature field. Sign the canonical JSON of {event_id, agent_id, tool_id, session_id, event_hash, created_at}."
+    }))
 }
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(validate_record)
         .service(create_sandbox_key)
-        .service(public_shield_evaluate);
+        .service(public_shield_evaluate)
+        .service(public_signing_key);
 }

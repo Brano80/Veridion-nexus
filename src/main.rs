@@ -1,9 +1,8 @@
-use veridion_api::{routes_evidence, routes_shield, routes_review_queue, routes_admin, routes_auth, routes_agents, routes_acm, routes_public_registry, routes_public_validator, review_queue, middleware_tenant};
+use veridion_api::{routes_evidence, routes_shield, routes_review_queue, routes_admin, routes_auth, routes_agents, routes_acm, routes_public_registry, routes_public_validator, review_queue, middleware_tenant, AppState, signing::SigningKeys};
 
 use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer, get};
 use actix_cors::Cors;
 use serde::Serialize;
-use sqlx::PgPool;
 use std::env;
 use std::path::Path;
 
@@ -48,7 +47,7 @@ async fn health() -> HttpResponse {
 }
 
 #[get("/api/v1/auth/dev-bypass")]
-async fn dev_bypass(pool: web::Data<PgPool>) -> HttpResponse {
+async fn dev_bypass(state: web::Data<AppState>) -> HttpResponse {
     if env::var("RUST_ENV").unwrap_or_else(|_| "development".into()) == "production" {
         return HttpResponse::NotFound().json(serde_json::json!({ "error": "Endpoint not available" }));
     }
@@ -57,7 +56,7 @@ async fn dev_bypass(pool: web::Data<PgPool>) -> HttpResponse {
         "SELECT id, username, email, full_name FROM users WHERE username = $1 AND active = true"
     )
     .bind("admin")
-    .fetch_optional(pool.get_ref())
+    .fetch_optional(&state.pool)
     .await
     .ok()
     .flatten();
@@ -281,6 +280,13 @@ async fn main() -> std::io::Result<()> {
 
     let origins: Vec<String> = allowed_origins.split(',').map(|s| s.trim().to_string()).collect();
 
+    let signing_keys = SigningKeys::load_from_env();
+    let app_state = web::Data::new(AppState {
+        pool: pool.clone(),
+        signing_keys,
+    });
+
+    log::info!("GET /api/public/keys/signing - Ed25519 public key");
     println!("Veridion API starting on http://{}:{}", server_host, server_port);
     println!("  Health:          GET  /health");
     println!("  Dev login:       GET  /api/v1/auth/dev-bypass");
@@ -306,6 +312,7 @@ async fn main() -> std::io::Result<()> {
     println!("  Agent card:      GET  /api/v1/agents/{{id}}/card (public)");
     println!("  ACM agent:       GET  /api/acm/agents?oauth_client_id={{id}}");
     println!("  ACM events:      POST /api/acm/events");
+    println!("  ACM event ver:   GET  /api/acm/events/{{id}}/verify");
     println!("  ACM trust:       POST /api/acm/trust-annotations");
     println!("  ACM trust curr:  GET  /api/acm/trust-annotations/session/{{id}}/current");
     println!("  ACM transfers:   POST /api/acm/transfers");
@@ -317,6 +324,7 @@ async fn main() -> std::io::Result<()> {
     println!("  Registry detail: GET  /api/public/registry/agents/{{id}}");
     println!("  Registry stats:  GET  /api/public/registry/stats");
     println!("  Public validate: POST /api/public/validate");
+    println!("  Public signing:  GET  /api/public/keys/signing (Ed25519 public key)");
     println!("  Public evaluate: POST /api/public/shield/evaluate");
     println!("  Sandbox evaluate: POST /api/public/sandbox/evaluate");
     println!("  Sandbox key:     POST /api/public/sandbox/create");
@@ -331,7 +339,7 @@ async fn main() -> std::io::Result<()> {
             cors = cors.allowed_origin(origin.as_str());
         }
         App::new()
-            .app_data(web::Data::new(pool.clone()))
+            .app_data(app_state.clone())
             .app_data(signup_rate_limiter.clone())
             .wrap(cors)
             .wrap(middleware_tenant::TenantAuthMiddleware::new(pool.clone()))
