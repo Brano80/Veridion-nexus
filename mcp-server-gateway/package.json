@@ -1,6 +1,6 @@
 {
   "name": "veridion-nexus-gateway",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "MCP Governance Gateway for Veridion Nexus — intercepts, audits, and enforces policy on tool calls",
   "type": "module",
   "main": "dist/index.js",

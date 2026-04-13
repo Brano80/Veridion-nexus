@@ -1,5 +1,7 @@
 # veridion-nexus-gateway — MCP Governance Gateway
 
+**npm:** `veridion-nexus-gateway@0.1.1` — MCP proxy package version (see `package.json`).
+
 Sits between your AI agent and any MCP server. Every tool call is intercepted, identity-verified, and logged as a tamper-evident compliance record.
 
 Satisfies EU AI Act Art. 12 (logging) and GDPR Art. 30 (records of processing).
@@ -14,7 +16,7 @@ Agent → veridion-nexus-gateway → upstream MCP server
          PostgreSQL (tool_call_events, hash-chained)
 ```
 
-Every tool call is logged before forwarding. **Fail-closed:** if logging fails, the call is blocked.
+Tool calls are forwarded to the upstream MCP first. Each call is then logged asynchronously to the ACM API. If logging fails, the error is captured in proxy logs; the agent may still have received an upstream result. Strict fail-closed mode (block until persisted) is a planned option.
 
 ## Quick start (dev mode — 30 minutes)
 
@@ -25,7 +27,7 @@ Sign up at [veridion-nexus.eu](https://veridion-nexus.eu) → register your agen
 ### 2. Install
 
 ```bash
-npx veridion-nexus-gateway
+npx -y veridion-nexus-gateway
 ```
 
 ### 3. Configure Claude Desktop
@@ -55,7 +57,14 @@ Add to `claude_desktop_config.json`:
 
 Open [app.veridion-nexus.eu](https://app.veridion-nexus.eu) → ACM Overview → see every tool call logged.
 
-## Environment variables
+## Configuration
+
+### Authentication modes
+
+- **dev_bypass:** Set `AL_AUTH_MODE=dev_bypass` and `AL_DEV_CLIENT_ID` matching the agent's `oauth_client_id` in the DB. This is the standard path for Claude Desktop and Cursor.
+- **jwks:** JWT required. With stdio MCP, set `AL_AGENT_TOKEN` in env — there is no HTTP `Authorization` header passed to the process automatically.
+
+### Environment variables
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
