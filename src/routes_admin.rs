@@ -185,9 +185,9 @@ fn generate_api_key(prefix: &str) -> (String, String, String) {
 #[get("/api/v1/admin/tenants")]
 pub async fn list_tenants(
     req: HttpRequest,
-    pool: web::Data<PgPool>,
+    state: web::Data<crate::state::AppState>,
 ) -> HttpResponse {
-    if let Err(e) = verify_admin(&req, pool.get_ref()).await {
+    if let Err(e) = verify_admin(&req, &state.pool).await {
         return e;
     }
 
@@ -196,7 +196,7 @@ pub async fn list_tenants(
          trial_expires_at, rate_limit_per_minute, deleted_at, created_at, updated_at \
          FROM tenants WHERE deleted_at IS NULL ORDER BY created_at ASC"
     )
-    .fetch_all(pool.get_ref())
+    .fetch_all(&state.pool)
     .await
     {
         Ok(rows) => rows,
@@ -214,7 +214,7 @@ pub async fn list_tenants(
              WHERE tenant_id = $1 AND created_at >= date_trunc('month', NOW())::timestamptz"
         )
         .bind(tenant.id)
-        .fetch_one(pool.get_ref())
+        .fetch_one(&state.pool)
         .await
         .unwrap_or(0);
 
@@ -229,10 +229,10 @@ pub async fn list_tenants(
 #[get("/api/v1/admin/tenants/{id}")]
 pub async fn get_tenant_detail(
     req: HttpRequest,
-    pool: web::Data<PgPool>,
+    state: web::Data<crate::state::AppState>,
     path: web::Path<Uuid>,
 ) -> HttpResponse {
-    if let Err(e) = verify_admin(&req, pool.get_ref()).await {
+    if let Err(e) = verify_admin(&req, &state.pool).await {
         return e;
     }
 
@@ -244,7 +244,7 @@ pub async fn get_tenant_detail(
          FROM tenants WHERE id = $1 AND deleted_at IS NULL"
     )
     .bind(tenant_id)
-    .fetch_optional(pool.get_ref())
+    .fetch_optional(&state.pool)
     .await
     .unwrap_or(None);
 
@@ -263,7 +263,7 @@ pub async fn get_tenant_detail(
          WHERE tenant_id = $1 AND created_at >= date_trunc('month', NOW())::timestamptz"
     )
     .bind(tenant_id)
-    .fetch_one(pool.get_ref())
+    .fetch_one(&state.pool)
     .await
     .unwrap_or(0);
 
@@ -271,7 +271,7 @@ pub async fn get_tenant_detail(
         "SELECT COUNT(*) FROM compliance_records WHERE tenant_id = $1"
     )
     .bind(tenant_id)
-    .fetch_one(pool.get_ref())
+    .fetch_one(&state.pool)
     .await
     .unwrap_or(0);
 
@@ -279,7 +279,7 @@ pub async fn get_tenant_detail(
         "SELECT MAX(created_at) FROM compliance_records WHERE tenant_id = $1"
     )
     .bind(tenant_id)
-    .fetch_one(pool.get_ref())
+    .fetch_one(&state.pool)
     .await
     .ok()
     .flatten();
@@ -289,7 +289,7 @@ pub async fn get_tenant_detail(
         "SELECT COUNT(*) FROM evidence_events WHERE tenant_id = $1 AND source_system = 'sovereign-shield'"
     )
     .bind(tenant_id)
-    .fetch_one(pool.get_ref())
+    .fetch_one(&state.pool)
     .await
     .unwrap_or(0);
 
@@ -297,7 +297,7 @@ pub async fn get_tenant_detail(
         "SELECT COUNT(*) FROM evidence_events WHERE tenant_id = $1 AND source_system = 'sovereign-shield' AND event_type = 'DATA_TRANSFER_BLOCKED'"
     )
     .bind(tenant_id)
-    .fetch_one(pool.get_ref())
+    .fetch_one(&state.pool)
     .await
     .unwrap_or(0);
 
@@ -305,7 +305,7 @@ pub async fn get_tenant_detail(
         "SELECT COUNT(*) FROM evidence_events WHERE tenant_id = $1 AND source_system = 'sovereign-shield' AND event_type = 'DATA_TRANSFER'"
     )
     .bind(tenant_id)
-    .fetch_one(pool.get_ref())
+    .fetch_one(&state.pool)
     .await
     .unwrap_or(0);
 
@@ -313,7 +313,7 @@ pub async fn get_tenant_detail(
         "SELECT COUNT(*) FROM evidence_events WHERE tenant_id = $1 AND source_system = 'sovereign-shield' AND event_type = 'DATA_TRANSFER_REVIEW'"
     )
     .bind(tenant_id)
-    .fetch_one(pool.get_ref())
+    .fetch_one(&state.pool)
     .await
     .unwrap_or(0);
 
@@ -332,7 +332,7 @@ pub async fn get_tenant_detail(
          ORDER BY partner_name, destination_country_code"
     )
     .bind(tenant_id)
-    .fetch_all(pool.get_ref())
+    .fetch_all(&state.pool)
     .await
     .unwrap_or_default();
 
@@ -350,7 +350,7 @@ pub async fn get_tenant_detail(
         "SELECT COUNT(*) FROM human_oversight WHERE tenant_id = $1 AND status = 'PENDING'"
     )
     .bind(tenant_id)
-    .fetch_one(pool.get_ref())
+    .fetch_one(&state.pool)
     .await
     .unwrap_or(0);
 
@@ -358,7 +358,7 @@ pub async fn get_tenant_detail(
         "SELECT COUNT(*) FROM human_oversight WHERE tenant_id = $1 AND status = 'PENDING' AND created_at < NOW() - INTERVAL '24 hours'"
     )
     .bind(tenant_id)
-    .fetch_one(pool.get_ref())
+    .fetch_one(&state.pool)
     .await
     .unwrap_or(0);
 
@@ -402,16 +402,16 @@ pub async fn get_tenant_detail(
 #[get("/api/v1/admin/stats")]
 pub async fn admin_stats(
     req: HttpRequest,
-    pool: web::Data<PgPool>,
+    state: web::Data<crate::state::AppState>,
 ) -> HttpResponse {
-    if let Err(e) = verify_admin(&req, pool.get_ref()).await {
+    if let Err(e) = verify_admin(&req, &state.pool).await {
         return e;
     }
 
     let total: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM tenants WHERE deleted_at IS NULL"
     )
-    .fetch_one(pool.get_ref())
+    .fetch_one(&state.pool)
     .await
     .unwrap_or(0);
 
@@ -419,14 +419,14 @@ pub async fn admin_stats(
         "SELECT COUNT(*) FROM tenants WHERE deleted_at IS NULL AND plan = 'free_trial' \
          AND (trial_expires_at IS NULL OR trial_expires_at > NOW())"
     )
-    .fetch_one(pool.get_ref())
+    .fetch_one(&state.pool)
     .await
     .unwrap_or(0);
 
     let pro: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM tenants WHERE deleted_at IS NULL AND plan = 'pro'"
     )
-    .fetch_one(pool.get_ref())
+    .fetch_one(&state.pool)
     .await
     .unwrap_or(0);
 
@@ -435,7 +435,7 @@ pub async fn admin_stats(
          INNER JOIN tenants t ON cr.tenant_id = t.id AND t.deleted_at IS NULL \
          WHERE cr.created_at >= date_trunc('month', NOW())::timestamptz"
     )
-    .fetch_one(pool.get_ref())
+    .fetch_one(&state.pool)
     .await
     .unwrap_or(0);
 
@@ -460,10 +460,10 @@ pub struct CreateTenantRequest {
 #[post("/api/v1/admin/tenants")]
 pub async fn create_tenant(
     req: HttpRequest,
-    pool: web::Data<PgPool>,
+    state: web::Data<crate::state::AppState>,
     body: web::Json<CreateTenantRequest>,
 ) -> HttpResponse {
-    if let Err(e) = verify_admin(&req, pool.get_ref()).await {
+    if let Err(e) = verify_admin(&req, &state.pool).await {
         return e;
     }
 
@@ -491,7 +491,7 @@ pub async fn create_tenant(
     .bind(&api_key_hash)
     .bind(&key_prefix)
     .bind(trial_expires_at)
-    .fetch_one(pool.get_ref())
+    .fetch_one(&state.pool)
     .await
     {
         Ok(t) => t,
@@ -508,7 +508,7 @@ pub async fn create_tenant(
     )
     .bind(tenant.id)
     .bind(mode)
-    .execute(pool.get_ref())
+    .execute(&state.pool)
     .await;
 
     let mut resp = serde_json::to_value(tenant_to_response(tenant, 0)).unwrap();
@@ -529,11 +529,11 @@ pub struct UpdateTenantRequest {
 #[patch("/api/v1/admin/tenants/{id}")]
 pub async fn update_tenant(
     req: HttpRequest,
-    pool: web::Data<PgPool>,
+    state: web::Data<crate::state::AppState>,
     path: web::Path<Uuid>,
     body: web::Json<UpdateTenantRequest>,
 ) -> HttpResponse {
-    if let Err(e) = verify_admin(&req, pool.get_ref()).await {
+    if let Err(e) = verify_admin(&req, &state.pool).await {
         return e;
     }
 
@@ -545,7 +545,7 @@ pub async fn update_tenant(
          FROM tenants WHERE id = $1 AND deleted_at IS NULL"
     )
     .bind(tenant_id)
-    .fetch_optional(pool.get_ref())
+    .fetch_optional(&state.pool)
     .await
     .unwrap_or(None);
 
@@ -587,7 +587,7 @@ pub async fn update_tenant(
     .bind(trial_expires_at)
     .bind(rate_limit)
     .bind(tenant_id)
-    .fetch_one(pool.get_ref())
+    .fetch_one(&state.pool)
     .await
     {
         Ok(t) => t,
@@ -603,7 +603,7 @@ pub async fn update_tenant(
          WHERE tenant_id = $1 AND created_at >= date_trunc('month', NOW())::timestamptz"
     )
     .bind(tenant_id)
-    .fetch_one(pool.get_ref())
+    .fetch_one(&state.pool)
     .await
     .unwrap_or(0);
 
@@ -614,7 +614,7 @@ pub async fn update_tenant(
         )
         .bind(mode)
         .bind(tenant_id)
-        .execute(pool.get_ref())
+        .execute(&state.pool)
         .await;
         if let Ok(res) = upd {
             if res.rows_affected() == 0 {
@@ -623,7 +623,7 @@ pub async fn update_tenant(
                 )
                 .bind(tenant_id)
                 .bind(mode)
-                .execute(pool.get_ref())
+                .execute(&state.pool)
                 .await;
             }
         }
@@ -637,10 +637,10 @@ pub async fn update_tenant(
 #[delete("/api/v1/admin/tenants/{id}")]
 pub async fn delete_tenant(
     req: HttpRequest,
-    pool: web::Data<PgPool>,
+    state: web::Data<crate::state::AppState>,
     path: web::Path<Uuid>,
 ) -> HttpResponse {
-    if let Err(e) = verify_admin(&req, pool.get_ref()).await {
+    if let Err(e) = verify_admin(&req, &state.pool).await {
         return e;
     }
 
@@ -650,7 +650,7 @@ pub async fn delete_tenant(
         "SELECT is_admin FROM tenants WHERE id = $1 AND deleted_at IS NULL"
     )
     .bind(tenant_id)
-    .fetch_optional(pool.get_ref())
+    .fetch_optional(&state.pool)
     .await
     .unwrap_or(None);
 
@@ -672,7 +672,7 @@ pub async fn delete_tenant(
         "UPDATE tenants SET deleted_at = NOW(), updated_at = NOW() WHERE id = $1"
     )
     .bind(tenant_id)
-    .execute(pool.get_ref())
+    .execute(&state.pool)
     .await
     {
         Ok(_) => HttpResponse::NoContent().finish(),
@@ -687,10 +687,10 @@ pub async fn delete_tenant(
 #[post("/api/v1/admin/tenants/{id}/rotate-api-key")]
 pub async fn rotate_api_key(
     req: HttpRequest,
-    pool: web::Data<PgPool>,
+    state: web::Data<crate::state::AppState>,
     path: web::Path<Uuid>,
 ) -> HttpResponse {
-    if let Err(e) = verify_admin(&req, pool.get_ref()).await {
+    if let Err(e) = verify_admin(&req, &state.pool).await {
         return e;
     }
 
@@ -700,7 +700,7 @@ pub async fn rotate_api_key(
         "SELECT api_key_prefix FROM tenants WHERE id = $1 AND deleted_at IS NULL"
     )
     .bind(tenant_id)
-    .fetch_optional(pool.get_ref())
+    .fetch_optional(&state.pool)
     .await
     .unwrap_or(None);
 
@@ -723,7 +723,7 @@ pub async fn rotate_api_key(
     .bind(&api_key_hash)
     .bind(&key_prefix)
     .bind(tenant_id)
-    .execute(pool.get_ref())
+    .execute(&state.pool)
     .await
     {
         Ok(_) => HttpResponse::Ok().json(serde_json::json!({
@@ -747,9 +747,9 @@ pub async fn rotate_api_key(
 #[post("/api/v1/admin/recompute-hashes")]
 pub async fn recompute_hashes(
     req: HttpRequest,
-    pool: web::Data<PgPool>,
+    state: web::Data<crate::state::AppState>,
 ) -> HttpResponse {
-    if let Err(e) = verify_admin(&req, pool.get_ref()).await {
+    if let Err(e) = verify_admin(&req, &state.pool).await {
         return e;
     }
 
@@ -759,7 +759,7 @@ pub async fn recompute_hashes(
     let source_systems: Vec<String> = match sqlx::query_scalar::<_, String>(
         "SELECT DISTINCT source_system FROM evidence_events WHERE hash_version = 1"
     )
-    .fetch_all(pool.get_ref())
+    .fetch_all(&state.pool)
     .await
     {
         Ok(v) => v,
@@ -784,7 +784,7 @@ pub async fn recompute_hashes(
             "SELECT * FROM evidence_events WHERE source_system = $1 AND hash_version = 1 ORDER BY sequence_number ASC"
         )
         .bind(source_system)
-        .fetch_all(pool.get_ref())
+        .fetch_all(&state.pool)
         .await
         {
             Ok(r) => r,
@@ -857,7 +857,7 @@ pub async fn recompute_hashes(
                 .bind(&upd.nexus_seal)
                 .bind(&upd.event_id)
                 .bind(source_system)
-                .execute(pool.get_ref())
+                .execute(&state.pool)
                 .await;
 
                 match result {

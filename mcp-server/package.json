@@ -7,7 +7,7 @@
   "main": "dist/index.js",
   "bin": {
     "veridion-nexus-mcp": "./dist/index.js",
-    "nexus-al-mcp": "./dist/al-proxy.js"
+    "veridion-nexus-gateway": "./dist/al-proxy.js"
   },
   "scripts": {
     "build": "tsc",

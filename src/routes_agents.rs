@@ -1,7 +1,6 @@
 use actix_web::{web, HttpRequest, HttpResponse, delete, get, patch, post};
 use serde::Deserialize;
 use sha2::{Sha256, Digest};
-use sqlx::PgPool;
 
 use crate::tenant::get_tenant_context;
 
@@ -155,7 +154,7 @@ fn build_agent_card(agent: &AgentRow, policy_hash: &str, policy_version: i32) ->
 #[post("/api/v1/agents")]
 pub async fn register_agent(
     req: HttpRequest,
-    pool: web::Data<PgPool>,
+    state: web::Data<crate::state::AppState>,
     body: web::Json<RegisterAgentRequest>,
 ) -> HttpResponse {
     let tenant = match get_tenant_context(&req) {
@@ -181,7 +180,7 @@ pub async fn register_agent(
         &policy_metadata_json,
     );
 
-    let mut tx = match pool.begin().await {
+    let mut tx = match state.pool.begin().await {
         Ok(tx) => tx,
         Err(e) => {
             return HttpResponse::InternalServerError().json(serde_json::json!({
@@ -259,7 +258,7 @@ pub async fn register_agent(
 #[get("/api/v1/agents")]
 pub async fn list_agents(
     req: HttpRequest,
-    pool: web::Data<PgPool>,
+    state: web::Data<crate::state::AppState>,
 ) -> HttpResponse {
     let tenant = match get_tenant_context(&req) {
         Ok(t) => t,
@@ -270,7 +269,7 @@ pub async fn list_agents(
         "SELECT * FROM agents WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC"
     )
     .bind(tenant.tenant_id)
-    .fetch_all(pool.get_ref())
+    .fetch_all(&state.pool)
     .await {
         Ok(a) => a,
         Err(e) => {
@@ -287,7 +286,7 @@ pub async fn list_agents(
             "SELECT * FROM policy_versions WHERE agent_id = $1 ORDER BY version_number DESC LIMIT 1"
         )
         .bind(&agent.id)
-        .fetch_optional(pool.get_ref())
+        .fetch_optional(&state.pool)
         .await
         .ok()
         .flatten();
@@ -314,7 +313,7 @@ pub struct AgentPath {
 #[get("/api/v1/agents/{agent_id}")]
 pub async fn get_agent(
     req: HttpRequest,
-    pool: web::Data<PgPool>,
+    state: web::Data<crate::state::AppState>,
     path: web::Path<AgentPath>,
 ) -> HttpResponse {
     let tenant = match get_tenant_context(&req) {
@@ -327,7 +326,7 @@ pub async fn get_agent(
     )
     .bind(&path.agent_id)
     .bind(tenant.tenant_id)
-    .fetch_optional(pool.get_ref())
+    .fetch_optional(&state.pool)
     .await
     .ok()
     .flatten();
@@ -346,7 +345,7 @@ pub async fn get_agent(
         "SELECT * FROM policy_versions WHERE agent_id = $1 ORDER BY version_number DESC"
     )
     .bind(&agent.id)
-    .fetch_all(pool.get_ref())
+    .fetch_all(&state.pool)
     .await
     .unwrap_or_default();
 
@@ -379,14 +378,14 @@ pub async fn get_agent(
 
 #[get("/api/v1/agents/{agent_id}/card")]
 pub async fn get_agent_card(
-    pool: web::Data<PgPool>,
+    state: web::Data<crate::state::AppState>,
     path: web::Path<AgentPath>,
 ) -> HttpResponse {
     let agent: Option<AgentRow> = sqlx::query_as(
         "SELECT * FROM agents WHERE id = $1"
     )
     .bind(&path.agent_id)
-    .fetch_optional(pool.get_ref())
+    .fetch_optional(&state.pool)
     .await
     .ok()
     .flatten();
@@ -405,7 +404,7 @@ pub async fn get_agent_card(
         "SELECT * FROM policy_versions WHERE agent_id = $1 ORDER BY version_number DESC LIMIT 1"
     )
     .bind(&agent.id)
-    .fetch_optional(pool.get_ref())
+    .fetch_optional(&state.pool)
     .await
     .ok()
     .flatten();
@@ -421,7 +420,7 @@ pub async fn get_agent_card(
 #[post("/api/v1/agents/{agent_id}/rotate-key")]
 pub async fn rotate_agent_key(
     req: HttpRequest,
-    pool: web::Data<PgPool>,
+    state: web::Data<crate::state::AppState>,
     path: web::Path<AgentPath>,
 ) -> HttpResponse {
     let tenant = match get_tenant_context(&req) {
@@ -434,7 +433,7 @@ pub async fn rotate_agent_key(
     )
     .bind(&path.agent_id)
     .bind(tenant.tenant_id)
-    .fetch_optional(pool.get_ref())
+    .fetch_optional(&state.pool)
     .await
     .ok()
     .flatten();
@@ -455,7 +454,7 @@ pub async fn rotate_agent_key(
     .bind(&new_hash)
     .bind(&path.agent_id)
     .bind(tenant.tenant_id)
-    .execute(pool.get_ref())
+    .execute(&state.pool)
     .await {
         return HttpResponse::InternalServerError().json(serde_json::json!({
             "error": "ROTATE_FAILED",
@@ -502,7 +501,7 @@ fn patch_pii_heuristics_valid(v: &serde_json::Value) -> bool {
 #[patch("/api/v1/agents/{agent_id}")]
 pub async fn patch_agent(
     req: HttpRequest,
-    pool: web::Data<PgPool>,
+    state: web::Data<crate::state::AppState>,
     path: web::Path<AgentPath>,
     body: web::Json<PatchAgentRequest>,
 ) -> HttpResponse {
@@ -583,7 +582,7 @@ pub async fn patch_agent(
         query = query.bind(j);
     }
 
-    match query.execute(pool.get_ref()).await {
+    match query.execute(&state.pool).await {
         Ok(r) if r.rows_affected() > 0 => {
             HttpResponse::Ok().json(serde_json::json!({ "ok": true }))
         }
@@ -601,7 +600,7 @@ pub async fn patch_agent(
 #[delete("/api/v1/agents/{agent_id}")]
 pub async fn delete_agent(
     req: HttpRequest,
-    pool: web::Data<PgPool>,
+    state: web::Data<crate::state::AppState>,
     path: web::Path<AgentPath>,
 ) -> HttpResponse {
     let tenant = match get_tenant_context(&req) {
@@ -614,7 +613,7 @@ pub async fn delete_agent(
     )
     .bind(&path.agent_id)
     .bind(tenant.tenant_id)
-    .execute(pool.get_ref())
+    .execute(&state.pool)
     .await;
 
     match result {

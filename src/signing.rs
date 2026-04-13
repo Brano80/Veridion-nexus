@@ -47,16 +47,27 @@ impl SigningKeys {
 
         let signing_key = match secret_b64 {
             Some(b64) => {
-                let bytes = B64.decode(b64.trim()).unwrap_or_else(|e| {
-                    panic!("ED25519_PRIVATE_KEY: invalid base64: {e}");
-                });
+                let bytes = match B64.decode(b64.trim()) {
+                    Ok(b) => b,
+                    Err(e) => {
+                        eprintln!("FATAL: ED25519_PRIVATE_KEY: invalid base64: {e}");
+                        std::process::exit(1);
+                    }
+                };
                 if bytes.len() != 32 {
-                    panic!(
-                        "ED25519_PRIVATE_KEY must decode to exactly 32 bytes, got {}",
+                    eprintln!(
+                        "FATAL: ED25519_PRIVATE_KEY: decoded key must be exactly 32 bytes, got {}",
                         bytes.len()
                     );
+                    std::process::exit(1);
                 }
-                let arr: [u8; 32] = bytes.try_into().expect("length checked");
+                let arr: [u8; 32] = match bytes.try_into() {
+                    Ok(a) => a,
+                    Err(_) => {
+                        eprintln!("FATAL: ED25519_PRIVATE_KEY: decoded key must be exactly 32 bytes");
+                        std::process::exit(1);
+                    }
+                };
                 SigningKey::from_bytes(&arr)
             }
             None => {

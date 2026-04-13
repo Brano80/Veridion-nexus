@@ -999,21 +999,21 @@ async function callOpenAI(userData) {
                 <div className="rounded-lg border border-emerald-200 bg-emerald-50/80 px-4 py-3 text-sm text-slate-700">
                   <strong className="text-slate-900 block mb-2">Sovereign Shield tools</strong>
                   <span className="text-slate-600">Package: </span>
-                  <code className="bg-white px-1.5 py-0.5 rounded text-xs font-mono border border-emerald-100">veridion-shield-mcp</code>
+                  <code className="bg-white px-1.5 py-0.5 rounded text-xs font-mono border border-emerald-100">veridion-nexus-mcp</code>
                   <br />
                   <span className="text-slate-600">Run: </span>
-                  <code className="bg-slate-200 px-1.5 py-0.5 rounded text-xs font-mono">npx -y veridion-shield-mcp</code>
+                  <code className="bg-slate-200 px-1.5 py-0.5 rounded text-xs font-mono">npx -y veridion-nexus-mcp</code>
                   <br />
                   <span className="text-slate-600">Env: </span>
                   <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">VERIDION_NEXUS_API_KEY</code>
                 </div>
                 <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-                  <strong className="text-slate-900 block mb-2">Accountability Ledger proxy</strong>
+                  <strong className="text-slate-900 block mb-2">MCP Governance Gateway</strong>
                   <span className="text-slate-600">Package: </span>
-                  <code className="bg-white px-1.5 py-0.5 rounded text-xs font-mono border border-slate-200">veridion-nexus-mcp</code>
+                  <code className="bg-white px-1.5 py-0.5 rounded text-xs font-mono border border-slate-200">veridion-nexus-gateway</code>
                   <br />
                   <span className="text-slate-600">Run: </span>
-                  <code className="bg-slate-200 px-1.5 py-0.5 rounded text-xs font-mono">npx -y veridion-nexus-mcp</code>
+                  <code className="bg-slate-200 px-1.5 py-0.5 rounded text-xs font-mono">npx -y veridion-nexus-gateway</code>
                   <br />
                   <span className="text-slate-600">Env: </span>
                   <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">AL_API_BASE_URL</code>,{' '}
@@ -1023,7 +1023,8 @@ async function callOpenAI(userData) {
                 </div>
               </div>
               <p className="text-slate-600 text-sm mb-6">
-                Latest <code className="bg-slate-200 px-1.5 py-0.5 rounded text-xs font-mono">veridion-nexus-mcp@1.0.10</code> (Accountability Ledger). The <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">evaluate_transfer</code> tool requires <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">agent_id</code> and <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">agent_api_key</code> as parameters on every call (Sovereign Shield / <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">veridion-shield-mcp</code>).
+                <strong className="text-slate-700 font-medium">Sovereign Shield</strong> — published as <code className="bg-slate-200 px-1.5 py-0.5 rounded text-xs font-mono">veridion-nexus-mcp</code>. The <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">evaluate_transfer</code> tool requires <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">agent_id</code> and <code className="bg-slate-200 px-1 py-0.5 rounded text-xs font-mono">agent_api_key</code> on every call.{' '}
+                <strong className="text-slate-700 font-medium">Accountability Ledger proxy</strong> — install <code className="bg-slate-200 px-1.5 py-0.5 rounded text-xs font-mono">veridion-nexus-gateway</code> separately; it wraps an upstream MCP server and logs tool calls to the ledger (see below).
               </p>
 
               <div className="grid md:grid-cols-2 gap-6 mb-8">
@@ -1049,16 +1050,16 @@ async function callOpenAI(userData) {
 
               <h3 className="text-xl font-semibold text-slate-900 mb-3">Setup: Claude Desktop</h3>
               <p className="text-slate-600 text-sm mb-3">
-                Sovereign Shield (install using npx): <code className="bg-slate-200 px-1.5 py-0.5 rounded text-xs font-mono">npx -y veridion-shield-mcp</code>
+                Sovereign Shield (install using npx): <code className="bg-slate-200 px-1.5 py-0.5 rounded text-xs font-mono">npx -y veridion-nexus-mcp</code>
               </p>
               <CodeBlock
                 id="mcp-claude-config"
                 language="json"
                 code={`{
   "mcpServers": {
-    "veridion-shield": {
+    "veridion-nexus": {
       "command": "npx",
-      "args": ["-y", "veridion-shield-mcp"],
+      "args": ["-y", "veridion-nexus-mcp"],
       "env": {
         "VERIDION_NEXUS_API_KEY": "ss_test_your_key_here"
       }
@@ -1072,16 +1073,16 @@ async function callOpenAI(userData) {
 
               <h3 className="text-xl font-semibold text-slate-900 mb-3">Setup: Cursor</h3>
               <p className="text-slate-600 text-sm mb-3">
-                Sovereign Shield (install using npx): <code className="bg-slate-200 px-1.5 py-0.5 rounded text-xs font-mono">npx -y veridion-shield-mcp</code>
+                Sovereign Shield (install using npx): <code className="bg-slate-200 px-1.5 py-0.5 rounded text-xs font-mono">npx -y veridion-nexus-mcp</code>
               </p>
               <CodeBlock
                 id="mcp-cursor-config"
                 language="json"
                 code={`{
   "mcpServers": {
-    "veridion-shield": {
+    "veridion-nexus": {
       "command": "npx",
-      "args": ["-y", "veridion-shield-mcp"],
+      "args": ["-y", "veridion-nexus-mcp"],
       "env": {
         "VERIDION_NEXUS_API_KEY": "ss_test_your_key_here"
       }
@@ -1176,7 +1177,7 @@ async function callOpenAI(userData) {
                 <div className="space-y-2 text-sm font-mono text-slate-700 text-center">
                   <div>AI Agent</div>
                   <div className="text-slate-400">↓</div>
-                  <div>Accountability Ledger Proxy</div>
+                  <div>MCP Governance Gateway</div>
                   <div className="text-slate-400">↓</div>
                   <div>MCP Server (upstream)</div>
                 </div>
@@ -1205,7 +1206,7 @@ async function callOpenAI(userData) {
                 >
                   dashboard Agents
                 </a>{' '}
-                section, then configure the MCP proxy (e.g. <code className="bg-slate-200 px-1.5 py-0.5 rounded text-sm font-mono">veridion-nexus-mcp</code> in stdio mode) with:
+                section, then configure the MCP Governance Gateway (e.g. <code className="bg-slate-200 px-1.5 py-0.5 rounded text-sm font-mono">npx -y veridion-nexus-gateway</code> in stdio mode) with:
               </p>
               <div className="overflow-x-auto mb-8">
                 <table className="w-full border-collapse min-w-[640px]">

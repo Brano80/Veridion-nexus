@@ -1,11 +1,11 @@
 {
-  "name": "nexus-al-mcp",
-  "version": "0.1.2",
-  "description": "Accountability Ledger MCP proxy — tamper-evident audit trail for AI agent tool calls (EU AI Act Art. 12)",
+  "name": "veridion-nexus-gateway",
+  "version": "0.1.0",
+  "description": "MCP Governance Gateway for Veridion Nexus — intercepts, audits, and enforces policy on tool calls",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "nexus-al-mcp": "./dist/index.js"
+    "veridion-nexus-gateway": "dist/index.js"
   },
   "scripts": {
     "build": "tsc",

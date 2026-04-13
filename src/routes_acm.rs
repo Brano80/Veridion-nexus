@@ -175,7 +175,20 @@ pub async fn create_tool_call_event(
         Err(resp) => return resp,
     };
 
-    let session_uuid = Uuid::parse_str(&body.session_id).unwrap_or_else(|_| Uuid::new_v4());
+    let session_trimmed = body.session_id.trim();
+    let session_uuid = if session_trimmed.is_empty() {
+        Uuid::new_v4()
+    } else {
+        match Uuid::parse_str(session_trimmed) {
+            Ok(u) => u,
+            Err(_) => {
+                return HttpResponse::BadRequest().json(serde_json::json!({
+                    "error": "invalid_session_id",
+                    "message": "session_id must be a valid UUID"
+                }));
+            }
+        }
+    };
 
     let called_at = chrono::DateTime::parse_from_rfc3339(&body.called_at)
         .map(|dt| dt.with_timezone(&chrono::Utc))
@@ -262,7 +275,7 @@ pub async fn create_tool_call_event(
         Err(e) => {
             log::error!("Failed to create tool_call_event: {}", e);
             return HttpResponse::InternalServerError().json(serde_json::json!({
-                "error": format!("Failed to create event: {}", e)
+                "error": "Failed to create event"
             }));
         }
     };
@@ -305,7 +318,7 @@ pub async fn create_tool_call_event(
         Err(e) => {
             log::error!("UPDATE tool_call_events signature: {}", e);
             HttpResponse::InternalServerError().json(serde_json::json!({
-                "error": format!("Failed to persist signature: {}", e)
+                "error": "Failed to persist signature"
             }))
         }
     }
@@ -422,7 +435,7 @@ pub async fn create_trust_annotation(
         Err(e) => {
             log::error!("Failed to create trust annotation: {}", e);
             HttpResponse::InternalServerError().json(serde_json::json!({
-                "error": format!("Failed to create annotation: {}", e)
+                "error": "Failed to create annotation"
             }))
         }
     }

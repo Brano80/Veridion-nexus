@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-03-31
 **Owner:** Brano (sole founder)
-**Goal:** Ship `nexus-al-mcp` as an installable, testable, enterprise-ready MCP audit proxy.
+**Goal:** Ship `veridion-nexus-gateway` (MCP Governance Gateway) as an installable, testable, enterprise-ready MCP audit proxy.
 
 ---
 
@@ -29,7 +29,7 @@ Architecture: ADR 001 (`docs/adr/001-al-architecture.md`).
 | Dev bypass auth (`AL_AUTH_MODE=dev_bypass`) | `oauth.ts` | ✅ Implemented — skips JWT, uses `AL_DEV_CLIENT_ID` |
 | ACM spec v0.1 TypeScript types | `types/acm.ts` | ✅ Implemented — AgentRecord, ToolCallEvent, Trust, Transfer, Oversight |
 
-**Critical note:** All AL files are in `tsconfig.json` → `exclude`. The published `veridion-nexus-mcp` npm package contains **Shield tools only** — AL proxy is not compiled or shipped.
+**Critical note:** AL proxy sources live under `mcp-server/src/` but are in `tsconfig.json` → `exclude`, so the published **`veridion-nexus-mcp`** npm build contains **Sovereign Shield tools only** (AL sources are not compiled into that artifact). The **MCP Governance Gateway** is shipped separately as **`veridion-nexus-gateway`** from `mcp-server-gateway/` (standalone package; same proxy code path).
 
 ### Rust backend (`src/routes_acm.rs` + migrations 035–043)
 
@@ -79,16 +79,16 @@ Architecture: ADR 001 (`docs/adr/001-al-architecture.md`).
 
 ## Phase 0 — Make it installable
 
-**Goal:** A developer (or design partner) can `npx nexus-al-mcp` and have a working proxy.
+**Goal:** A developer (or design partner) can `npx veridion-nexus-gateway` and have a working proxy.
 **Estimate:** 2–3 weeks.
 
 | Task | Status | Notes |
 |------|--------|-------|
-| Separate `nexus-al-mcp` package (`mcp-server-al/`) | ✅ Done | Standalone package, own `tsconfig.json`, all AL source included |
-| Create `nexus-al-mcp` entrypoint (`bin` in `package.json`) | ✅ Done | `#!/usr/bin/env node` shebang, `bin.nexus-al-mcp` in `package.json` |
+| Separate `veridion-nexus-gateway` package (`mcp-server-gateway/`) | ✅ Done | Standalone package, own `tsconfig.json`, all gateway source included |
+| Create `veridion-nexus-gateway` entrypoint (`bin` in `package.json`) | ✅ Done | `#!/usr/bin/env node` shebang, `bin.veridion-nexus-gateway` in `package.json` |
 | Compile AL proxy with `tsc` and verify it builds clean | ✅ Done | Zero errors, `dist/` contains all `.js` + `.d.ts` |
-| Env template: `.env.example` with all required vars | ✅ Done | `mcp-server-al/.env.example` — auth, upstream, optional vars |
-| Quickstart guide: install → configure → point at upstream → see logs | ✅ Done | `mcp-server-al/README.md` — Claude Desktop config, env table |
+| Env template: `.env.example` with all required vars | ✅ Done | `mcp-server-gateway/.env.example` — auth, upstream, optional vars |
+| Quickstart guide: install → configure → point at upstream → see logs | ✅ Done | `mcp-server-gateway/README.md` — Claude Desktop config, env table |
 | Publish to npm (or private registry for design partners) | ❌ Not done | Package is ready; `npm publish` when registry access is set up |
 | Test with real upstream MCP server (e.g. Claude tools, n8n) | ❌ Not done | First live validation |
 
@@ -101,7 +101,7 @@ Architecture: ADR 001 (`docs/adr/001-al-architecture.md`).
 
 | Task | Status | Notes |
 |------|--------|-------|
-| `AL_AUTH_MODE=dev_bypass` documented in quickstart | ✅ Done | Documented in `mcp-server-al/README.md` and `.env.example` |
+| `AL_AUTH_MODE=dev_bypass` documented in quickstart | ✅ Done | Documented in `mcp-server-gateway/README.md` and `.env.example` |
 | Simple API-key auth mode (alternative to OAuth for small teams) | ❌ Not built | `dev_bypass` requires fixed `AL_DEV_CLIENT_ID` — fine for dev, not for multi-agent prod without OAuth |
 | Agent registration walkthrough (create agent with `retention_policy`, `tools_permitted`, etc.) | ❌ Not written | API exists; DX guide missing |
 | Dashboard: dedicated "Tool Call Audit" view (DPO-friendly, not just ACM Overview) | ❌ Not built | Current ACM Overview shows stats; no searchable tool-call log view |
@@ -163,9 +163,9 @@ Architecture: ADR 001 (`docs/adr/001-al-architecture.md`).
 
 ## Important notes
 
-### 1. AL proxy is NOT shipped today
+### 1. Where the AL proxy ships
 
-All AL source files are **excluded from the `tsc` build** (`tsconfig.json` → `exclude`). The published npm package `veridion-nexus-mcp@1.0.12` contains **Sovereign Shield tools only**. No customer or partner can install AL without building from source.
+AL proxy TypeScript remains **excluded from the `veridion-nexus-mcp` `tsc` build** in `mcp-server` (`tsconfig.json` → `exclude`), so that npm package’s published artifact is **Shield tools only**. Customers who need the Accountability Ledger MCP proxy install **`veridion-nexus-gateway`** (see `mcp-server-gateway/`). The monorepo also exposes the same gateway binary via `veridion-nexus-mcp`’s optional `bin` entry (`veridion-nexus-gateway` → `al-proxy.js`) for users who install the umbrella package.
 
 ### 2. "Upstream SSE" ≠ "agent→proxy SSE"
 

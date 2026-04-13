@@ -1,3 +1,5 @@
+> **Note:** This component is now called MCP Governance Gateway (veridion-nexus-gateway). AL/ACM terminology in this document refers to the audit trail feature within it, not the component itself.
+
 # ADR 001 — Accountability Ledger Architecture
 
 **Status:** Accepted

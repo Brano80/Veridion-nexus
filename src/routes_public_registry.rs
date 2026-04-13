@@ -1,6 +1,5 @@
 use actix_web::{web, HttpResponse, get};
 use serde::Deserialize;
-use sqlx::PgPool;
 
 #[derive(Deserialize)]
 pub struct RegistrySearchQuery {
@@ -83,7 +82,7 @@ fn agent_to_public_json(a: &PublicAgentRow) -> serde_json::Value {
 
 #[get("/api/public/registry/agents")]
 pub async fn search_registry(
-    pool: web::Data<PgPool>,
+    state: web::Data<crate::state::AppState>,
     query: web::Query<RegistrySearchQuery>,
 ) -> HttpResponse {
     let limit = query.limit.unwrap_or(20).min(100).max(1);
@@ -179,12 +178,12 @@ pub async fn search_registry(
     }
 
     let total: i64 = count_query
-        .fetch_one(pool.get_ref())
+        .fetch_one(&state.pool)
         .await
         .unwrap_or(0);
 
     let agents: Vec<PublicAgentRow> = select_query
-        .fetch_all(pool.get_ref())
+        .fetch_all(&state.pool)
         .await
         .unwrap_or_default();
 
@@ -208,7 +207,7 @@ pub struct AgentPath {
 
 #[get("/api/public/registry/agents/{agent_id}")]
 pub async fn get_registry_agent(
-    pool: web::Data<PgPool>,
+    state: web::Data<crate::state::AppState>,
     path: web::Path<AgentPath>,
 ) -> HttpResponse {
     let agent: Option<PublicAgentRow> = sqlx::query_as(
@@ -226,7 +225,7 @@ pub async fn get_registry_agent(
           AND status = 'active'"#,
     )
     .bind(&path.agent_id)
-    .fetch_optional(pool.get_ref())
+    .fetch_optional(&state.pool)
     .await
     .ok()
     .flatten();
@@ -240,7 +239,7 @@ pub async fn get_registry_agent(
                 "SELECT created_at FROM tool_call_events WHERE agent_id::text = $1 ORDER BY created_at DESC LIMIT 1"
             )
             .bind(&path.agent_id)
-            .fetch_optional(pool.get_ref())
+            .fetch_optional(&state.pool)
             .await
             .ok()
             .flatten();
@@ -267,11 +266,11 @@ pub async fn get_registry_agent(
 // ── GET /api/public/registry/stats ───────────────────────────────────────────
 
 #[get("/api/public/registry/stats")]
-pub async fn registry_stats(pool: web::Data<PgPool>) -> HttpResponse {
+pub async fn registry_stats(state: web::Data<crate::state::AppState>) -> HttpResponse {
     let total: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM agents WHERE public_registry_listed = true AND deleted_at IS NULL AND status = 'active'"
     )
-    .fetch_one(pool.get_ref())
+    .fetch_one(&state.pool)
     .await
     .unwrap_or(0);
 
@@ -282,7 +281,7 @@ pub async fn registry_stats(pool: web::Data<PgPool>) -> HttpResponse {
         GROUP BY eu_ai_act_risk_level
         ORDER BY count DESC"#
     )
-    .fetch_all(pool.get_ref())
+    .fetch_all(&state.pool)
     .await
     .unwrap_or_default();
 
@@ -293,7 +292,7 @@ pub async fn registry_stats(pool: web::Data<PgPool>) -> HttpResponse {
         GROUP BY deployment_region
         ORDER BY count DESC"#
     )
-    .fetch_all(pool.get_ref())
+    .fetch_all(&state.pool)
     .await
     .unwrap_or_default();
 
@@ -304,14 +303,14 @@ pub async fn registry_stats(pool: web::Data<PgPool>) -> HttpResponse {
         GROUP BY data_residency
         ORDER BY count DESC"#
     )
-    .fetch_all(pool.get_ref())
+    .fetch_all(&state.pool)
     .await
     .unwrap_or_default();
 
     let personal_data_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM agents WHERE public_registry_listed = true AND deleted_at IS NULL AND status = 'active' AND processes_personal_data = true"
     )
-    .fetch_one(pool.get_ref())
+    .fetch_one(&state.pool)
     .await
     .unwrap_or(0);
 

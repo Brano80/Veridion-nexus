@@ -1,5 +1,5 @@
 /**
- * Accountability Ledger — MCP Proxy (nexus-al-mcp)
+ * MCP Governance Gateway (veridion-nexus-gateway) — legacy bundle via veridion-nexus-mcp
  * Phase 1: Tool call interception, hash-chained audit trail, upstream forwarding.
  * Phase 2: DataTransferRecord + HumanOversightRecord + trust wiring.
  *

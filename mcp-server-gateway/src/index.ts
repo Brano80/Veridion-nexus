@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * nexus-al-mcp — Accountability Ledger MCP Proxy
+ * veridion-nexus-gateway — MCP Governance Gateway
  * Tamper-evident audit trail for AI agent tool calls.
  * EU AI Act Art. 12 (logging), GDPR Art. 30 (records of processing).
  *

@@ -1,4 +1,4 @@
-# nexus-al-mcp — Accountability Ledger MCP Proxy
+# veridion-nexus-gateway — MCP Governance Gateway
 
 Sits between your AI agent and any MCP server. Every tool call is intercepted, identity-verified, and logged as a tamper-evident compliance record.
 
@@ -7,7 +7,7 @@ Satisfies EU AI Act Art. 12 (logging) and GDPR Art. 30 (records of processing).
 ## How it works
 
 ```
-Agent → nexus-al-mcp proxy → upstream MCP server
+Agent → veridion-nexus-gateway → upstream MCP server
                  ↓
          Rust API (/api/acm/*)
                  ↓
@@ -25,7 +25,7 @@ Sign up at [veridion-nexus.eu](https://veridion-nexus.eu) → register your agen
 ### 2. Install
 
 ```bash
-npx nexus-al-mcp
+npx veridion-nexus-gateway
 ```
 
 ### 3. Configure Claude Desktop
@@ -35,9 +35,9 @@ Add to `claude_desktop_config.json`:
 ```json
 {
   "mcpServers": {
-    "nexus-al": {
+    "veridion-gateway": {
       "command": "npx",
-      "args": ["-y", "nexus-al-mcp"],
+      "args": ["-y", "veridion-nexus-gateway"],
       "env": {
         "AL_API_BASE_URL": "https://api.veridion-nexus.eu",
         "AL_SERVICE_TOKEN": "your_service_token",

@@ -100,12 +100,12 @@ pub struct PatchSettingsRequest {
 }
 
 #[get("/api/v1/settings")]
-pub async fn get_settings(req: HttpRequest, pool: web::Data<PgPool>) -> HttpResponse {
+pub async fn get_settings(req: HttpRequest, state: web::Data<crate::state::AppState>) -> HttpResponse {
     let tenant = match get_tenant_context(&req) {
         Ok(t) => t,
         Err(e) => return HttpResponse::from_error(e),
     };
-    let mode = match get_enforcement_mode(pool.get_ref(), tenant.tenant_id).await {
+    let mode = match get_enforcement_mode(&state.pool, tenant.tenant_id).await {
         Ok(m) => m,
         Err(e) => {
             return HttpResponse::InternalServerError().json(serde_json::json!({
@@ -118,7 +118,7 @@ pub async fn get_settings(req: HttpRequest, pool: web::Data<PgPool>) -> HttpResp
         "SELECT updated_at FROM system_settings WHERE tenant_id = $1 AND key = 'enforcement_mode'"
     )
     .bind(tenant.tenant_id)
-    .fetch_optional(pool.get_ref())
+    .fetch_optional(&state.pool)
     .await
     .ok()
     .flatten();
@@ -133,7 +133,7 @@ pub async fn get_settings(req: HttpRequest, pool: web::Data<PgPool>) -> HttpResp
 #[patch("/api/v1/settings")]
 pub async fn patch_settings(
     req: HttpRequest,
-    pool: web::Data<PgPool>,
+    state: web::Data<crate::state::AppState>,
     body: web::Json<PatchSettingsRequest>,
 ) -> HttpResponse {
     let tenant = match get_tenant_context(&req) {
@@ -157,7 +157,7 @@ pub async fn patch_settings(
         }
     };
 
-    let current = get_enforcement_mode(pool.get_ref(), tenant.tenant_id).await.unwrap_or_else(|_| "shadow".into());
+    let current = get_enforcement_mode(&state.pool, tenant.tenant_id).await.unwrap_or_else(|_| "shadow".into());
     let current_lower = current.to_lowercase();
 
     // Safety gate: shadow → enforce requires confirmation token "ENABLE_ENFORCEMENT"
@@ -177,7 +177,7 @@ pub async fn patch_settings(
     )
     .bind(new_mode)
     .bind(tenant.tenant_id)
-    .execute(pool.get_ref())
+    .execute(&state.pool)
     .await;
 
     match result {
@@ -186,7 +186,7 @@ pub async fn patch_settings(
             let _ = sqlx::query("UPDATE tenants SET mode = $1, updated_at = NOW() WHERE id = $2")
                 .bind(new_mode)
                 .bind(tenant.tenant_id)
-                .execute(pool.get_ref())
+                .execute(&state.pool)
                 .await;
             HttpResponse::Ok().json(serde_json::json!({
                 "enforcement_mode": new_mode,
@@ -200,7 +200,7 @@ pub async fn patch_settings(
             )
             .bind(tenant.tenant_id)
             .bind(new_mode)
-            .execute(pool.get_ref())
+            .execute(&state.pool)
             .await;
 
             match insert_result {
@@ -209,7 +209,7 @@ pub async fn patch_settings(
                     let _ = sqlx::query("UPDATE tenants SET mode = $1, updated_at = NOW() WHERE id = $2")
                         .bind(new_mode)
                         .bind(tenant.tenant_id)
-                        .execute(pool.get_ref())
+                        .execute(&state.pool)
                         .await;
                     HttpResponse::Ok().json(serde_json::json!({
                         "enforcement_mode": new_mode,
@@ -589,20 +589,20 @@ pub async fn evaluate_with_tenant_context(
 #[post("/api/v1/shield/evaluate")]
 pub async fn evaluate(
     req: HttpRequest,
-    pool: web::Data<PgPool>,
+    state: web::Data<crate::state::AppState>,
     body: web::Json<EvaluateRequest>,
 ) -> HttpResponse {
     let tenant = match get_tenant_context(&req) {
         Ok(t) => t,
         Err(e) => return HttpResponse::from_error(e),
     };
-    evaluate_with_tenant_context(pool.get_ref(), &tenant, body.into_inner()).await
+    evaluate_with_tenant_context(&state.pool, &tenant, body.into_inner()).await
 }
 
 #[post("/api/v1/shield/ingest-logs")]
 pub async fn ingest_logs(
     req: HttpRequest,
-    pool: web::Data<PgPool>,
+    state: web::Data<crate::state::AppState>,
     body: web::Json<Vec<IngestLogEntry>>,
 ) -> HttpResponse {
     let tenant = match get_tenant_context(&req) {
@@ -624,7 +624,7 @@ pub async fn ingest_logs(
     }
 
     let mut processed = 0u64;
-    let enforcement_mode = get_enforcement_mode(pool.get_ref(), tenant.tenant_id).await.unwrap_or_else(|_| "shadow".into());
+    let enforcement_mode = get_enforcement_mode(&state.pool, tenant.tenant_id).await.unwrap_or_else(|_| "shadow".into());
     let is_shadow = enforcement_mode.eq_ignore_ascii_case("shadow");
 
     for entry in entries {
@@ -641,7 +641,7 @@ pub async fn ingest_logs(
             request_path: entry.request_path.clone(),
         };
 
-        let decision = match evaluate_transfer_with_db(pool.get_ref(), &ctx).await {
+        let decision = match evaluate_transfer_with_db(&state.pool, &ctx).await {
             Ok(d) => d,
             Err(e) => {
                 log::error!("Ingest evaluation failed for entry: {}", e);
@@ -696,12 +696,12 @@ pub async fn ingest_logs(
             tenant_id: tenant.tenant_id,
         };
 
-        match evidence::create_event(pool.get_ref(), params).await {
+        match evidence::create_event(&state.pool, params).await {
             Ok(event_row) => {
                 if create_review {
                     let action = format!("transfer_data_to_{}", dest_code.to_lowercase());
                     match review_queue::create_review(
-                        pool.get_ref(),
+                        &state.pool,
                         "sovereign-shield",
                         &action,
                         "sovereign-shield",
@@ -720,7 +720,7 @@ pub async fn ingest_logs(
                     {
                         Ok(seal_id) => {
                             match evidence::attach_review_seal_to_event(
-                                pool.get_ref(),
+                                &state.pool,
                                 tenant.tenant_id,
                                 &event_row.event_id,
                                 &seal_id,
@@ -760,7 +760,7 @@ pub async fn ingest_logs(
 }
 
 #[get("/api/v1/lenses/sovereign-shield/stats")]
-pub async fn shield_stats(req: HttpRequest, pool: web::Data<PgPool>) -> HttpResponse {
+pub async fn shield_stats(req: HttpRequest, state: web::Data<crate::state::AppState>) -> HttpResponse {
     let tenant = match get_tenant_context(&req) {
         Ok(t) => t,
         Err(e) => return HttpResponse::from_error(e),
@@ -769,7 +769,7 @@ pub async fn shield_stats(req: HttpRequest, pool: web::Data<PgPool>) -> HttpResp
         "SELECT COUNT(*) FROM evidence_events WHERE tenant_id = $1 AND source_system = 'sovereign-shield'"
     )
     .bind(tenant.tenant_id)
-    .fetch_one(pool.get_ref())
+    .fetch_one(&state.pool)
     .await
     .unwrap_or(0);
 
@@ -777,7 +777,7 @@ pub async fn shield_stats(req: HttpRequest, pool: web::Data<PgPool>) -> HttpResp
         "SELECT COUNT(*) FROM evidence_events WHERE tenant_id = $1 AND source_system = 'sovereign-shield' AND event_type = 'DATA_TRANSFER_BLOCKED' AND created_at >= CURRENT_DATE"
     )
     .bind(tenant.tenant_id)
-    .fetch_one(pool.get_ref())
+    .fetch_one(&state.pool)
     .await
     .unwrap_or(0);
 
@@ -785,7 +785,7 @@ pub async fn shield_stats(req: HttpRequest, pool: web::Data<PgPool>) -> HttpResp
         "SELECT COUNT(*) FROM human_oversight WHERE tenant_id = $1 AND status = 'PENDING'"
     )
     .bind(tenant.tenant_id)
-    .fetch_one(pool.get_ref())
+    .fetch_one(&state.pool)
     .await
     .unwrap_or(0);
 
@@ -800,7 +800,7 @@ pub async fn shield_stats(req: HttpRequest, pool: web::Data<PgPool>) -> HttpResp
            AND payload->>'partner_name' != 'TestPartner'"#
     )
     .bind(tenant.tenant_id)
-    .fetch_one(pool.get_ref())
+    .fetch_one(&state.pool)
     .await
     .ok()
     .flatten();
@@ -835,7 +835,7 @@ pub async fn shield_stats(req: HttpRequest, pool: web::Data<PgPool>) -> HttpResp
         LIMIT 20"#
     )
     .bind(tenant.tenant_id)
-    .fetch_all(pool.get_ref())
+    .fetch_all(&state.pool)
     .await
     .unwrap_or_default();
 
@@ -874,7 +874,7 @@ pub async fn shield_stats(req: HttpRequest, pool: web::Data<PgPool>) -> HttpResp
 }
 
 #[get("/api/v1/lenses/sovereign-shield/countries")]
-pub async fn shield_countries(req: HttpRequest, pool: web::Data<PgPool>) -> HttpResponse {
+pub async fn shield_countries(req: HttpRequest, state: web::Data<crate::state::AppState>) -> HttpResponse {
     let tenant = match get_tenant_context(&req) {
         Ok(t) => t,
         Err(e) => return HttpResponse::from_error(e),
@@ -899,7 +899,7 @@ pub async fn shield_countries(req: HttpRequest, pool: web::Data<PgPool>) -> Http
         GROUP BY payload->>'destination_country_code'"#
     )
     .bind(tenant.tenant_id)
-    .fetch_all(pool.get_ref())
+    .fetch_all(&state.pool)
     .await
     .unwrap_or_default();
 
@@ -919,7 +919,7 @@ pub async fn shield_countries(req: HttpRequest, pool: web::Data<PgPool>) -> Http
 }
 
 #[get("/api/v1/lenses/sovereign-shield/requires-attention")]
-pub async fn shield_requires_attention(req: HttpRequest, pool: web::Data<PgPool>) -> HttpResponse {
+pub async fn shield_requires_attention(req: HttpRequest, state: web::Data<crate::state::AppState>) -> HttpResponse {
     let tenant = match get_tenant_context(&req) {
         Ok(t) => t,
         Err(e) => return HttpResponse::from_error(e),
@@ -954,7 +954,7 @@ pub async fn shield_requires_attention(req: HttpRequest, pool: web::Data<PgPool>
         LIMIT 20"#
     )
     .bind(tenant.tenant_id)
-    .fetch_all(pool.get_ref())
+    .fetch_all(&state.pool)
     .await
     .unwrap_or_default();
 
@@ -977,7 +977,7 @@ pub async fn shield_requires_attention(req: HttpRequest, pool: web::Data<PgPool>
 }
 
 #[get("/api/v1/lenses/sovereign-shield/transfers/by-destination")]
-pub async fn transfers_by_destination(pool: web::Data<PgPool>) -> HttpResponse {
+pub async fn transfers_by_destination(state: web::Data<crate::state::AppState>) -> HttpResponse {
     #[derive(sqlx::FromRow)]
     struct Row {
         destination: Option<String>,
@@ -997,7 +997,7 @@ pub async fn transfers_by_destination(pool: web::Data<PgPool>) -> HttpResponse {
         ORDER BY COUNT(*) DESC
         LIMIT 20"#
     )
-    .fetch_all(pool.get_ref())
+    .fetch_all(&state.pool)
     .await
     .unwrap_or_default();
 
@@ -1061,7 +1061,7 @@ pub struct SccRegistryPatchRequest {
 #[post("/api/v1/scc-registries")]
 pub async fn register_scc(
     req: HttpRequest,
-    pool: web::Data<PgPool>,
+    state: web::Data<crate::state::AppState>,
     body: web::Json<SccRegistryRequest>,
 ) -> HttpResponse {
     let tenant = match get_tenant_context(&req) {
@@ -1078,7 +1078,7 @@ pub async fn register_scc(
     let dest_upper = body.destination_country_code.to_uppercase();
 
     // Use transaction to ensure atomicity of SCC registration + auto-approve
-    let mut tx = match pool.begin().await {
+    let mut tx = match state.pool.begin().await {
         Ok(tx) => tx,
         Err(e) => {
             return HttpResponse::InternalServerError().json(serde_json::json!({
@@ -1127,7 +1127,7 @@ pub async fn register_scc(
 
     // Auto-approve after commit (will be fixed in next step to use transaction)
     if let Ok(n) = review_queue::approve_pending_reviews_for_scc(
-        pool.get_ref(),
+        &state.pool,
         &dest_upper,
         Some(body.partner_name.as_str()),
         tenant.tenant_id,
@@ -1159,7 +1159,7 @@ pub async fn register_scc(
 #[get("/api/v1/scc-registries")]
 pub async fn list_scc_registries(
     req: HttpRequest,
-    pool: web::Data<PgPool>,
+    state: web::Data<crate::state::AppState>,
 ) -> HttpResponse {
     let tenant = match get_tenant_context(&req) {
         Ok(t) => t,
@@ -1175,7 +1175,7 @@ pub async fn list_scc_registries(
          AND expires_at < NOW()"
     )
     .bind(tenant.tenant_id)
-    .execute(pool.get_ref())
+    .execute(&state.pool)
     .await {
         log::warn!("Failed to auto-expire SCCs: {}", e);
     }
@@ -1184,7 +1184,7 @@ pub async fn list_scc_registries(
         "SELECT * FROM scc_registries WHERE tenant_id = $1 ORDER BY registered_at DESC"
     )
     .bind(tenant.tenant_id)
-    .fetch_all(pool.get_ref())
+    .fetch_all(&state.pool)
     .await {
         Ok(r) => r,
         Err(e) => {
@@ -1227,7 +1227,7 @@ pub struct SccRegistryPath {
 #[patch("/api/v1/scc-registries/{id}")]
 pub async fn patch_scc_registry(
     req: HttpRequest,
-    pool: web::Data<PgPool>,
+    state: web::Data<crate::state::AppState>,
     path: web::Path<SccRegistryPath>,
     body: web::Json<SccRegistryPatchRequest>,
 ) -> HttpResponse {
@@ -1252,7 +1252,7 @@ pub async fn patch_scc_registry(
         .bind(tia_completed)
         .bind(tenant.tenant_id)
         .bind(id)
-        .execute(pool.get_ref())
+        .execute(&state.pool)
         .await;
 
         match result {
@@ -1287,7 +1287,7 @@ pub async fn patch_scc_registry(
 #[delete("/api/v1/scc-registries/{id}")]
 pub async fn revoke_scc(
     req: HttpRequest,
-    pool: web::Data<PgPool>,
+    state: web::Data<crate::state::AppState>,
     path: web::Path<SccRegistryPath>,
 ) -> HttpResponse {
     let tenant = match get_tenant_context(&req) {
@@ -1315,7 +1315,7 @@ pub async fn revoke_scc(
     .bind(new_status)
     .bind(tenant.tenant_id)
     .bind(id)
-    .execute(pool.get_ref())
+    .execute(&state.pool)
     .await;
 
     match result {

@@ -144,7 +144,7 @@ async fn generate_username(pool: &PgPool, email: &str) -> String {
 #[post("/api/v1/auth/register")]
 pub async fn register(
     req: HttpRequest,
-    pool: web::Data<PgPool>,
+    state: web::Data<crate::state::AppState>,
     rate_limiter: web::Data<SignupRateLimiter>,
     body: web::Json<RegisterRequest>,
 ) -> HttpResponse {
@@ -183,7 +183,7 @@ pub async fn register(
     let email_exists: Option<(uuid::Uuid,)> =
         sqlx::query_as("SELECT id FROM users WHERE email = $1")
             .bind(&body.email)
-            .fetch_optional(pool.get_ref())
+            .fetch_optional(&state.pool)
             .await
             .unwrap_or(None);
 
@@ -198,7 +198,7 @@ pub async fn register(
     let (api_key_raw, api_key_hash, api_key_prefix) = generate_api_key();
 
     // Generate username
-    let username = generate_username(pool.get_ref(), &body.email).await;
+    let username = generate_username(&state.pool, &body.email).await;
 
     // Hash password
     let password_hash = match bcrypt::hash(&body.password, bcrypt::DEFAULT_COST) {
@@ -215,7 +215,7 @@ pub async fn register(
     let trial_expires_at = Utc::now() + Duration::days(30);
 
     // DB transaction: create tenant + user atomically
-    let mut tx = match pool.begin().await {
+    let mut tx = match state.pool.begin().await {
         Ok(tx) => tx,
         Err(e) => {
             log::error!("Failed to begin transaction: {}", e);
@@ -346,7 +346,7 @@ struct LoginSuccessResponse {
 
 #[post("/api/v1/auth/login")]
 pub async fn login(
-    pool: web::Data<PgPool>,
+    state: web::Data<crate::state::AppState>,
     body: web::Json<LoginRequest>,
 ) -> HttpResponse {
     let email = body.email.trim();
@@ -374,7 +374,7 @@ pub async fn login(
          FROM users WHERE email = $1 AND active = true"
     )
     .bind(email)
-    .fetch_optional(pool.get_ref())
+    .fetch_optional(&state.pool)
     .await
     .ok()
     .flatten();
@@ -451,7 +451,7 @@ pub async fn login(
          FROM tenants WHERE id = $1 AND deleted_at IS NULL"
     )
     .bind(company_id)
-    .fetch_optional(pool.get_ref())
+    .fetch_optional(&state.pool)
     .await
     .ok()
     .flatten();
@@ -569,7 +569,7 @@ pub struct ForgotPasswordRequest {
 
 #[post("/api/v1/auth/forgot-password")]
 pub async fn forgot_password(
-    pool: web::Data<PgPool>,
+    state: web::Data<crate::state::AppState>,
     body: web::Json<ForgotPasswordRequest>,
 ) -> HttpResponse {
     let email = body.email.trim();
@@ -588,7 +588,7 @@ pub async fn forgot_password(
         "SELECT id FROM users WHERE email = $1 AND active = true",
     )
     .bind(email)
-    .fetch_optional(pool.get_ref())
+    .fetch_optional(&state.pool)
     .await
     .ok()
     .flatten();
@@ -604,7 +604,7 @@ pub async fn forgot_password(
          WHERE user_id = $1 AND created_at > NOW() - INTERVAL '1 hour'",
     )
     .bind(user.id)
-    .fetch_one(pool.get_ref())
+    .fetch_one(&state.pool)
     .await
     .unwrap_or(0);
 
@@ -625,7 +625,7 @@ pub async fn forgot_password(
     .bind(user.id)
     .bind(&token_hash)
     .bind(expires_at)
-    .execute(pool.get_ref())
+    .execute(&state.pool)
     .await
     {
         log::error!("password_reset_tokens insert: {}", e);
@@ -661,7 +661,7 @@ pub struct ResetPasswordRequest {
 
 #[post("/api/v1/auth/reset-password")]
 pub async fn reset_password(
-    pool: web::Data<PgPool>,
+    state: web::Data<crate::state::AppState>,
     body: web::Json<ResetPasswordRequest>,
 ) -> HttpResponse {
     if body.new_password.len() < 8 {
@@ -681,7 +681,7 @@ pub async fn reset_password(
 
     let token_hash = sha256_hex_string(token_trimmed);
 
-    let mut tx = match pool.begin().await {
+    let mut tx = match state.pool.begin().await {
         Ok(tx) => tx,
         Err(e) => {
             log::error!("reset_password begin tx: {}", e);
@@ -790,7 +790,7 @@ pub struct DevResetPasswordRequest {
 
 #[post("/api/v1/auth/dev-reset-password")]
 pub async fn dev_reset_password(
-    pool: web::Data<PgPool>,
+    state: web::Data<crate::state::AppState>,
     body: web::Json<DevResetPasswordRequest>,
 ) -> HttpResponse {
     // Only allow in development
@@ -833,7 +833,7 @@ pub async fn dev_reset_password(
     )
     .bind(&password_hash)
     .bind(body.username.trim())
-    .execute(pool.get_ref())
+    .execute(&state.pool)
     .await
     {
         Ok(result) => result.rows_affected(),

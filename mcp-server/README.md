@@ -18,6 +18,6 @@ Optional: `VERIDION_NEXUS_API_URL` (default: `https://api.veridion-nexus.eu`)
 
 ---
 
-## Accountability Ledger (MCP audit proxy)
+## MCP Governance Gateway (bundled entry)
 
-The AL proxy implementation lives in `src/al-proxy.ts` for a future **`nexus-al-mcp`** package. It is **not** compiled or published in this release.
+The gateway implementation lives in `src/al-proxy.ts`; the same binary is published as **`veridion-nexus-gateway`** from **`mcp-server-gateway/`**. This package also exposes optional **`veridion-nexus-gateway`** → `dist/al-proxy.js` — see `mcp-server/package.json` `bin`.
