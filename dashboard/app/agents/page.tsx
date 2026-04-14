@@ -355,9 +355,19 @@ export default function AgentsPage() {
           </div>
         ) : agents.length === 0 ? (
           <div className="bg-slate-800 border border-slate-700 rounded-lg p-12 text-center">
-            <Cpu className="w-8 h-8 text-slate-600 mx-auto mb-3" />
-            <p className="text-sm text-slate-400">No agents detected yet.</p>
-            <p className="mt-1 text-xs text-slate-500">Register an agent or wait for activity.</p>
+            <Cpu className="w-10 h-10 text-emerald-500/80 mx-auto mb-4" />
+            <h2 className="text-lg font-semibold text-white mb-2">Register your first AI system</h2>
+            <p className="text-sm text-slate-400 max-w-md mx-auto mb-6">
+              Start by registering an agent to monitor its GDPR compliance and EU AI Act obligations.
+            </p>
+            <button
+              type="button"
+              onClick={() => setRegisterOpen(true)}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold transition-colors shadow-lg shadow-emerald-900/30"
+            >
+              <Plus className="w-4 h-4" />
+              Register Agent
+            </button>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

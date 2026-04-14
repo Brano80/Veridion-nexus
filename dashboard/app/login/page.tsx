@@ -76,7 +76,7 @@ export default function LoginPage() {
         tenant_id: data.tenant?.id ?? undefined,
       }));
 
-      window.location.href = '/';
+      window.location.href = '/agents';
     } catch {
       setError('Network error. Please check your connection.');
       setLoading(false);
