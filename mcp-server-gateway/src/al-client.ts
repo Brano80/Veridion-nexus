@@ -21,9 +21,14 @@ export class AlClient {
 
   constructor() {
     this.baseUrl = process.env.AL_API_BASE_URL ?? 'http://localhost:8080';
-    this.serviceToken = process.env.AL_SERVICE_TOKEN ?? '';
+    // VERIDION_API_KEY is the preferred auth (per-tenant API key, same as Shield).
+    // AL_SERVICE_TOKEN is kept for backward compat (internal/dev use only).
+    const apiKey = process.env.VERIDION_API_KEY ?? process.env.AL_SERVICE_TOKEN ?? '';
+    this.serviceToken = apiKey;
     if (!this.serviceToken) {
-      console.warn('[AlClient] AL_SERVICE_TOKEN not set — API calls will fail in production');
+      console.warn(
+        '[AlClient] Neither VERIDION_API_KEY nor AL_SERVICE_TOKEN set — API calls will fail',
+      );
     }
   }
 
@@ -56,6 +61,19 @@ export class AlClient {
       const res = await this.request<AlApiResponse<AgentRecord>>(
         'GET',
         `/api/acm/agents?oauth_client_id=${encodeURIComponent(oauthClientId)}`,
+      );
+      return res.data;
+    } catch (err) {
+      if ((err as Error).message.includes('404')) return null;
+      throw err;
+    }
+  }
+
+  async resolveAgentById(agentId: string): Promise<AgentRecord | null> {
+    try {
+      const res = await this.request<AlApiResponse<AgentRecord>>(
+        'GET',
+        `/api/acm/agents/lookup?agent_id=${encodeURIComponent(agentId)}`,
       );
       return res.data;
     } catch (err) {

@@ -299,6 +299,41 @@ class AccountabilityLedgerProxy {
       // Claude Desktop does not send a Bearer token. oauth.ts uses AL_DEV_CLIENT_ID only;
       // the token string is ignored in dev_bypass (JWKS is never called).
       tokenData = await validateToken('dev_bypass_no_jwt_required', traceparent);
+    } else if (authMode === 'api_key') {
+      const agentId = process.env.VERIDION_AGENT_ID;
+      if (!agentId) {
+        throw new Error('VERIDION_AGENT_ID must be set when AL_AUTH_MODE=api_key');
+      }
+      const agentRecord = await this.alClient.resolveAgentById(agentId);
+      if (!agentRecord) {
+        throw new Error(
+          `Agent not found: no active agent with id '${agentId}' for this API key. ` +
+            `Register the agent in the Veridion Nexus dashboard first.`,
+        );
+      }
+      const sessionId = randomUUID();
+      const annotation = await this.alClient.createTrustAnnotation({
+        agent_id: agentRecord.agent_id,
+        session_id: sessionId,
+        tenant_id: agentRecord.tenant_id,
+        trust_level: 'trusted',
+        sources_in_context: [],
+        session_trust_persistent: true,
+        triggered_human_review: false,
+      });
+      this.session = {
+        sessionId,
+        agentRecord,
+        trustLevel: 'trusted',
+        annotationRef: annotation.id,
+        traceId: undefined,
+        parentSpanId: undefined,
+      };
+      console.error(
+        `[AL Proxy] Session started (api_key mode): agent=${agentRecord.display_name} ` +
+          `session=${sessionId} trust=trusted`,
+      );
+      return;
     } else {
       const rawToken = extractBearerToken(authHeader ?? process.env.AL_AGENT_TOKEN);
       if (!rawToken) {

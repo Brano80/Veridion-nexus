@@ -311,6 +311,7 @@ async fn main() -> std::io::Result<()> {
     println!("  Agent detail:    GET  /api/v1/agents/{{id}}");
     println!("  Agent card:      GET  /api/v1/agents/{{id}}/card (public)");
     println!("  ACM agent:       GET  /api/acm/agents?oauth_client_id={{id}}");
+    println!("  ACM agent lookup: GET  /api/acm/agents/lookup?agent_id={{id}} (API key)");
     println!("  ACM events:      POST /api/acm/events");
     println!("  ACM event ver:   GET  /api/acm/events/{{id}}/verify");
     println!("  ACM trust:       POST /api/acm/trust-annotations");

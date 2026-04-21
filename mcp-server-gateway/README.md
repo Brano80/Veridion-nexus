@@ -59,9 +59,32 @@ Open [app.veridion-nexus.eu](https://app.veridion-nexus.eu) → ACM Overview →
 
 ## Configuration
 
+### Authentication
+
+**For real users (production)** — Veridion Nexus tenant API key + agent ID (no shared server token):
+
+```bash
+AL_AUTH_MODE=api_key
+VERIDION_API_KEY=ss_live_...   # Your Veridion Nexus API key (same as Shield)
+VERIDION_AGENT_ID=agt_...      # Agent ID from the dashboard
+```
+
+Register the agent in the dashboard first, then run e.g. `npx -y veridion-nexus-gateway@latest` with the three variables above (plus `AL_API_BASE_URL` and upstream MCP settings).
+
+**Internal / dev use only** — server-level token and fixed client id (not per-tenant):
+
+```bash
+AL_AUTH_MODE=dev_bypass
+AL_SERVICE_TOKEN=...           # Server-level token (internal only)
+AL_DEV_CLIENT_ID=...           # Agent oauth_client_id / dev client id
+```
+
+**OAuth 2.1 (JWKS)** — JWT bearer; see below.
+
 ### Authentication modes
 
-- **dev_bypass:** Set `AL_AUTH_MODE=dev_bypass` and `AL_DEV_CLIENT_ID` matching the agent's `oauth_client_id` in the DB. This is the standard path for Claude Desktop and Cursor.
+- **api_key:** `AL_AUTH_MODE=api_key` with `VERIDION_API_KEY` and `VERIDION_AGENT_ID`. The gateway calls `GET /api/acm/agents/lookup` using your tenant API key.
+- **dev_bypass:** `AL_AUTH_MODE=dev_bypass` with `AL_DEV_CLIENT_ID` matching the agent's `oauth_client_id` in the DB. Typical for local Claude Desktop / Cursor with `AL_SERVICE_TOKEN`.
 - **jwks:** JWT required. With stdio MCP, set `AL_AGENT_TOKEN` in env — there is no HTTP `Authorization` header passed to the process automatically.
 
 ### Environment variables
@@ -69,8 +92,10 @@ Open [app.veridion-nexus.eu](https://app.veridion-nexus.eu) → ACM Overview →
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `AL_API_BASE_URL` | Yes | `http://localhost:8080` | Rust API URL |
-| `AL_SERVICE_TOKEN` | Yes | — | Service token for `/api/acm/*` |
-| `AL_AUTH_MODE` | No | `jwks` | `dev_bypass` or `jwks` |
+| `VERIDION_API_KEY` | api_key (or ACM calls) | — | Per-tenant API key (`ss_test_` / `ss_live_`); preferred for `/api/acm/*` |
+| `VERIDION_AGENT_ID` | api_key | — | Agent id (`agt_…`) when `AL_AUTH_MODE=api_key` |
+| `AL_SERVICE_TOKEN` | dev / legacy | — | Server token for `/api/acm/*`; used if `VERIDION_API_KEY` unset |
+| `AL_AUTH_MODE` | No | `jwks` | `api_key`, `dev_bypass`, or `jwks` |
 | `AL_DEV_CLIENT_ID` | dev_bypass | — | Fixed agent client_id for testing |
 | `UPSTREAM_MCP_MODE` | No | `stdio` | `stdio` or `sse` |
 | `UPSTREAM_MCP_COMMAND` | stdio | — | Command to launch upstream MCP server |
@@ -81,7 +106,7 @@ Open [app.veridion-nexus.eu](https://app.veridion-nexus.eu) → ACM Overview →
 
 ## Production (OAuth 2.1)
 
-For production, set `AL_AUTH_MODE=jwks` and configure:
+For production with OAuth, set `AL_AUTH_MODE=jwks` and configure:
 
 - `AL_OAUTH_ISSUER` — your authorization server URL
 - `AL_OAUTH_AUDIENCE` — expected audience claim

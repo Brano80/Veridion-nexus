@@ -160,11 +160,11 @@ pub fn evaluate_transfer(ctx: &TransferContext) -> TransferDecision {
         Some(c) if !c.is_empty() => c.to_uppercase(),
         _ => {
             return TransferDecision {
-                decision: Decision::REVIEW,
-                reason: "Missing destination country — cannot evaluate transfer".into(),
-                severity: "L2".into(),
+                decision: Decision::BLOCK,
+                reason: "Missing destination country — transfer blocked (Art. 44 requires known legal basis before transfer)".into(),
+                severity: "L3".into(),
                 articles: vec!["GDPR Art. 44".into()],
-                event_type: "DATA_TRANSFER_REVIEW".into(),
+                event_type: "DATA_TRANSFER_BLOCKED".into(),
                 country_status: "unknown".into(),
             };
         }
@@ -230,13 +230,12 @@ pub fn evaluate_transfer(ctx: &TransferContext) -> TransferDecision {
                     country_status: "scc_required".into(),
                 };
             }
-            // SCC check requires database lookup - use evaluate_transfer_with_db instead
             TransferDecision {
-                decision: Decision::REVIEW,
-                reason: format!("{} requires SCC — human review needed to verify safeguards", country_name(&code)),
-                severity: "L2".into(),
+                decision: Decision::BLOCK,
+                reason: format!("{} requires SCC — safeguard verification not available in this context, transfer blocked (fail-closed)", country_name(&code)),
+                severity: "L3".into(),
                 articles: vec!["GDPR Art. 46".into()],
-                event_type: "DATA_TRANSFER_REVIEW".into(),
+                event_type: "DATA_TRANSFER_BLOCKED".into(),
                 country_status: "scc_required".into(),
             }
         },
@@ -293,11 +292,11 @@ pub async fn evaluate_transfer_with_db(
         Some(c) if !c.is_empty() => c.to_uppercase(),
         _ => {
             return Ok(TransferDecision {
-                decision: Decision::REVIEW,
-                reason: "Missing destination country — cannot evaluate transfer".into(),
-                severity: "L2".into(),
+                decision: Decision::BLOCK,
+                reason: "Missing destination country — transfer blocked (Art. 44 requires known legal basis before transfer)".into(),
+                severity: "L3".into(),
                 articles: vec!["GDPR Art. 44".into()],
-                event_type: "DATA_TRANSFER_REVIEW".into(),
+                event_type: "DATA_TRANSFER_BLOCKED".into(),
                 country_status: "unknown".into(),
             });
         }
@@ -367,11 +366,11 @@ pub async fn evaluate_transfer_with_db(
             let partner = ctx.partner_name.as_deref().unwrap_or("");
             if partner.is_empty() {
                 return Ok(TransferDecision {
-                    decision: Decision::REVIEW,
-                    reason: format!("{} requires SCC — partner name required to verify SCC", country_name(&code)),
-                    severity: "L2".into(),
+                    decision: Decision::BLOCK,
+                    reason: format!("{} requires SCC — partner name missing, cannot verify safeguards, transfer blocked", country_name(&code)),
+                    severity: "L3".into(),
                     articles: vec!["GDPR Art. 46".into()],
-                    event_type: "DATA_TRANSFER_REVIEW".into(),
+                    event_type: "DATA_TRANSFER_BLOCKED".into(),
                     country_status: "scc_required".into(),
                 });
             }
@@ -385,21 +384,21 @@ pub async fn evaluate_transfer_with_db(
                     country_status: "scc_required".into(),
                 }),
                 Ok(false) => Ok(TransferDecision {
-                    decision: Decision::REVIEW,
-                    reason: format!("{} requires SCC — no active SCC found for {}", country_name(&code), partner),
-                    severity: "L2".into(),
+                    decision: Decision::BLOCK,
+                    reason: format!("{} requires SCC — no active SCC found for {} (Art. 46 safeguard must exist before transfer)", country_name(&code), partner),
+                    severity: "L3".into(),
                     articles: vec!["GDPR Art. 46".into()],
-                    event_type: "DATA_TRANSFER_REVIEW".into(),
+                    event_type: "DATA_TRANSFER_BLOCKED".into(),
                     country_status: "scc_required".into(),
                 }),
                 Err(e) => {
                     log::error!("SCC lookup error: {}", e);
                     Ok(TransferDecision {
-                        decision: Decision::REVIEW,
-                        reason: format!("{} requires SCC — unable to verify SCC status", country_name(&code)),
-                        severity: "L2".into(),
+                        decision: Decision::BLOCK,
+                        reason: format!("{} requires SCC — SCC verification failed, transfer blocked (fail-closed)", country_name(&code)),
+                        severity: "L3".into(),
                         articles: vec!["GDPR Art. 46".into()],
-                        event_type: "DATA_TRANSFER_REVIEW".into(),
+                        event_type: "DATA_TRANSFER_BLOCKED".into(),
                         country_status: "scc_required".into(),
                     })
                 }

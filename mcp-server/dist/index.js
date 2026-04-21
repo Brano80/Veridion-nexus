@@ -81,19 +81,19 @@ function parseSccRegistriesResponse(raw) {
     };
 }
 function sccDestinationCountryCode(scc) {
-    return String(scc.destination_country_code ?? scc.destinationCountryCode ?? "").toUpperCase();
+    return String(scc.destinationCountryCode ?? scc.destination_country_code ?? "").toUpperCase();
 }
 function sccPartnerName(scc) {
-    return String(scc.partner_name ?? scc.partnerName ?? "");
+    return String(scc.partnerName ?? scc.partner_name ?? "");
 }
 function sccStatus(scc) {
     return String(scc.status ?? "—");
 }
 function sccExpiresAt(scc) {
-    return scc.expires_at ?? scc.expiresAt;
+    return scc.expiresAt ?? scc.expires_at;
 }
 function sccRegisteredAt(scc) {
-    return scc.registered_at ?? scc.registeredAt;
+    return scc.registeredAt ?? scc.registered_at;
 }
 // ---------------------------------------------------------------------------
 // Server
@@ -236,12 +236,13 @@ server.registerTool("check_scc_coverage", {
     }),
 }, async (args) => {
     try {
-        const data = (await apiRequest("GET", "/api/v1/scc-registries"));
+        const resp = (await apiRequest("GET", "/api/v1/scc-registries"));
+        const data = Array.isArray(resp.registries) ? resp.registries : [];
         const code = args.destination_country_code.toUpperCase();
-        let filtered = data.filter((scc) => String(scc.destination_country_code ?? "").toUpperCase() === code);
+        let filtered = data.filter((scc) => String(scc.destinationCountryCode ?? "").toUpperCase() === code);
         if (args.partner_name) {
             const search = args.partner_name.toLowerCase();
-            filtered = filtered.filter((scc) => String(scc.partner_name ?? "").toLowerCase().includes(search));
+            filtered = filtered.filter((scc) => String(scc.partnerName ?? "").toLowerCase().includes(search));
         }
         const country = code;
         if (filtered.length === 0) {
@@ -256,7 +257,7 @@ server.registerTool("check_scc_coverage", {
                             `No active SCCs found for ${country}${partnerNote}.\n\n` +
                             `Transfers of personal data to ${country} require an SCC\n` +
                             `under GDPR Art. 46(2)(c). Without an SCC, transfers will\n` +
-                            `result in a REVIEW decision requiring human approval.\n\n` +
+                            `result in a BLOCK decision (no transfer permitted until SCC is registered).\n\n` +
                             `Register an SCC in the Sovereign Shield dashboard:\n` +
                             `https://app.veridion-nexus.eu/scc-registry`,
                     },

@@ -39,6 +39,56 @@ fn sha256_hex(input: &str) -> String {
     format!("{:x}", hasher.finalize())
 }
 
+/// Returns Ok(Some(tenant_id)) if an API key was used, Ok(None) if service token was used.
+/// Returns Err(HttpResponse) on auth failure.
+async fn verify_auth(
+    req: &HttpRequest,
+    pool: &PgPool,
+) -> Result<Option<Uuid>, HttpResponse> {
+    let auth_header = req
+        .headers()
+        .get("Authorization")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .map(|s| s.trim().to_string());
+
+    let Some(token) = auth_header else {
+        return match verify_service_token(req) {
+            Ok(()) => Ok(None),
+            Err(resp) => Err(resp),
+        };
+    };
+
+    if token.starts_with("ss_test_") || token.starts_with("ss_live_") {
+        let key_hash = sha256_hex(&token);
+
+        let row: Option<(Uuid,)> = sqlx::query_as(
+            "SELECT id FROM tenants WHERE api_key_hash = $1 AND deleted_at IS NULL",
+        )
+        .bind(&key_hash)
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| {
+            log::error!("verify_auth tenant lookup: {}", e);
+            HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": "database error"
+            }))
+        })?;
+
+        return match row {
+            Some((tenant_id,)) => Ok(Some(tenant_id)),
+            None => Err(HttpResponse::Unauthorized().json(serde_json::json!({
+                "error": "Invalid API key"
+            }))),
+        };
+    }
+
+    match verify_service_token(req) {
+        Ok(()) => Ok(None),
+        Err(resp) => Err(resp),
+    }
+}
+
 /// Resolve `agents.id` (VARCHAR, e.g. `agt_…`) for ACM inserts; validates tenant.
 async fn resolve_agent_id_for_tenant(
     pool: &PgPool,
@@ -82,7 +132,7 @@ pub async fn get_agent_by_oauth_client_id(
     state: web::Data<crate::state::AppState>,
     query: web::Query<AgentQuery>,
 ) -> HttpResponse {
-    if let Err(resp) = verify_service_token(&req) {
+    if let Err(resp) = verify_auth(&req, &state.pool).await.map(|_| ()) {
         return resp;
     }
 
@@ -128,6 +178,73 @@ pub async fn get_agent_by_oauth_client_id(
     }
 }
 
+// ── GET /api/acm/agents/lookup?agent_id={id} (API key auth) ─────────────────
+
+#[derive(Deserialize)]
+pub struct AgentLookupQuery {
+    pub agent_id: String,
+}
+
+#[get("/api/acm/agents/lookup")]
+pub async fn get_agent_by_id(
+    req: HttpRequest,
+    state: web::Data<crate::state::AppState>,
+    query: web::Query<AgentLookupQuery>,
+) -> HttpResponse {
+    let tenant_id = match verify_auth(&req, &state.pool).await {
+        Ok(Some(id)) => id,
+        Ok(None) => {
+            return HttpResponse::BadRequest().json(serde_json::json!({
+                "error": "API key required for this endpoint"
+            }));
+        }
+        Err(resp) => return resp,
+    };
+
+    let row: Option<serde_json::Value> = sqlx::query_scalar(
+        r#"SELECT row_to_json(t) FROM (
+            SELECT
+                id AS agent_id,
+                name AS display_name,
+                version,
+                tenant_id::text,
+                COALESCE(oauth_client_id, '') AS oauth_client_id,
+                COALESCE(oauth_issuer, '') AS oauth_issuer,
+                COALESCE(oauth_scope, '') AS oauth_scope,
+                COALESCE(deployment_environment, '') AS deployment_environment,
+                COALESCE(deployment_region, '') AS deployment_region,
+                COALESCE(data_residency, '') AS data_residency,
+                COALESCE(eu_ai_act_risk_level, 'minimal') AS eu_ai_act_risk_level,
+                COALESCE(processes_personal_data, false) AS processes_personal_data,
+                COALESCE(automated_decision_making, false) AS automated_decision_making,
+                COALESCE(tools_permitted, '[]'::jsonb) AS tools_permitted,
+                COALESCE(transfer_policies, '[]'::jsonb) AS transfer_policies,
+                retention_policy,
+                a2a_card_url,
+                pii_heuristics,
+                status
+            FROM agents
+            WHERE id = $1
+              AND tenant_id = $2
+              AND deleted_at IS NULL
+              AND status = 'active'
+        ) t"#,
+    )
+    .bind(&query.agent_id)
+    .bind(tenant_id)
+    .fetch_optional(&state.pool)
+    .await
+    .ok()
+    .flatten();
+
+    match row {
+        Some(agent) => HttpResponse::Ok().json(serde_json::json!({ "data": agent })),
+        None => HttpResponse::NotFound().json(serde_json::json!({
+            "error": "Agent not found"
+        })),
+    }
+}
+
 // ── POST /api/acm/events ─────────────────────────────────────────────────────
 
 #[derive(Deserialize)]
@@ -159,17 +276,23 @@ pub async fn create_tool_call_event(
     state: web::Data<crate::state::AppState>,
     body: web::Json<CreateToolCallEventRequest>,
 ) -> HttpResponse {
-    if let Err(resp) = verify_service_token(&req) {
-        return resp;
-    }
+    let auth_tenant_id = match verify_auth(&req, &state.pool).await {
+        Ok(t) => t,
+        Err(resp) => return resp,
+    };
+
+    let tenant_uuid = if let Some(id) = auth_tenant_id {
+        id
+    } else {
+        match Uuid::parse_str(&body.tenant_id) {
+            Ok(id) => id,
+            Err(_) => return HttpResponse::BadRequest().json(serde_json::json!({
+                "error": "Invalid tenant_id"
+            })),
+        }
+    };
 
     let event_id = Uuid::new_v4();
-    let tenant_uuid = match Uuid::parse_str(&body.tenant_id) {
-        Ok(id) => id,
-        Err(_) => return HttpResponse::BadRequest().json(serde_json::json!({
-            "error": "Invalid tenant_id"
-        })),
-    };
     let agent_id_str = match resolve_agent_id_for_tenant(&state.pool, &body.agent_id, tenant_uuid).await {
         Ok(s) => s,
         Err(resp) => return resp,
@@ -350,9 +473,10 @@ pub async fn create_trust_annotation(
     state: web::Data<crate::state::AppState>,
     body: web::Json<CreateTrustAnnotationRequest>,
 ) -> HttpResponse {
-    if let Err(resp) = verify_service_token(&req) {
-        return resp;
-    }
+    let auth_tenant_id = match verify_auth(&req, &state.pool).await {
+        Ok(t) => t,
+        Err(resp) => return resp,
+    };
 
     // Validate trust_level
     if !["trusted", "degraded", "untrusted"].contains(&body.trust_level.as_str()) {
@@ -362,11 +486,15 @@ pub async fn create_trust_annotation(
     }
 
     let annotation_id = Uuid::new_v4();
-    let tenant_uuid = match Uuid::parse_str(&body.tenant_id) {
-        Ok(id) => id,
-        Err(_) => return HttpResponse::BadRequest().json(serde_json::json!({
-            "error": "Invalid tenant_id"
-        })),
+    let tenant_uuid = if let Some(id) = auth_tenant_id {
+        id
+    } else {
+        match Uuid::parse_str(&body.tenant_id) {
+            Ok(id) => id,
+            Err(_) => return HttpResponse::BadRequest().json(serde_json::json!({
+                "error": "Invalid tenant_id"
+            })),
+        }
     };
     let agent_id_str = match resolve_agent_id_for_tenant(&state.pool, &body.agent_id, tenant_uuid).await {
         Ok(s) => s,
@@ -454,7 +582,7 @@ pub async fn get_session_trust_level(
     state: web::Data<crate::state::AppState>,
     path: web::Path<SessionPath>,
 ) -> HttpResponse {
-    if let Err(resp) = verify_service_token(&req) {
+    if let Err(resp) = verify_auth(&req, &state.pool).await.map(|_| ()) {
         return resp;
     }
 
@@ -518,13 +646,18 @@ pub async fn create_data_transfer_record(
     state: web::Data<crate::state::AppState>,
     body: web::Json<CreateDataTransferRecordRequest>,
 ) -> HttpResponse {
-    if let Err(resp) = verify_service_token(&req) {
-        return resp;
-    }
+    let auth_tenant_id = match verify_auth(&req, &state.pool).await {
+        Ok(t) => t,
+        Err(resp) => return resp,
+    };
 
-    let tenant_id = match Uuid::parse_str(&body.tenant_id) {
-        Ok(id) => id,
-        Err(_) => return HttpResponse::BadRequest().json(serde_json::json!({"error": "invalid tenant_id"})),
+    let tenant_id = if let Some(id) = auth_tenant_id {
+        id
+    } else {
+        match Uuid::parse_str(&body.tenant_id) {
+            Ok(id) => id,
+            Err(_) => return HttpResponse::BadRequest().json(serde_json::json!({"error": "invalid tenant_id"})),
+        }
     };
     let agent_id_str = match resolve_agent_id_for_tenant(&state.pool, &body.agent_id, tenant_id).await {
         Ok(s) => s,
@@ -611,7 +744,7 @@ pub async fn create_data_transfer_record(
 
 #[patch("/api/acm/transfers/schrems-iii-review")]
 pub async fn schrems_iii_bulk_review(req: HttpRequest, state: web::Data<crate::state::AppState>) -> HttpResponse {
-    if let Err(resp) = verify_service_token(&req) {
+    if let Err(resp) = verify_auth(&req, &state.pool).await.map(|_| ()) {
         return resp;
     }
 
@@ -665,13 +798,18 @@ pub async fn create_oversight_record(
     state: web::Data<crate::state::AppState>,
     body: web::Json<CreateOversightRecordRequest>,
 ) -> HttpResponse {
-    if let Err(resp) = verify_service_token(&req) {
-        return resp;
-    }
+    let auth_tenant_id = match verify_auth(&req, &state.pool).await {
+        Ok(t) => t,
+        Err(resp) => return resp,
+    };
 
-    let tenant_id = match Uuid::parse_str(&body.tenant_id) {
-        Ok(id) => id,
-        Err(_) => return HttpResponse::BadRequest().json(serde_json::json!({"error": "invalid tenant_id"})),
+    let tenant_id = if let Some(id) = auth_tenant_id {
+        id
+    } else {
+        match Uuid::parse_str(&body.tenant_id) {
+            Ok(id) => id,
+            Err(_) => return HttpResponse::BadRequest().json(serde_json::json!({"error": "invalid tenant_id"})),
+        }
     };
     let agent_id_str = match resolve_agent_id_for_tenant(&state.pool, &body.agent_id, tenant_id).await {
         Ok(s) => s,
@@ -767,7 +905,7 @@ pub async fn list_pending_oversight(
     state: web::Data<crate::state::AppState>,
     query: web::Query<std::collections::HashMap<String, String>>,
 ) -> HttpResponse {
-    if let Err(resp) = verify_service_token(&req) {
+    if let Err(resp) = verify_auth(&req, &state.pool).await.map(|_| ()) {
         return resp;
     }
 
@@ -825,7 +963,7 @@ pub async fn update_oversight_outcome(
     path: web::Path<String>,
     body: web::Json<UpdateOversightOutcomeRequest>,
 ) -> HttpResponse {
-    if let Err(resp) = verify_service_token(&req) {
+    if let Err(resp) = verify_auth(&req, &state.pool).await.map(|_| ()) {
         return resp;
     }
 
@@ -1192,7 +1330,7 @@ pub async fn verify_tool_call_event(
     state: web::Data<crate::state::AppState>,
     path: web::Path<Uuid>,
 ) -> HttpResponse {
-    if let Err(resp) = verify_service_token(&req) {
+    if let Err(resp) = verify_auth(&req, &state.pool).await.map(|_| ()) {
         return resp;
     }
 
@@ -1257,7 +1395,8 @@ pub async fn verify_tool_call_event(
 // ── Configure ────────────────────────────────────────────────────────────────
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
-    cfg.service(get_agent_by_oauth_client_id)
+    cfg.service(get_agent_by_id)
+        .service(get_agent_by_oauth_client_id)
         .service(create_tool_call_event)
         .service(verify_tool_call_event)
         .service(create_trust_annotation)
