@@ -81,6 +81,7 @@ export default function Sidebar() {
             <Cpu className="w-3.5 h-3.5" />
             AI System Registry
           </Link>
+          {/* ACM Overview — commented out (demo mode, not needed for sales)
           <Link
             href="/acm"
             className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${
@@ -92,6 +93,7 @@ export default function Sidebar() {
             <Activity className="w-3.5 h-3.5" />
             ACM Overview
           </Link>
+          */}
           {isAdmin(currentUser) && (
             <Link
               href="/admin"

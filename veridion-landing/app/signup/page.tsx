@@ -18,7 +18,7 @@ export default function SignupPage() {
   const [companyName, setCompanyName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [inviteCode, setInviteCode] = useState('');
+  // const [inviteCode, setInviteCode] = useState(''); // commented out — no invite code for demo/sales
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -37,9 +37,10 @@ export default function SignupPage() {
     if (password.length < 8) {
       newErrors.password = 'Password must be at least 8 characters';
     }
-    if (!inviteCode.trim() || inviteCode.trim() !== 'EARLY_ACCESS_2026') {
-      newErrors.inviteCode = 'Invalid invite code';
-    }
+    // Invite code validation commented out — open registration for demo/sales
+    // if (!inviteCode.trim() || inviteCode.trim() !== 'EARLY_ACCESS_2026') {
+    //   newErrors.inviteCode = 'Invalid invite code';
+    // }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   }
@@ -280,6 +281,7 @@ export default function SignupPage() {
               {errors.password && <p className="text-red-400 text-xs mt-1">{errors.password}</p>}
             </div>
 
+            {/* Invite code field — commented out for demo/sales (open registration)
             <div>
               <label htmlFor="inviteCode" className="block text-xs font-medium text-slate-300 mb-1">
                 Invite Code
@@ -294,6 +296,7 @@ export default function SignupPage() {
               />
               {errors.inviteCode && <p className="text-red-400 text-xs mt-1">{errors.inviteCode}</p>}
             </div>
+            */}
 
             <button
               type="submit"

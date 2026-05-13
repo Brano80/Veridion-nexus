@@ -244,20 +244,20 @@ where
                 ));
             };
 
-            // Check trial expiry for free_trial plans
-            if t.plan == "free_trial" {
-                if let Some(expires_at) = t.trial_expires_at {
-                    if expires_at < chrono::Utc::now() {
-                        return Err(actix_web::error::ErrorPaymentRequired(
-                            serde_json::json!({
-                                "error": "trial_expired",
-                                "message": "Free trial has expired"
-                            })
-                            .to_string(),
-                        ));
-                    }
-                }
-            }
+            // Trial expiry check — commented out (demo mode, no enforcement)
+            // if t.plan == "free_trial" {
+            //     if let Some(expires_at) = t.trial_expires_at {
+            //         if expires_at < chrono::Utc::now() {
+            //             return Err(actix_web::error::ErrorPaymentRequired(
+            //                 serde_json::json!({
+            //                     "error": "trial_expired",
+            //                     "message": "Free trial has expired"
+            //                 })
+            //                 .to_string(),
+            //             ));
+            //         }
+            //     }
+            // }
 
             // Inject TenantContext into request extensions
             req.extensions_mut().insert(TenantContext {
